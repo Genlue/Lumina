@@ -1,0 +1,30 @@
+appId: com.photoalbum.app
+productName: Photo Album
+copyright: Copyright © 2025
+
+directories:
+  output: dist-pkg
+  buildResources: resources
+
+files:
+  - dist/**/*
+  - resources/**
+  - package.json
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+  icon: resources/icon.ico
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Photo Album
+
+portable:
+  artifactName: PhotoAlbum-Portable.exe

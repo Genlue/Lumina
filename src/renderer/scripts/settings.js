@@ -1,0 +1,298 @@
+// ============================================================
+// Photo Album — Settings (clean)
+// ============================================================
+
+const ST = {
+  /**
+   * Render settings page — set current values on all controls.
+   */
+  render() {
+    try {
+      const s = App._settings;
+      if (!s) return;
+      this._setVal('set-theme', null); // Button-based, handled separately
+      this._setVal('set-accent', s.accent_color ?? '#60CDFF');
+      this._setVal('set-bg-blur', s.bg_blur ?? 20);
+      this._setVal('set-bg-opacity', Math.round((s.bg_opacity ?? 0) * 100));
+      this._setVal('set-draw-count', s.draw_count ?? 3);
+      this._setVal('set-sidebar-w', s.sidebar_width ?? 270);
+      this._setVal('set-sidebar-opacity', Math.round((s.sidebar_opacity ?? 0.85) * 100));
+      this._setVal('set-sidebar-font', s.sidebar_font ?? 14);
+      this._setVal('set-card-opacity', Math.round((s.card_opacity ?? 1) * 100));
+      this._setVal('set-card-blur', s.card_blur ?? 0);
+
+      this._setText('bg-blur-val', (s.bg_blur ?? 20) + 'px');
+      this._setText('bg-opacity-val', Math.round((s.bg_opacity ?? 0) * 100) + '%');
+      this._setText('sidebar-w-val', (s.sidebar_width ?? 270) + 'px');
+      this._setText('sidebar-opacity-val', Math.round((s.sidebar_opacity ?? 0.85) * 100) + '%');
+      this._setText('sidebar-font-val', (s.sidebar_font ?? 14) + 'px');
+      this._setText('card-opacity-val', Math.round((s.card_opacity ?? 1) * 100) + '%');
+      this._setText('card-blur-val', (s.card_blur ?? 0) + 'px');
+      this._setText('draw-count-val', s.draw_count ?? 3);
+
+      this._highlightThemeBtns(s.theme_mode ?? 'dark');
+      this._loadBgList();
+    } catch (e) { console.error('ST.render error:', e); }
+  },
+
+  // === Theme ===
+
+  applyTheme(mode) {
+    const theme = THEMES[mode] ?? THEMES.dark;
+    const root = document.documentElement;
+    const set = (k, v) => root.style.setProperty(k, v);
+    set('--c-bg', theme.bg);
+    set('--c-surface', theme.surface);
+    set('--c-surface2', theme.surface2);
+    set('--c-card', theme.card);
+    set('--c-card-hover', theme.cardHover);
+    set('--c-border', theme.border);
+    set('--c-border-light', theme.borderL);
+    set('--c-text', theme.text);
+    set('--c-text2', theme.text2);
+    set('--c-text3', theme.text3);
+    document.body.style.background = theme.bg;
+    document.body.style.color = theme.text;
+
+    const h2r = (hex) => { const n = parseInt(hex.slice(1), 16); return `${(n>>16)&255},${(n>>8)&255},${n&255}`; };
+    const srgb = h2r(theme.surface).split(',');
+    set('--c-surface-r', srgb[0]); set('--c-surface-g', srgb[1]); set('--c-surface-b', srgb[2]);
+    const crgb = h2r(theme.card || '#2a2a2a').split(',');
+    set('--c-card-r', crgb[0]); set('--c-card-g', crgb[1]); set('--c-card-b', crgb[2]);
+
+    API.saveSettings(S.profileId, { theme_mode: mode });
+    App._settings.theme_mode = mode;
+    this._highlightThemeBtns(mode);
+  },
+
+  _highlightThemeBtns(mode) {
+    const d = document.getElementById('btn-theme-dark');
+    const l = document.getElementById('btn-theme-light');
+    if (d) d.style.borderColor = mode === 'dark' ? 'var(--c-accent)' : 'transparent';
+    if (l) l.style.borderColor = mode === 'light' ? 'var(--c-accent)' : 'transparent';
+  },
+
+  // === Accent ===
+
+  applyAccent(color) {
+    const root = document.documentElement;
+    root.style.setProperty('--c-accent', color);
+    const darken = (h, a) => { const n = parseInt(h.slice(1), 16); const r = Math.max(0, ((n>>16)&255) - a); const g = Math.max(0, ((n>>8)&255) - a); const b = Math.max(0, (n&255) - a); return `rgb(${r},${g},${b})`; };
+    root.style.setProperty('--c-accent2', darken(color, 30));
+    root.style.setProperty('--c-accent-bg', `rgba(${parseInt(color.slice(1,3),16)},${parseInt(color.slice(3,5),16)},${parseInt(color.slice(5,7),16)},0.12)`);
+    API.saveSettings(S.profileId, { accent_color: color });
+    App._settings.accent_color = color;
+  },
+
+  extractAccent() {
+    const bgFile = App._settings.bg_image;
+    if (!bgFile) { Toast.show('请先选择背景图片', 'info'); return; }
+    const bgLayer = document.getElementById('bg-layer');
+    if (!bgLayer || !bgLayer.style.backgroundImage) { Toast.show('请先应用背景图', 'info'); return; }
+    // Extract data URL from bgLayer
+    const bgUrl = bgLayer.style.backgroundImage;
+    const match = bgUrl.match(/url\(["']?([^)"']+)["']?\)/);
+    if (!match) { Toast.show('无法读取背景图数据', 'error'); return; }
+    extractAccentFromImage(match[1]).then(colors => {
+      if (colors && colors.dominant && colors.dominant !== '#000000') {
+        this.applyAccent(colors.dominant);
+        this._setVal('set-accent', colors.dominant);
+        Toast.show('强调色已提取', 'success');
+      } else {
+        Toast.show('未能提取有效颜色', 'info');
+      }
+    }).catch(() => Toast.show('提取失败', 'error'));
+  },
+
+  // === Background ===
+
+  async applyBgImage(filename) {
+    const bgLayer = document.getElementById('bg-layer');
+    if (!filename) {
+      if (bgLayer) { bgLayer.style.backgroundImage = ''; bgLayer.style.opacity = '0'; }
+      await API.saveSettings(S.profileId, { bg_image: null });
+      App._settings.bg_image = null;
+      return;
+    }
+    if (!bgLayer || !S.profileId) return;
+    try {
+      const thumb = await API.getThumbnail(S.profileId, filename, 'backgrounds');
+      if (thumb && thumb.dataUrl) {
+        bgLayer.style.backgroundImage = `url(${thumb.dataUrl})`;
+        bgLayer.style.backgroundSize = 'cover';
+        bgLayer.style.backgroundPosition = 'center';
+        // Use saved opacity, NEVER read from DOM (DOM may have stale profile's value)
+        const savedOp = (App._settings.bg_opacity != null && App._settings.bg_opacity > 0) ? App._settings.bg_opacity : 0.5;
+        bgLayer.style.opacity = String(savedOp);
+        await API.saveSettings(S.profileId, { bg_image: filename, bg_opacity: savedOp });
+        App._settings.bg_image = filename;
+        App._settings.bg_opacity = savedOp;
+      }
+    } catch (e) {
+      Toast.show('背景图加载失败', 'error');
+      if (bgLayer) bgLayer.style.backgroundImage = '';
+      App._settings.bg_image = null;
+    }
+  },
+
+  applyBlur(val) {
+    const bgLayer = document.getElementById('bg-layer');
+    if (bgLayer) bgLayer.style.filter = val > 0 ? `blur(${val}px)` : '';
+    this._setText('bg-blur-val', val + 'px');
+    API.saveSettings(S.profileId, { bg_blur: val });
+    App._settings.bg_blur = val;
+  },
+
+  applyOpacity(val) {
+    const bgLayer = document.getElementById('bg-layer');
+    if (bgLayer) bgLayer.style.opacity = String(val);
+    this._setText('bg-opacity-val', Math.round(val * 100) + '%');
+    API.saveSettings(S.profileId, { bg_opacity: val });
+    App._settings.bg_opacity = val;
+  },
+
+  // === Background Thumbnail Grid ===
+
+  _loadBgList() {
+    const grid = document.getElementById('bg-thumb-grid');
+    if (!grid) return;
+    const currentBg = App._settings.bg_image || '';
+    const bgImgs = S.albumImages['backgrounds'] ?? [];
+    grid.innerHTML = '';
+
+    // "None" option
+    const noneEl = this._makeBgThumb(null, currentBg === '', '无');
+    noneEl.onclick = () => this.applyBgImage(null);
+    grid.appendChild(noneEl);
+
+    for (const img of bgImgs) {
+      const isActive = img.name === currentBg;
+      const thumb = this._makeBgThumb(img.name, isActive, '');
+      thumb.onclick = () => this.applyBgImage(img.name);
+      // Delete button
+      const delBtn = document.createElement('button');
+      delBtn.textContent = '×';
+      Object.assign(delBtn.style, {
+        position: 'absolute', top: '2px', right: '2px', width: '18px', height: '18px',
+        borderRadius: '50%', background: 'rgba(0,0,0,0.6)', color: '#fff',
+        border: 'none', fontSize: '11px', cursor: 'pointer', lineHeight: '1',
+      });
+      delBtn.onclick = (e) => { e.stopPropagation(); this._deleteBg(img.name); };
+      thumb.appendChild(delBtn);
+      grid.appendChild(thumb);
+      // Load preview
+      API.getThumbnail(S.profileId, img.name, 'backgrounds').then(t => {
+        const imgEl = thumb.querySelector('img');
+        if (imgEl && t && t.dataUrl) imgEl.src = t.dataUrl;
+      }).catch(() => {});
+    }
+  },
+
+  _makeBgThumb(filename, active, label) {
+    const div = document.createElement('div');
+    Object.assign(div.style, {
+      width: '80px', height: '60px', borderRadius: '6px', cursor: 'pointer',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: '0.75em', overflow: 'hidden', position: 'relative',
+      border: `2px solid ${active ? 'var(--c-accent)' : 'var(--c-border)'}`,
+      background: 'var(--c-card)',
+    });
+    if (label) {
+      div.textContent = label;
+    } else {
+      const imgEl = document.createElement('img');
+      imgEl.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+      div.appendChild(imgEl);
+    }
+    return div;
+  },
+
+  _deleteBg(filename) {
+    Modal.show('删除背景图', `确定删除 ${filename}？`, [{ label: '取消' }, { label: '删除', danger: true }]).then(r => {
+      if (r.idx !== 1) return;
+      window.electronAPI?.bg?.delete(S.profileId, filename).then(() => {
+        API.scanAll(S.profileId).then(() => {
+          this._loadBgList();
+          if (App._settings.bg_image === filename) this.applyBgImage(null);
+          Toast.show('已删除', 'success');
+        });
+      }).catch(() => Toast.show('删除失败', 'error'));
+    });
+  },
+
+  _refreshBgList() {
+    API.scanAll(S.profileId).then(() => {
+      this._loadBgList();
+      Toast.show('已刷新', 'info');
+    });
+  },
+
+  // === Card ===
+
+  applyCardOpacity(val) {
+    document.documentElement.style.setProperty('--card-opacity', String(val));
+    this._setText('card-opacity-val', Math.round(val * 100) + '%');
+    API.saveSettings(S.profileId, { card_opacity: val });
+    App._settings.card_opacity = val;
+  },
+
+  applyCardBlur(val) {
+    document.documentElement.style.setProperty('--card-blur', val + 'px');
+    this._setText('card-blur-val', val + 'px');
+    API.saveSettings(S.profileId, { card_blur: val });
+    App._settings.card_blur = val;
+  },
+
+  applySidebarWidth(val) {
+    document.documentElement.style.setProperty('--sidebar-w', val + 'px');
+    const sb = document.getElementById('sidebar');
+    if (sb) { sb.style.width = val + 'px'; sb.style.minWidth = val + 'px'; }
+    this._setText('sidebar-w-val', val + 'px');
+    API.saveSettings(S.profileId, { sidebar_width: val });
+    App._settings.sidebar_width = val;
+  },
+
+  applySidebarFont(val) {
+    document.documentElement.style.setProperty('--sidebar-font', val + 'px');
+    this._setText('sidebar-font-val', val + 'px');
+    API.saveSettings(S.profileId, { sidebar_font: val });
+    App._settings.sidebar_font = val;
+  },
+
+  applySidebarBlur(val) {
+    document.documentElement.style.setProperty('--sidebar-blur', val + 'px');
+    this._setText('sidebar-blur-val', val + 'px');
+    API.saveSettings(S.profileId, { sidebar_blur: val });
+    App._settings.sidebar_blur = val;
+  },
+
+  applySidebarOpacity(val) {
+    document.documentElement.style.setProperty('--sidebar-opacity', String(val));
+    this._setText('sidebar-opacity-val', Math.round(val * 100) + '%');
+    API.saveSettings(S.profileId, { sidebar_opacity: val });
+    App._settings.sidebar_opacity = val;
+  },
+
+  applyDrawCount(val) {
+    this._setText('draw-count-val', val);
+    API.saveSettings(S.profileId, { draw_count: val });
+    App._settings.draw_count = val;
+  },
+
+  // === Helpers ===
+
+  _getVal(id, fallback) {
+    const el = document.getElementById(id);
+    return el ? el.value : fallback;
+  },
+
+  _setVal(id, val) {
+    const el = document.getElementById(id);
+    if (el && val !== null) el.value = val;
+  },
+
+  _setText(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+  },
+};
