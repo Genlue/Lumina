@@ -110,4 +110,4 @@ node test.js
 
 ## 📝 License
 
-MIT © GitHubemmm
+MIT © Genlue
