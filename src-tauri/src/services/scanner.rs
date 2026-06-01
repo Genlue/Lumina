@@ -18,7 +18,7 @@ pub fn is_image_file(filename: &str) -> bool {
     }
 }
 
-fn should_exclude(name: &str) -> bool {
+pub fn should_exclude(name: &str) -> bool {
     if name.starts_with('.') || name.ends_with(".html") || name.ends_with(".json") {
         return true;
     }
@@ -26,59 +26,89 @@ fn should_exclude(name: &str) -> bool {
         || name == "albums.json.tmp" || name == "photo-album.html"
 }
 
-pub fn scan_profile_folder(_profile_id: &str, folder_path: &str) -> ScanResult {
-    let mut root_images: Vec<FileInfo> = vec![];
-    let mut album_folders: Vec<String> = vec![];
-    let mut album_images: HashMap<String, Vec<FileInfo>> = HashMap::new();
+/// Recursively scan a directory.
+/// Returns (root_files, all_subfolder_rel_paths, album_images_by_rel_path).
+fn scan_dir_recursive(
+    dir_path: &Path,
+    relative_prefix: &str,
+) -> (Vec<FileInfo>, Vec<String>, HashMap<String, Vec<FileInfo>>) {
+    let mut root_files = Vec::new();
+    let mut subfolders = Vec::new();
+    let mut album_images = HashMap::new();
 
-    let path = Path::new(folder_path);
-    if !path.exists() || !path.is_dir() {
-        return ScanResult { root_images, album_folders, album_images };
-    }
-
-    let entries = match fs::read_dir(path) {
+    let entries = match fs::read_dir(dir_path) {
         Ok(e) => e,
         Err(e) => {
-            eprintln!("[Scanner] Cannot read directory {}: {}", folder_path, e);
-            return ScanResult { root_images, album_folders, album_images };
+            eprintln!("[Scanner] Cannot read {}: {}", dir_path.display(), e);
+            return (root_files, subfolders, album_images);
         }
     };
 
-    let mut entry_count = 0u32;
-    const MAX_ENTRIES: u32 = 2000;
-
     for entry in entries.flatten() {
-        if entry_count > MAX_ENTRIES { break; }
-        entry_count += 1;
-
-        let name = entry.file_name().to_string_lossy().to_string();
-        let full_path = entry.path();
+        let entry_name = entry.file_name().to_string_lossy().to_string();
+        let rel_path = if relative_prefix.is_empty() {
+            entry_name.clone()
+        } else {
+            format!("{}/{}", relative_prefix, entry_name)
+        };
 
         if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-            if should_exclude(&name) { continue; }
-            album_folders.push(name.clone());
-            if let Ok(imgs) = scan_file_list(&full_path) {
-                if !imgs.is_empty() {
-                    album_images.insert(name, imgs);
+            if should_exclude(&entry_name) {
+                continue;
+            }
+            // Record this directory as a subfolder
+            subfolders.push(rel_path.clone());
+
+            // 1) Scan direct image files in this directory
+            if let Ok(file_imgs) = scan_file_list(&entry.path()) {
+                if !file_imgs.is_empty() {
+                    album_images.insert(rel_path.clone(), file_imgs);
                 }
             }
+
+            // 2) Recurse into child directories
+            let (_child_root, child_subs, child_imgs) =
+                scan_dir_recursive(&entry.path(), &rel_path);
+            subfolders.extend(child_subs);
+            album_images.extend(child_imgs);
+
         } else if entry.file_type().map(|t| t.is_file()).unwrap_or(false) {
-            if !should_exclude(&name) && is_image_file(&name) {
-                if let Ok(meta) = fs::metadata(&full_path) {
-                    root_images.push(FileInfo {
-                        name,
-                        size: meta.len(),
-                        last_modified: meta.modified().ok()
-                            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                            .map(|d| d.as_millis() as f64)
-                            .unwrap_or(0.0),
-                    });
-                }
+            if should_exclude(&entry_name) || !is_image_file(&entry_name) {
+                continue;
+            }
+            if let Ok(meta) = fs::metadata(&entry.path()) {
+                root_files.push(FileInfo {
+                    name: entry_name,
+                    size: meta.len(),
+                    last_modified: meta.modified().ok()
+                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map(|d| d.as_millis() as f64)
+                        .unwrap_or(0.0),
+                });
             }
         }
     }
 
-    // Scan backgrounds folder (not shown as album)
+    (root_files, subfolders, album_images)
+}
+
+pub fn scan_profile_folder(_profile_id: &str, folder_path: &str) -> ScanResult {
+    let path = Path::new(folder_path);
+    if !path.exists() || !path.is_dir() {
+        return ScanResult {
+            root_images: vec![],
+            album_folders: vec![],
+            album_images: HashMap::new(),
+        };
+    }
+
+    let (root_images, mut album_folders, mut album_images) =
+        scan_dir_recursive(path, "");
+
+    // Remove backgrounds from album_folders so it doesn't show as an album
+    album_folders.retain(|f| f != "backgrounds");
+
+    // Scan backgrounds folder (retained in album_images for settings page)
     let bg_path = path.join("backgrounds");
     if bg_path.exists() {
         if let Ok(bg_imgs) = scan_file_list(&bg_path) {
@@ -114,28 +144,162 @@ fn scan_file_list(dir_path: &Path) -> Result<Vec<FileInfo>, std::io::Error> {
 }
 
 pub fn list_all_subfolders(folder_path: &str) -> Vec<String> {
-    let mut results: Vec<String> = vec![];
     let path = Path::new(folder_path);
-    if !path.exists() { return results; }
+    if !path.exists() {
+        return vec![];
+    }
+    let (_root, folders, _images) = scan_dir_recursive(path, "");
+    folders
+}
 
-    if let Ok(entries) = fs::read_dir(path) {
-        for entry in entries.flatten() {
-            if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) { continue; }
-            let name = entry.file_name().to_string_lossy().to_string();
-            if should_exclude(&name) { continue; }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
 
-            results.push(name.clone());
+    #[test]
+    fn test_recursive_scan_detects_nested_images() {
+        // Create a temporary test directory structure
+        let dir = std::env::temp_dir().join("photo_album_test_scan");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("folder1").join("sub1")).unwrap();
+        fs::create_dir_all(dir.join("folder2")).unwrap();
+        fs::create_dir_all(dir.join("backgrounds")).unwrap();
 
-            // Recursive one level deep
-            if let Ok(sub_entries) = fs::read_dir(entry.path()) {
-                for sub in sub_entries.flatten() {
-                    if !sub.file_type().map(|t| t.is_dir()).unwrap_or(false) { continue; }
-                    let sub_name = sub.file_name().to_string_lossy().to_string();
-                    if should_exclude(&sub_name) { continue; }
-                    results.push(format!("{}/{}", name, sub_name));
-                }
+        // Create test image files
+        fs::write(dir.join("root_img.jpg"), "fake").unwrap();
+        fs::write(dir.join("folder1").join("img1.jpg"), "fake").unwrap();
+        fs::write(dir.join("folder1").join("sub1").join("deep.jpg"), "fake").unwrap();
+        fs::write(dir.join("folder2").join("img2.png"), "fake").unwrap();
+        fs::write(dir.join("folder1").join("readme.txt"), "not image").unwrap();
+
+        let result = scan_profile_folder("test", &dir.to_string_lossy());
+
+        // Debug print
+        println!("root_images: {:?}", result.root_images.iter().map(|f| &f.name).collect::<Vec<_>>());
+        println!("album_folders: {:?}", result.album_folders);
+        println!("album_images keys: {:?}", result.album_images.keys().collect::<Vec<_>>());
+
+        // root should have root_img.jpg
+        assert_eq!(result.root_images.len(), 1);
+        assert_eq!(result.root_images[0].name, "root_img.jpg");
+
+        // album_folders should contain nested paths
+        assert!(result.album_folders.contains(&"folder1".to_string()), "Should contain folder1");
+        assert!(result.album_folders.contains(&"folder1/sub1".to_string()), "Should contain folder1/sub1");
+        assert!(result.album_folders.contains(&"folder2".to_string()), "Should contain folder2");
+
+        // album_images should contain subfolder images
+        assert!(result.album_images.contains_key("folder1"), "folder1 should have images");
+        assert!(result.album_images.contains_key("folder1/sub1"), "folder1/sub1 should have images");
+        assert!(result.album_images.contains_key("folder2"), "folder2 should have images");
+
+        // Verify specific images
+        let folder1_imgs = result.album_images.get("folder1").unwrap();
+        assert_eq!(folder1_imgs.len(), 1);
+        assert_eq!(folder1_imgs[0].name, "img1.jpg");
+
+        let sub1_imgs = result.album_images.get("folder1/sub1").unwrap();
+        assert_eq!(sub1_imgs.len(), 1);
+        assert_eq!(sub1_imgs[0].name, "deep.jpg");
+
+        // backgrounds should NOT be in album_folders but should be in album_images
+        assert!(!result.album_folders.contains(&"backgrounds".to_string()), "backgrounds should NOT be in album_folders");
+
+        // Cleanup
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_scan_desktop_folder1() {
+        let dir = r"C:\Users\Administrator\Desktop\1";
+        println!("\n========== SCANNING DESKTOP FOLDER ==========");
+        println!("Path: {}", dir);
+
+        let result = scan_profile_folder("test", dir);
+
+        println!("\n--- root_images ---");
+        for img in &result.root_images {
+            println!("  {}", img.name);
+        }
+
+        println!("\n--- album_folders ({} total) ---", result.album_folders.len());
+        for f in &result.album_folders {
+            let imgs = result.album_images.get(f).map(|v| v.len()).unwrap_or(0);
+            println!("  [{}] {} ({} images)", if f.contains('/') { "sub" } else { "top" }, f, imgs);
+        }
+
+        println!("\n--- album_images detail ---");
+        let mut keys: Vec<&String> = result.album_images.keys().collect();
+        keys.sort();
+        for k in &keys {
+            let imgs = &result.album_images[*k];
+            print!("  {}: [", k);
+            for (i, img) in imgs.iter().enumerate() {
+                if i > 0 { print!(", "); }
+                print!("{}", img.name);
+            }
+            println!("]");
+        }
+
+        println!("\n========== STRUCTURE VALIDATION ==========");
+
+        // Validate: every album_folder should either have images OR have sub-albums
+        for f in &result.album_folders {
+            let has_own_images = result.album_images.contains_key(f);
+            let has_children = result.album_folders.iter()
+                .any(|cf| cf.starts_with(&format!("{}/", f)));
+            if !has_own_images && !has_children {
+                println!("  ⚠️  Empty folder (no images, no children): {}", f);
+            } else {
+                let img_count = result.album_images.get(f).map(|v| v.len()).unwrap_or(0);
+                println!("  ✅ {}: {} images, hasChildren={}", f, img_count, has_children);
             }
         }
+
+        // Validate: nested path format consistency
+        for f in &result.album_folders {
+            assert!(!f.starts_with('/'), "folder should not start with /: {}", f);
+            assert!(!f.ends_with('/'), "folder should not end with /: {}", f);
+            assert!(!f.contains('\\'), "folder should use / not \\: {}", f);
+        }
+
+        // Verify we found the deep folders
+        assert!(result.album_folders.contains(&"2/艾莉".to_string()), "Should find 2/艾莉");
+        assert!(result.album_folders.contains(&"3/大昔涟".to_string()), "Should find 3/大昔涟");
+        assert!(result.album_folders.contains(&"浮波柚叶".to_string()), "Should find 浮波柚叶");
+
+        // Verify we found deep images
+        let alil = result.album_images.get("2/艾莉");
+        assert!(alil.is_some(), "2/艾莉 should have images");
+        assert_eq!(alil.unwrap().len(), 1, "2/艾莉 should have 1 image");
+
+        let daxilian = result.album_images.get("3/大昔涟");
+        assert!(daxilian.is_some(), "3/大昔涟 should have images");
+        assert_eq!(daxilian.unwrap().len(), 4, "3/大昔涟 should have 4 images");
+
+        println!("\n✅ ALL VALIDATIONS PASSED");
     }
-    results
+
+    #[test]
+    fn test_get_child_albums_logic() {
+        let folders = vec![
+            "vacation".to_string(),
+            "vacation/beach".to_string(),
+            "vacation/beach/rocks".to_string(),
+            "work".to_string(),
+        ];
+
+        // Simulate the frontend getChildAlbums logic
+        let root: Vec<&String> = folders.iter().filter(|f| !f.contains('/')).collect();
+        assert_eq!(root.len(), 2);
+        assert!(root.contains(&&"vacation".to_string()));
+
+        let prefix = "vacation/";
+        let vacation_children: Vec<&String> = folders.iter()
+            .filter(|f| f.starts_with(prefix) && f[prefix.len()..].find('/').is_none())
+            .collect();
+        assert_eq!(vacation_children.len(), 1);
+        assert_eq!(vacation_children[0], "vacation/beach");
+    }
 }

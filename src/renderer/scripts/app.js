@@ -9,6 +9,19 @@ const App = {
   // ====== LIFECYCLE ======
 
   async init() {
+    // Restore saved theme before startup renders
+    try {
+      let savedTheme = localStorage.getItem('pa_theme_mode');
+      if (!savedTheme) savedTheme = window.matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark';
+      const savedAccent = localStorage.getItem('pa_accent_color') || '#60CDFF';
+      ST.applyTheme(savedTheme);
+      ST.applyAccent(savedAccent);
+      // Persist detected theme so _doLoad and others can use it
+      localStorage.setItem('pa_theme_mode', savedTheme);
+      localStorage.setItem('pa_accent_color', savedAccent);
+      _syncJsCheck();
+    } catch (e) { /* localStorage may not be available */ }
+
     const statusEl = document.getElementById('startup-status');
     const setStatus = (msg) => { if (statusEl) statusEl.textContent = msg; };
     const setProgress = (pct) => {
@@ -171,8 +184,23 @@ const App = {
 
     await API.touchProfile(profileId);
     App._settings = await API.getSettings(profileId);
+    // Respect last active theme from localStorage over profile DB defaults
+    try {
+      var _st = localStorage.getItem('pa_theme_mode');
+      if (_st) App._settings.theme_mode = _st;
+      var _sa = localStorage.getItem('pa_accent_color');
+      if (_sa) App._settings.accent_color = _sa;
+    } catch (e) { /* ignore */ }
     await API.listFav(profileId);
     await API.scanAll(profileId);
+    console.log('[App] After scanAll - albumFolders:', S.albumFolders);
+    console.log('[App] After scanAll - albumImages keys:', Object.keys(S.albumImages));
+
+    // Show scan summary toast
+    const rootCount = S.rootImages.length;
+    const albumCount = S.albumFolders.length;
+    const imgCount = S.buildAllImgs().length;
+    Toast.show(`扫描完成: ${albumCount} 个相册, ${imgCount} 张图片 (根${rootCount})`, 'info', 5000);
 
     // Background
     if (App._settings.bg_image) {
@@ -184,6 +212,11 @@ const App = {
     // Theme
     ST.applyTheme(App._settings.theme_mode ?? 'dark');
     ST.applyAccent(App._settings.accent_color ?? '#60CDFF');
+    // Persist theme for next startup
+    try {
+      localStorage.setItem('pa_theme_mode', App._settings.theme_mode ?? 'dark');
+      localStorage.setItem('pa_accent_color', App._settings.accent_color ?? '#60CDFF');
+    } catch (e) { /* ignore */ }
     document.documentElement.style.setProperty('--sidebar-opacity', String(App._settings.sidebar_opacity ?? 0.85));
     document.documentElement.style.setProperty('--sidebar-font', (App._settings.sidebar_font ?? 14) + 'px');
     document.documentElement.style.setProperty('--card-opacity', String(App._settings.card_opacity ?? 1));
@@ -230,23 +263,7 @@ const App = {
 
   _pageRoutes: {
     home: function () { /* nothing */ },
-    album: function () {
-      const at = document.getElementById('album-toolbar');
-      const ag = document.getElementById('album-grid-wrap');
-      const ic = document.getElementById('image-container');
-      if (S.currentView === 'albums') {
-        if (at) at.style.display = '';
-        if (ag) ag.style.display = '';
-        if (ic) ic.style.display = 'none';
-        R.renderAlbumGrid();
-      } else {
-        if (at) at.style.display = 'none';
-        if (ag) ag.style.display = 'none';
-        if (ic) ic.style.display = '';
-        R.renderGrid();
-        R.updateBreadcrumb();
-      }
-    },
+    album: function () { App._renderAlbumPageContent(); },
     discover: function () { App.switchDiscoverTab(S.discoverTab); },
     settings: function () { ST.render(); },
   },
@@ -267,59 +284,89 @@ const App = {
     if (route) route.call(this);
   },
 
+  /**
+   * Unified handler for rendering album page content based on S.currentView.
+   * - 'albums' → album grid only (root-level album list)
+   * - nested path WITH child albums → sub-album cards + direct image grid
+   * - nested path WITHOUT child albums → image grid only
+   * - 'all' / 'trash' / 'favorites' → image grid
+   */
+  _renderAlbumPageContent() {
+    const at = document.getElementById('album-toolbar');
+    const ag = document.getElementById('album-grid-wrap');
+    const ic = document.getElementById('image-container');
+
+    const isRootAlbums = S.currentView === 'albums';
+    // A nested folder might have sub-albums → show both grid and images
+    const hasSubAlbums = !isRootAlbums && S.currentView !== 'all'
+      && S.currentView !== 'trash' && S.currentView !== 'favorites'
+      && S.hasChildAlbums(S.currentView);
+
+    if (isRootAlbums) {
+      // Root album grid view
+      if (at) at.style.display = '';
+      if (ag) { ag.style.display = ''; ag.style.paddingBottom = '0'; }
+      if (ic) ic.style.display = 'none';
+      R.renderAlbumGrid();
+      R.updateBreadcrumb();
+      this._hideAlbumList();
+    } else {
+      if (at) at.style.display = 'none';
+      // Show album grid with sub-album cards IF the folder has children
+      if (ag) {
+        ag.style.display = hasSubAlbums ? '' : 'none';
+        if (hasSubAlbums) {
+          R.renderAlbumGrid();
+        }
+      }
+      if (ic) ic.style.display = '';
+      R.updateBreadcrumb();
+      R.renderGrid();
+      this._showAlbumList();
+    }
+    R.renderAlbumList();
+  },
+
   _switchToAlbumPage() {
     S.currentPage = 'album';
     document.querySelectorAll('.page-panel').forEach(p => p.classList.add('hidden'));
     document.getElementById('page-album').classList.remove('hidden');
-    const at = document.getElementById('album-toolbar'), ag = document.getElementById('album-grid-wrap'), ic = document.getElementById('image-container');
-    if (S.currentView === 'albums') {
-      if (at) at.style.display = ''; if (ag) ag.style.display = ''; if (ic) ic.style.display = 'none';
-      R.renderAlbumGrid();
-      R.updateBreadcrumb();
-    } else {
-      if (at) at.style.display = 'none'; if (ag) ag.style.display = 'none'; if (ic) ic.style.display = '';
-      R.updateBreadcrumb(); R.renderGrid();
-    }
-    if (S.currentView === 'albums') { this._hideAlbumList(); }
-    else { this._showAlbumList(); }
-    R.renderAlbumList();
+    this._renderAlbumPageContent();
   },
 
   navToAlbum(folder) {
-    console.log('navToAlbum called:', folder);
     S.currentView = folder;
     S.currentPage = 'album';
     document.querySelectorAll('.page-panel').forEach(p => p.classList.add('hidden'));
     document.getElementById('page-album')?.classList.remove('hidden');
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    document.getElementById('album-toolbar').style.display = 'none';
-    document.getElementById('album-grid-wrap').style.display = 'none';
-    document.getElementById('image-container').style.display = '';
-    this._hideAlbumList();
-    R.updateBreadcrumb(); R.renderGrid(); R.renderAlbumList();
-    console.log('navToAlbum done, images:', S.filteredImages.length);
+    this._renderAlbumPageContent();
+  },
+
+  /** Navigate up one level in the folder hierarchy */
+  navToParent() {
+    const segs = S.getBreadcrumbSegments();
+    if (segs.length <= 1) {
+      S.currentView = 'albums';
+      this.navPage('album');
+      return;
+    }
+    const parentPath = segs.slice(0, -1).join('/');
+    this.navToAlbum(parentPath);
   },
 
   navToTrash() {
     S.currentView = 'trash'; S.currentPage = 'album';
     document.querySelectorAll('.page-panel').forEach(p => p.classList.add('hidden'));
     document.getElementById('page-album')?.classList.remove('hidden');
-    document.getElementById('album-toolbar').style.display = 'none';
-    document.getElementById('album-grid-wrap').style.display = 'none';
-    document.getElementById('image-container').style.display = '';
-    this._showAlbumList();
-    R.updateBreadcrumb(); R.renderGrid(); R.renderAlbumList();
+    this._renderAlbumPageContent();
   },
 
   navToFavorites() {
     S.currentView = 'favorites'; S.currentPage = 'album';
     document.querySelectorAll('.page-panel').forEach(p => p.classList.add('hidden'));
     document.getElementById('page-album')?.classList.remove('hidden');
-    document.getElementById('album-toolbar').style.display = 'none';
-    document.getElementById('album-grid-wrap').style.display = 'none';
-    document.getElementById('image-container').style.display = '';
-    this._showAlbumList();
-    R.updateBreadcrumb(); R.renderGrid(); R.renderAlbumList();
+    this._renderAlbumPageContent();
   },
 
   switchDiscoverTab(tab) {
@@ -422,13 +469,22 @@ const App = {
     CM.show(e.clientX, e.clientY);
     const menu = document.getElementById('ctx-m');
     const isFav = S.favoritesSet.has(img._key);
+    const isRootImg = !img._folder;
     menu.innerHTML = `
+      <div data-action="locate">${isRootImg ? '📁 位于根目录' : '📁 打开相册位置'}</div>
+      <div class="ctx-sep"></div>
       <div data-action="fav">${isFav ? '★ 取消收藏' : '☆ 收藏'}</div>
       <div data-action="rename">重命名</div>
       <div data-action="cover">设为封面</div>
       <div data-action="delete" class="danger">删除</div>
     `;
 
+    menu.querySelector('[data-action="locate"]').onclick = () => {
+      CM.hide();
+      if (img._folder) {
+        App.navToAlbum(img._folder);
+      }
+    };
     menu.querySelector('[data-action="fav"]').onclick = async () => {
       CM.hide();
       const added = await API.toggleFav(S.profileId, img.name, img._folder || undefined);
@@ -532,6 +588,32 @@ window._importBg = async () => {
   }
 };
 
+/** Sync js-check badge colors to match current theme */
+function _syncJsCheck() {
+  var el = document.getElementById('js-check');
+  if (!el) return;
+  var isLight = false;
+  try {
+    // Read computed background of startup container (not CSS var, which may vary)
+    var startupEl = document.getElementById('startup');
+    if (startupEl) {
+      var rgb = getComputedStyle(startupEl).backgroundColor;
+      // Light bg is rgb(243, 243, 243), dark bg is rgb(28, 28, 28)
+      // Check if the red channel > 128 (light) or < 128 (dark)
+      var nums = rgb.replace(/[^\d,]/g, '').split(',').map(Number);
+      if (nums.length >= 3 && nums[0] > 128) isLight = true;
+    } else {
+      // Fallback: check document body
+      var rgb = getComputedStyle(document.body).backgroundColor;
+      var nums = rgb.replace(/[^\d,]/g, '').split(',').map(Number);
+      if (nums.length >= 3 && nums[0] > 128) isLight = true;
+    }
+  } catch(e){}
+  el.style.background = isLight ? '#d4edda' : '#1a472a';
+  el.style.color = isLight ? '#155724' : '#b0e0b0';
+  el.style.borderColor = isLight ? '#c3e6cb' : '#2d6a4f';
+}
+
 window._switchFolder = async () => {
   const r = await Modal.show('更换文件夹', '选择已有或添加新文件夹？', [
     { label: '选择已有' }, { label: '添加新文件夹', primary: true }, { label: '取消' },
@@ -544,6 +626,7 @@ window._switchFolder = async () => {
     spl.classList.remove('hidden');
     sp.classList.remove('hidden');
     document.getElementById('app').classList.add('hidden');
+    _syncJsCheck();
     if (D.stopRandom) D.stopRandom();
   } else if (r.idx === 1) {
     App._selectAndLoad();
@@ -566,6 +649,25 @@ document.getElementById('lightbox-delete')?.addEventListener('click', () => App.
 
 // ====== HOME CARD NAVIGATION ======
 
+// Rescan card
+document.querySelectorAll('.home-card[data-action="rescan"]').forEach(card => {
+  card.addEventListener('click', async () => {
+    card.style.opacity = '0.5';
+    card.style.pointerEvents = 'none';
+    try {
+      await API.scanAll(S.profileId);
+      R.renderAlbumList();
+      R.updateCount();
+      if (S.currentPage === 'album') R.renderGrid();
+      Toast.show('已刷新', 'success');
+    } catch (e) {
+      Toast.show('刷新失败: ' + e.message, 'error');
+    }
+    card.style.opacity = '';
+    card.style.pointerEvents = '';
+  });
+});
+
 document.querySelectorAll('.home-card[data-nav]').forEach(card => {
   card.addEventListener('click', () => {
     const nav = card.dataset.nav;
@@ -579,10 +681,9 @@ document.querySelectorAll('.discover-tab').forEach(tab => {
 });
 
 document.addEventListener('keydown', e => {
-  // ESC: go back from album subview (if lightbox not open)
+  // ESC: go back one level in folder hierarchy (if lightbox not open)
   if (e.key === 'Escape' && S.lbIdx < 0 && S.currentPage === 'album' && S.currentView !== 'all' && S.currentView !== 'albums' && S.currentView !== 'trash' && S.currentView !== 'favorites') {
-    S.currentView = 'albums';
-    App.navPage('album');
+    App.navToParent();
     return;
   }
   if (e.ctrlKey && e.key === 'f' && S.currentPage === 'album') {

@@ -89,6 +89,16 @@ img {
   box-shadow: 0 4px 12px rgba(96, 205, 255, 0.3);
 }
 
+.js-check {
+  margin-top: 20px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: var(--font-size-sm, 13px);
+  border: 1px solid #555;
+  background: #333;
+  color: #999;
+}
+
 #startup-status {
   margin-top: 16px;
   color: var(--c-text3);
@@ -334,6 +344,22 @@ img {
 #image-count {
   color: var(--c-text3);
   font-size: var(--font-size-sm);
+}
+
+/* Context menu separator */
+.ctx-sep {
+  height: 1px;
+  background: var(--c-border);
+  margin: 4px 8px !important;
+  padding: 0 !important;
+  cursor: default !important;
+  pointer-events: none;
+}
+
+/* Breadcrumb link hover */
+.bc-link:hover {
+  text-decoration: underline;
+  opacity: 0.8;
 }
 
 /* ============================

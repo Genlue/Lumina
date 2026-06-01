@@ -37,6 +37,10 @@ const API = {
   // === Scanner ===
   async scanAll(profileId) {
     const result = await this._invoke('scanner_scan_all', { profileId });
+    console.log('[scanAll] result:', JSON.stringify(result, null, 2));
+    console.log('[scanAll] albumFolders count:', result.albumFolders?.length);
+    console.log('[scanAll] albumFolders:', JSON.stringify(result.albumFolders));
+    console.log('[scanAll] albumImages keys:', Object.keys(result.albumImages || {}));
     if (profileId === S.profileId) {
       S.rootImages = result.rootImages;
       S.albumFolders = result.albumFolders;
@@ -74,8 +78,11 @@ const API = {
   },
 
   // === Folders ===
-  async createFolder(profileId, name) {
-    return this._invoke('folders_create', { profileId, name });
+  async listSubfolders(profileId, parentPath = '') {
+    return this._invoke('scanner_list_subfolders', { profileId, parentPath });
+  },
+  async createFolder(profileId, name, parent = '') {
+    return this._invoke('folders_create', { profileId, name, parent: parent || null });
   },
   async deleteFolder(profileId, path, moveUp) {
     return this._invoke('folders_delete', { profileId, folderPath: path, moveUp });

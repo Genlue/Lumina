@@ -160,6 +160,36 @@ pub fn scanner_list_folders(app: AppHandle, profile_id: String) -> Result<Vec<St
     Ok(services::scanner::list_all_subfolders(&folder))
 }
 
+#[tauri::command]
+pub fn scanner_list_subfolders(
+    app: AppHandle,
+    profile_id: String,
+    parent_path: String,
+) -> Result<Vec<String>, String> {
+    let root = get_profile_folder(&app, &profile_id)?;
+    let full_path = std::path::Path::new(&root).join(&parent_path);
+    if !full_path.exists() || !full_path.is_dir() {
+        return Ok(vec![]);
+    }
+
+    let mut subfolders = Vec::new();
+    for entry in std::fs::read_dir(&full_path).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let name = entry.file_name().to_string_lossy().to_string();
+        if entry.file_type().map(|t| t.is_dir()).unwrap_or(false)
+            && !services::scanner::should_exclude(&name)
+        {
+            subfolders.push(if parent_path.is_empty() {
+                name
+            } else {
+                format!("{}/{}", parent_path, name)
+            });
+        }
+    }
+    subfolders.sort();
+    Ok(subfolders)
+}
+
 // ============================================================
 // Files
 // ============================================================
@@ -288,10 +318,13 @@ pub fn files_move_to_root(app: AppHandle, profile_id: String, filename: String, 
 // ============================================================
 
 #[tauri::command]
-pub fn folders_create(app: AppHandle, profile_id: String, name: String) -> Result<String, String> {
+pub fn folders_create(app: AppHandle, profile_id: String, name: String, parent: Option<String>) -> Result<String, String> {
     let root = get_profile_folder(&app, &profile_id)?;
-    let dir = Path::new(&root).join(&name);
-    if dir.exists() { return Err(format!("Folder already exists: {}", name)); }
+    let dir = match &parent {
+        Some(p) if !p.is_empty() => Path::new(&root).join(p).join(&name),
+        _ => Path::new(&root).join(&name),
+    };
+    if dir.exists() { return Err(format!("Folder already exists: {}", dir.display())); }
     fs::create_dir(&dir).map_err(|e| format!("Create error: {}", e))?;
     Ok(name)
 }
@@ -316,7 +349,13 @@ pub fn folders_delete(app: AppHandle, profile_id: String, folder_path: String, m
 
     let db = app.state::<DbState>();
     let conn = db.conn.lock().map_err(|e| format!("DB lock: {}", e))?;
+    // Delete this album and all sub-albums (cascade)
     repos::albums::delete_album(&conn, &profile_id, &folder_path);
+    let prefix = format!("{}/", folder_path);
+    conn.execute(
+        "DELETE FROM albums WHERE profile_id=?1 AND folder_name LIKE ?2",
+        rusqlite::params![profile_id, format!("{}%", prefix)],
+    ).ok();
     Ok(())
 }
 
@@ -324,17 +363,39 @@ pub fn folders_delete(app: AppHandle, profile_id: String, folder_path: String, m
 pub fn folders_rename(app: AppHandle, profile_id: String, folder_path: String, new_name: String) -> Result<String, String> {
     let root = get_profile_folder(&app, &profile_id)?;
     let old_full = Path::new(&root).join(&folder_path);
-    let new_full = Path::new(&root).join(&new_name);
-
     if !old_full.exists() { return Err(format!("Folder not found: {}", folder_path)); }
-    if new_full.exists() { return Err(format!("Target already exists: {}", new_name)); }
+
+    // Extract parent path for constructing new relative path
+    let parent = Path::new(&folder_path).parent()
+        .and_then(|p| p.to_str())
+        .filter(|p| !p.is_empty())
+        .unwrap_or("");
+    let new_rel_path = if parent.is_empty() {
+        new_name.clone()
+    } else {
+        format!("{}/{}", parent, new_name)
+    };
+    let new_full = Path::new(&root).join(&new_rel_path);
+
+    if new_full.exists() { return Err(format!("Target already exists: {}", new_rel_path)); }
 
     fs::rename(&old_full, &new_full).map_err(|e| format!("Rename error: {}", e))?;
 
     let db = app.state::<DbState>();
     let conn = db.conn.lock().map_err(|e| format!("DB lock: {}", e))?;
-    repos::albums::rename_album(&conn, &profile_id, &folder_path, &new_name);
-    Ok(new_name)
+
+    // Rename the album itself
+    repos::albums::rename_album(&conn, &profile_id, &folder_path, &new_rel_path);
+
+    // Rename all sub-albums (update paths via SQL)
+    let prefix = format!("{}/", folder_path);
+    let new_prefix = format!("{}/", new_rel_path);
+    conn.execute(
+        "UPDATE albums SET folder_name = REPLACE(folder_name, ?1, ?2) WHERE profile_id=?3 AND folder_name LIKE ?4",
+        rusqlite::params![prefix, new_prefix, profile_id, format!("{}%", prefix)],
+    ).ok();
+
+    Ok(new_rel_path)
 }
 
 // ============================================================

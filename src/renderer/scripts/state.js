@@ -105,6 +105,64 @@ const State = (() => {
     return all;
   };
 
+  // ========== Nested folder helpers ==========
+
+  /**
+   * Get direct child folders under a given parent path.
+   * @param {string|null} parentPath - null/'' = root level
+   * @returns {string[]}
+   */
+  api.getChildAlbums = function (parentPath) {
+    if (!parentPath) {
+      return _albumFolders.filter(f => !f.includes('/'));
+    }
+    const prefix = parentPath + '/';
+    return _albumFolders.filter(f =>
+      f.startsWith(prefix) &&
+      f.indexOf('/', prefix.length) === -1
+    );
+  };
+
+  /**
+   * Split a relative path into breadcrumb segments.
+   * e.g. "vacation/beach" → ["vacation", "beach"]
+   * @returns {string[]}
+   */
+  api.getBreadcrumbSegments = function () {
+    if (!_currentView || _currentView === 'all' || _currentView === 'albums') return [];
+    return _currentView.split('/');
+  };
+
+  /**
+   * Get display name from a relative path (last segment).
+   */
+  api.getDisplayName = function (relPath) {
+    const parts = relPath.split('/');
+    return parts[parts.length - 1];
+  };
+
+  /**
+   * Build breadcrumb items with full paths.
+   * e.g. ["vacation", "beach"] →
+   *   [{name:"全部图片", path:"all"}, {name:"vacation", path:"vacation"}, {name:"beach", path:"vacation/beach"}]
+   * @returns {Array<{name:string, path:string}>}
+   */
+  api.getBreadcrumbItems = function () {
+    const segs = api.getBreadcrumbSegments();
+    const items = [{ name: '全部图片', path: 'all' }];
+    let cur = '';
+    for (const seg of segs) {
+      cur = cur ? cur + '/' + seg : seg;
+      items.push({ name: seg, path: cur });
+    }
+    return items;
+  };
+
+  /** Check if a folder has child sub-folders */
+  api.hasChildAlbums = function (folderPath) {
+    return api.getChildAlbums(folderPath).length > 0;
+  };
+
   return api;
 })();
 

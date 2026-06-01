@@ -29,9 +29,29 @@
       <p>本地相册管理</p>
       <button id="btn-select-folder" class="btn-primary">选择图片文件夹</button>
       <div id="startup-status">等待初始化...</div>
-      <div id="js-check" style="margin-top:20px;padding:10px;background:#300;border-radius:8px;">JS未加载</div>
+      <div id="js-check" class="js-check">JS未加载</div>
       <div id="loading-bar" style="margin-top:12px;width:200px;height:4px;background:var(--c-border);border-radius:2px;overflow:hidden;"><div id="loading-fill" style="height:100%;width:0;background:var(--c-accent);transition:width 0.3s;"></div></div>
-      <script>document.getElementById('js-check').textContent='JS已加载';document.getElementById('js-check').style.background='#030';</script>
+      <script>
+        (function(){
+          var el = document.getElementById('js-check');
+          el.textContent = 'JS已加载';
+          el.classList.add('loaded');
+          // Apply theme from localStorage immediately (CSS vars not ready yet)
+          try {
+            var mode = 'dark';
+            try { mode = localStorage.getItem('pa_theme_mode') || (window.matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark'); } catch(e){}
+            if (mode === 'light') {
+              el.style.background = '#d4edda';
+              el.style.color = '#155724';
+              el.style.borderColor = '#c3e6cb';
+            } else {
+              el.style.background = '#1a472a';
+              el.style.color = '#b0e0b0';
+              el.style.borderColor = '#2d6a4f';
+            }
+          } catch(e){}
+        })();
+      </script>
     </div>
     <div id="startup-profiles" class="hidden">
       <h2>选择文件夹</h2>
@@ -64,6 +84,7 @@
       <section id="page-home" class="page-panel">
         <div class="home-hero"><h1>我的相册</h1><p>浏览、整理、发现你的照片</p></div>
         <div class="home-grid">
+          <div class="home-card" data-action="rescan"><h3>🔄 刷新图片</h3><p>重新扫描文件夹，同步新增/删除的图片</p></div>
           <div class="home-card" data-nav="album"><h3>相册浏览</h3><p>按文件夹整理，拖拽管理</p></div>
           <div class="home-card" data-nav="discover-waterfall"><h3>瀑布流</h3><p>自适应列布局</p></div>
           <div class="home-card" data-nav="discover-draw"><h3>随机抽卡</h3><p>翻转卡片惊喜展示</p></div>

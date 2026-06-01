@@ -5,22 +5,57 @@
 const R = {
   _imgObserver: null,
 
-  /** Render sidebar album list content only (visibility managed by App._showAlbumList/_hideAlbumList). */
+  /** Render sidebar album list content only (visibility managed by App._showAlbumList/_hideAlbumList).
+   *  Shows only direct children of the current view level, with a back button when nested. */
   renderAlbumList() {
     const list = document.getElementById('album-list');
     if (!list) return;
 
-    if (S.albumFolders.length === 0) {
+    const isNested = S.currentView && S.currentView !== 'all' && S.currentView !== 'albums'
+      && S.currentView !== 'trash' && S.currentView !== 'favorites';
+    const parentPath = isNested ? S.currentView : '';
+    const folders = S.getChildAlbums(parentPath);
+
+    if (folders.length === 0 && !isNested) {
       list.innerHTML = '<div style="padding:12px;color:var(--c-text3);font-size:0.82em;">暂无相册</div>';
       return;
     }
 
-    list.innerHTML = S.albumFolders.map(f => {
-      const count = (S.albumImages[f] ?? []).length;
-      return `<div class="nav-item album-item" data-album="${U.esc(f)}"><span>📁</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${U.esc(f)}</span><span class="count">${count}</span></div>`;
-    }).join('');
+    let html = '';
 
-    list.querySelectorAll('.album-item').forEach(item => {
+    // Back button when in a nested folder
+    if (isNested) {
+      html += `<div class="nav-item album-item album-back" data-action="back">
+        <span>⬆</span><span style="flex:1;">.. 返回上级</span>
+      </div>`;
+    }
+
+    if (folders.length > 0) {
+      html += folders.map(f => {
+        // getChildAlbums returns full paths like "2/艾莉" - use directly
+        const displayName = S.getDisplayName(f);
+        const directImgs = S.albumImages[f] ?? [];
+        const count = directImgs.length;
+        return `<div class="nav-item album-item" data-album="${U.esc(f)}">
+          <span>📁</span>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${U.esc(displayName)}</span>
+          <span class="count">${count}</span>
+        </div>`;
+      }).join('');
+    }
+
+    list.innerHTML = html;
+
+    // Back button
+    const backEl = list.querySelector('.album-back');
+    if (backEl) {
+      backEl.addEventListener('click', () => {
+        App.navToParent();
+      });
+    }
+
+    // Album item events
+    list.querySelectorAll('.album-item[data-album]').forEach(item => {
       item.addEventListener('click', () => {
         S.currentView = item.dataset.album; S.currentPage = 'album';
         App.navToAlbum(item.dataset.album);
@@ -115,24 +150,35 @@ const R = {
     return card;
   },
 
-  /** Render album grid */
+  /** Render album grid — show only direct children at the current level. */
   async renderAlbumGrid() {
     const wrap = document.getElementById('album-grid');
     const empty = document.getElementById('albums-empty');
     if (!wrap || !empty) return;
 
-    if (S.albumFolders.length === 0) {
+    const currentPath = (S.currentView === 'all' || S.currentView === 'albums') ? '' : S.currentView;
+    const childFolders = S.getChildAlbums(currentPath);
+
+    if (childFolders.length === 0) {
       wrap.innerHTML = ''; empty.classList.remove('hidden'); return;
     }
     empty.classList.add('hidden');
 
-    wrap.innerHTML = S.albumFolders.map(f => {
+    wrap.innerHTML = childFolders.map(f => {
+      // getChildAlbums returns full paths like "2/艾莉" - use directly
       const count = (S.albumImages[f] ?? []).length;
-      return `<div class="album-card" data-album="${U.esc(f)}"><div class="album-cover" data-folder="${U.esc(f)}">📁</div><div class="album-info"><div class="album-name">${U.esc(f)}</div><div class="album-count">${count} 张</div></div></div>`;
+      const hasChildren = S.hasChildAlbums(f);
+      return `<div class="album-card" data-album="${U.esc(f)}">
+        <div class="album-cover" data-folder="${U.esc(f)}">📁</div>
+        <div class="album-info">
+          <div class="album-name">${U.esc(S.getDisplayName(f))}</div>
+          <div class="album-count">${count} 张${hasChildren ? ' · 📂 含子相册' : ''}</div>
+        </div>
+      </div>`;
     }).join('');
 
     // Load cover thumbnails
-    for (const f of S.albumFolders) {
+    for (const f of childFolders) {
       const imgs = S.albumImages[f] ?? [];
       if (imgs.length === 0) continue;
       try {
@@ -145,17 +191,47 @@ const R = {
     }
 
     wrap.querySelectorAll('.album-card').forEach(card => {
+      card.addEventListener('click', () => App.navToAlbum(card.dataset.album));
       card.addEventListener('contextmenu', e => App.albumCtx(e, card.dataset.album));
       card.style.cursor = 'pointer';
     });
   },
 
-  /** Update breadcrumb */
+  /** Update breadcrumb with clickable segments for nested folders */
   updateBreadcrumb() {
     const bc = document.getElementById('breadcrumb');
     if (!bc) return;
     const labels = { all: '全部图片', albums: '相册列表', trash: '回收站', favorites: '⭐ 收藏' };
-    bc.textContent = labels[S.currentView] || `📁 ${S.currentView}`;
+    if (labels[S.currentView]) {
+      bc.textContent = labels[S.currentView];
+      bc.style.cursor = 'default';
+      bc.onclick = null;
+    } else {
+      const items = S.getBreadcrumbItems();
+      bc.innerHTML = items.map((item, i) => {
+        const sep = i > 0 ? '<span style="margin:0 4px;color:var(--c-text3);">›</span>' : '';
+        const name = U.esc(item.name);
+        if (i === items.length - 1) {
+          return `${sep}<span style="color:var(--c-text);font-weight:600;">${name}</span>`;
+        }
+        return `${sep}<span class="bc-link" data-path="${U.esc(item.path)}" style="color:var(--c-accent);cursor:pointer;">${name}</span>`;
+      }).join('');
+      bc.style.cursor = 'default';
+
+      // Click handler for breadcrumb links
+      bc.querySelectorAll('.bc-link').forEach(link => {
+        link.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const path = link.dataset.path;
+          if (path === 'all') {
+            S.currentView = 'all';
+            App.navPage('album');
+          } else {
+            App.navToAlbum(path);
+          }
+        });
+      });
+    }
   },
 
   /** Lazy load visible images (reuse observer) */
