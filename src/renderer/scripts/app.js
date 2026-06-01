@@ -9,11 +9,13 @@ const App = {
   // ====== LIFECYCLE ======
 
   async init() {
-    // Startup: detect system theme (each profile stores its own theme in DB)
+    // Startup: use last saved theme, fallback to system preference
     try {
-      var sysTheme = window.matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark';
-      ST.applyTheme(sysTheme);
-      ST.applyAccent('#60CDFF');
+      var savedTheme = localStorage.getItem('pa_theme_mode');
+      if (!savedTheme) savedTheme = window.matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark';
+      ST.applyTheme(savedTheme);
+      var savedAccent = localStorage.getItem('pa_accent_color') || '#60CDFF';
+      ST.applyAccent(savedAccent);
       _syncJsCheck();
     } catch (e) { /* ignore */ }
 
