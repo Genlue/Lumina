@@ -36,10 +36,9 @@
           var el = document.getElementById('js-check');
           el.textContent = 'JS已加载';
           el.classList.add('loaded');
-          // Apply theme from localStorage immediately (CSS vars not ready yet)
+          // Apply system theme immediately (CSS vars not ready yet)
           try {
-            var mode = 'dark';
-            try { mode = localStorage.getItem('pa_theme_mode') || (window.matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark'); } catch(e){}
+            var mode = window.matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark';
             if (mode === 'light') {
               el.style.background = '#d4edda';
               el.style.color = '#155724';

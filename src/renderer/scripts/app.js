@@ -9,18 +9,13 @@ const App = {
   // ====== LIFECYCLE ======
 
   async init() {
-    // Restore saved theme before startup renders
+    // Startup: detect system theme (each profile stores its own theme in DB)
     try {
-      let savedTheme = localStorage.getItem('pa_theme_mode');
-      if (!savedTheme) savedTheme = window.matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark';
-      const savedAccent = localStorage.getItem('pa_accent_color') || '#60CDFF';
-      ST.applyTheme(savedTheme);
-      ST.applyAccent(savedAccent);
-      // Persist detected theme so _doLoad and others can use it
-      localStorage.setItem('pa_theme_mode', savedTheme);
-      localStorage.setItem('pa_accent_color', savedAccent);
+      var sysTheme = window.matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark';
+      ST.applyTheme(sysTheme);
+      ST.applyAccent('#60CDFF');
       _syncJsCheck();
-    } catch (e) { /* localStorage may not be available */ }
+    } catch (e) { /* ignore */ }
 
     const statusEl = document.getElementById('startup-status');
     const setStatus = (msg) => { if (statusEl) statusEl.textContent = msg; };
@@ -184,13 +179,6 @@ const App = {
 
     await API.touchProfile(profileId);
     App._settings = await API.getSettings(profileId);
-    // Respect last active theme from localStorage over profile DB defaults
-    try {
-      var _st = localStorage.getItem('pa_theme_mode');
-      if (_st) App._settings.theme_mode = _st;
-      var _sa = localStorage.getItem('pa_accent_color');
-      if (_sa) App._settings.accent_color = _sa;
-    } catch (e) { /* ignore */ }
     await API.listFav(profileId);
     await API.scanAll(profileId);
     console.log('[App] After scanAll - albumFolders:', S.albumFolders);
@@ -209,14 +197,9 @@ const App = {
       ST.applyBgImage(null);
     }
 
-    // Theme
+    // Theme (from profile DB settings)
     ST.applyTheme(App._settings.theme_mode ?? 'dark');
     ST.applyAccent(App._settings.accent_color ?? '#60CDFF');
-    // Persist theme for next startup
-    try {
-      localStorage.setItem('pa_theme_mode', App._settings.theme_mode ?? 'dark');
-      localStorage.setItem('pa_accent_color', App._settings.accent_color ?? '#60CDFF');
-    } catch (e) { /* ignore */ }
     document.documentElement.style.setProperty('--sidebar-opacity', String(App._settings.sidebar_opacity ?? 0.85));
     document.documentElement.style.setProperty('--sidebar-font', (App._settings.sidebar_font ?? 14) + 'px');
     document.documentElement.style.setProperty('--card-opacity', String(App._settings.card_opacity ?? 1));

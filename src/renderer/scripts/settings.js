@@ -64,7 +64,6 @@ const ST = {
 
     API.saveSettings(S.profileId, { theme_mode: mode });
     App._settings.theme_mode = mode;
-    try { localStorage.setItem('pa_theme_mode', mode); } catch (e) { /* ignore */ }
     // Sync js-check badge colors
     if (typeof _syncJsCheck === 'function') _syncJsCheck();
     this._highlightThemeBtns(mode);
@@ -87,7 +86,6 @@ const ST = {
     root.style.setProperty('--c-accent-bg', `rgba(${parseInt(color.slice(1,3),16)},${parseInt(color.slice(3,5),16)},${parseInt(color.slice(5,7),16)},0.12)`);
     API.saveSettings(S.profileId, { accent_color: color });
     App._settings.accent_color = color;
-    try { localStorage.setItem('pa_accent_color', color); } catch (e) { /* ignore */ }
   },
 
   extractAccent() {
