@@ -11,6 +11,9 @@ const Lb = {
     S.lbPanX = 0;
     S.lbPanY = 0;
 
+    // Sync random slideshow position when lightbox opened from random mode
+    if (S._lbFromRandom) S._randomIdx = idx;
+
     document.getElementById('lightbox').classList.remove('hidden');
     this._update();
     this._resetZoom();
@@ -23,6 +26,7 @@ const Lb = {
     S.lbZoom = 1;
     S.lbPanX = 0;
     S.lbPanY = 0;
+    S._lbFromRandom = false;
   },
 
   /** Update image and info */

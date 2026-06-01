@@ -1,0 +1,19 @@
+[package]
+name = "photo-album"
+version = "1.0.0"
+description = "本地相册管理工具 — 基于 Tauri"
+authors = ["PhotoAlbum"]
+license = "MIT"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.31", features = ["bundled"] }
+uuid = { version = "1", features = ["v4"] }
+open = "5"

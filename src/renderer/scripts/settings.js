@@ -15,6 +15,7 @@ const ST = {
       this._setVal('set-bg-blur', s.bg_blur ?? 20);
       this._setVal('set-bg-opacity', Math.round((s.bg_opacity ?? 0) * 100));
       this._setVal('set-draw-count', s.draw_count ?? 3);
+      this._setVal('set-random-interval', s.random_interval ?? 3);
       this._setVal('set-sidebar-w', s.sidebar_width ?? 270);
       this._setVal('set-sidebar-opacity', Math.round((s.sidebar_opacity ?? 0.85) * 100));
       this._setVal('set-sidebar-font', s.sidebar_font ?? 14);
@@ -29,6 +30,7 @@ const ST = {
       this._setText('card-opacity-val', Math.round((s.card_opacity ?? 1) * 100) + '%');
       this._setText('card-blur-val', (s.card_blur ?? 0) + 'px');
       this._setText('draw-count-val', s.draw_count ?? 3);
+      this._setText('random-interval-val', (s.random_interval ?? 3) + 's');
 
       this._highlightThemeBtns(s.theme_mode ?? 'dark');
       this._loadBgList();
@@ -210,7 +212,7 @@ const ST = {
   _deleteBg(filename) {
     Modal.show('删除背景图', `确定删除 ${filename}？`, [{ label: '取消' }, { label: '删除', danger: true }]).then(r => {
       if (r.idx !== 1) return;
-      window.electronAPI?.bg?.delete(S.profileId, filename).then(() => {
+      API._invoke('bg_delete', { profileId: S.profileId, filename }).then(() => {
         API.scanAll(S.profileId).then(() => {
           this._loadBgList();
           if (App._settings.bg_image === filename) this.applyBgImage(null);
@@ -277,6 +279,12 @@ const ST = {
     this._setText('draw-count-val', val);
     API.saveSettings(S.profileId, { draw_count: val });
     App._settings.draw_count = val;
+  },
+
+  applyRandomInterval(val) {
+    this._setText('random-interval-val', val + 's');
+    API.saveSettings(S.profileId, { random_interval: val });
+    App._settings.random_interval = val;
   },
 
   // === Helpers ===

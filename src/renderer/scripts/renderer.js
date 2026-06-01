@@ -5,12 +5,10 @@
 const R = {
   _imgObserver: null,
 
-  /** Render sidebar album list */
+  /** Render sidebar album list content only (visibility managed by App._showAlbumList/_hideAlbumList). */
   renderAlbumList() {
     const list = document.getElementById('album-list');
     if (!list) return;
-    const wrap = document.getElementById('album-list-wrap');
-    if (wrap) wrap.style.display = S.currentPage === 'album' ? 'block' : 'none';
 
     if (S.albumFolders.length === 0) {
       list.innerHTML = '<div style="padding:12px;color:var(--c-text3);font-size:0.82em;">暂无相册</div>';

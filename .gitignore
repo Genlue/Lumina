@@ -6,3 +6,6 @@ dist-pkg/
 .DS_Store
 Thumbs.db
 *.log
+target/
+data/
+*.exe

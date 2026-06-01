@@ -46,13 +46,17 @@ const D = {
 
     const count = App._settings?.draw_count ?? 3;
     const selected = U.shuffle([...all]).slice(0, count);
+    D._drawCards = selected;
+
+    // Adaptive columns: max 5 per row, never more cols than cards
+    const cols = Math.min(count, 5);
 
     area.innerHTML = `
-      <div style="display:flex;flex-wrap:wrap;gap:16px;justify-content:center;padding:24px;">
+      <div class="draw-grid" style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:14px;max-width:${cols * 170 + (cols-1)*14}px;margin:0 auto;padding:24px 16px;">
         ${selected.map((img, i) => `
-          <div class="draw-card" style="width:180px;height:220px;perspective:800px;cursor:pointer;" data-idx="${i}">
-            <div class="draw-card-inner" style="width:100%;height:100%;transition:transform 0.6s;transform-style:preserve-3d;position:relative;">
-              <div style="position:absolute;inset:0;background:var(--c-accent-bg);border:2px solid var(--c-accent);border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;font-size:3em;backface-visibility:hidden;">?</div>
+          <div class="draw-card" data-idx="${i}" style="aspect-ratio:3/4;perspective:800px;cursor:pointer;min-width:0;">
+            <div class="draw-card-inner" style="width:100%;height:100%;transition:transform 0.65s cubic-bezier(0.4,0,0.2,1);transform-style:preserve-3d;position:relative;">
+              <div class="draw-card-front" style="position:absolute;inset:0;background:var(--c-accent-bg);border:2px solid var(--c-accent);border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;font-size:clamp(1.5em,5vw,3em);backface-visibility:hidden;">?</div>
               <img src="" class="draw-img-${i}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:var(--radius-md);backface-visibility:hidden;transform:rotateY(180deg);" alt="${U.esc(img.name)}">
             </div>
           </div>
@@ -73,16 +77,21 @@ const D = {
         .catch(() => {});
     });
 
-    // Click to flip
+    // Auto-flip with staggered delay — wrap in rAF to ensure DOM is painted
+    requestAnimationFrame(() => {
+      area.querySelectorAll('.draw-card').forEach((card, i) => {
+        setTimeout(() => {
+          const inner = card.querySelector('.draw-card-inner');
+          if (inner) inner.style.transform = 'rotateY(180deg)';
+        }, 100 + i * 150);
+      });
+    });
+
+    // Click flipped card to open lightbox scoped to drawn cards
     area.querySelectorAll('.draw-card').forEach((card, i) => {
       card.addEventListener('click', () => {
-        const inner = card.querySelector('.draw-card-inner');
-        const isFlipped = inner.style.transform.includes('180');
-        if (isFlipped) {
-          inner.style.transform = '';
-        } else {
-          inner.style.transform = 'rotateY(180deg)';
-        }
+        S.filteredImages = D._drawCards;
+        Lb.open(i);
       });
     });
   },
@@ -97,13 +106,16 @@ const D = {
     S._randomImgs = U.shuffle([...all]);
     S._randomIdx = 0;
     S.randomPaused = false;
+    S._lbFromRandom = false;
+
+    const interval = (App._settings?.random_interval ?? 3) * 1000;
 
     const area = document.getElementById('random-area');
     if (!area) return;
 
     area.innerHTML = `
       <div style="position:relative;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;">
-        <img id="random-img" style="max-width:90%;max-height:70vh;object-fit:contain;border-radius:8px;" src="">
+        <img id="random-img" style="max-width:90%;max-height:70vh;object-fit:contain;border-radius:8px;cursor:pointer;" src="">
         <div id="random-info" style="margin-top:12px;color:var(--c-text2);font-size:0.85em;"></div>
         <div style="display:flex;gap:10px;margin-top:12px;">
           <button class="toolbar-btn" id="random-prev">◀</button>
@@ -119,8 +131,13 @@ const D = {
       if (!S.randomPaused) {
         S._randomIdx = (S._randomIdx + 1) % S._randomImgs.length;
         this._showRandom();
+        // If lightbox is open from random mode, keep it in sync
+        if (S._lbFromRandom && S.lbIdx >= 0) {
+          S.lbIdx = S._randomIdx;
+          Lb._update();
+        }
       }
-    }, 3000);
+    }, interval);
 
     document.getElementById('random-prev')?.addEventListener('click', () => {
       S._randomIdx = (S._randomIdx - 1 + S._randomImgs.length) % S._randomImgs.length;
@@ -133,6 +150,13 @@ const D = {
     document.getElementById('random-pause')?.addEventListener('click', () => {
       S.randomPaused = !S.randomPaused;
       document.getElementById('random-pause').textContent = S.randomPaused ? '▶' : '⏸';
+    });
+
+    // Click image to open lightbox synced with slideshow
+    document.getElementById('random-img')?.addEventListener('click', () => {
+      S._lbFromRandom = true;
+      S.filteredImages = S._randomImgs;
+      Lb.open(S._randomIdx);
     });
   },
 

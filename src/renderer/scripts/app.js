@@ -17,8 +17,8 @@ const App = {
     };
 
     try {
-      if (!window.electronAPI) {
-        document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#1c1c1c;color:#aaa;font-family:sans-serif;"><div style="text-align:center;"><h2 style="color:#f44;">需要 Electron 环境</h2><p>请在 Electron 中运行此应用</p></div></div>';
+      if (!window.__TAURI__) {
+        document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#1c1c1c;color:#aaa;font-family:sans-serif;"><div style="text-align:center;"><h2 style="color:#f44;">需要 Tauri 环境</h2><p>请在 Tauri 中运行此应用</p></div></div>';
         return;
       }
 
@@ -198,6 +198,7 @@ const App = {
     ST.applyOpacity(App._settings.bg_opacity ?? 0);
 
     this.navPage('home');
+    this._showAlbumList();
     R.renderAlbumList();
     R.updateCount();
 
@@ -212,6 +213,17 @@ const App = {
     });
 
     Toast.show('已加载: ' + S.profileName, 'success');
+  },
+
+  // ====== SIDEBAR ALBUM LIST ======
+
+  _showAlbumList() {
+    const w = document.getElementById('album-list-wrap');
+    if (w) w.style.display = 'block';
+  },
+  _hideAlbumList() {
+    const w = document.getElementById('album-list-wrap');
+    if (w) w.style.display = 'none';
   },
 
   // ====== PAGE ROUTER ======
@@ -247,21 +259,29 @@ const App = {
     const navItem = document.querySelector(`.nav-item[data-page="${page}"]`);
     if (navItem) navItem.classList.add('active');
 
+    if (page === 'album') { this._hideAlbumList(); }
+    else { this._showAlbumList(); }
+    R.renderAlbumList();
+
     const route = this._pageRoutes[page];
     if (route) route.call(this);
   },
 
   _switchToAlbumPage() {
+    S.currentPage = 'album';
     document.querySelectorAll('.page-panel').forEach(p => p.classList.add('hidden'));
     document.getElementById('page-album').classList.remove('hidden');
     const at = document.getElementById('album-toolbar'), ag = document.getElementById('album-grid-wrap'), ic = document.getElementById('image-container');
     if (S.currentView === 'albums') {
       if (at) at.style.display = ''; if (ag) ag.style.display = ''; if (ic) ic.style.display = 'none';
       R.renderAlbumGrid();
+      R.updateBreadcrumb();
     } else {
       if (at) at.style.display = 'none'; if (ag) ag.style.display = 'none'; if (ic) ic.style.display = '';
       R.updateBreadcrumb(); R.renderGrid();
     }
+    if (S.currentView === 'albums') { this._hideAlbumList(); }
+    else { this._showAlbumList(); }
     R.renderAlbumList();
   },
 
@@ -275,6 +295,7 @@ const App = {
     document.getElementById('album-toolbar').style.display = 'none';
     document.getElementById('album-grid-wrap').style.display = 'none';
     document.getElementById('image-container').style.display = '';
+    this._hideAlbumList();
     R.updateBreadcrumb(); R.renderGrid(); R.renderAlbumList();
     console.log('navToAlbum done, images:', S.filteredImages.length);
   },
@@ -286,7 +307,8 @@ const App = {
     document.getElementById('album-toolbar').style.display = 'none';
     document.getElementById('album-grid-wrap').style.display = 'none';
     document.getElementById('image-container').style.display = '';
-    R.updateBreadcrumb(); R.renderGrid();
+    this._showAlbumList();
+    R.updateBreadcrumb(); R.renderGrid(); R.renderAlbumList();
   },
 
   navToFavorites() {
@@ -296,7 +318,8 @@ const App = {
     document.getElementById('album-toolbar').style.display = 'none';
     document.getElementById('album-grid-wrap').style.display = 'none';
     document.getElementById('image-container').style.display = '';
-    R.updateBreadcrumb(); R.renderGrid();
+    this._showAlbumList();
+    R.updateBreadcrumb(); R.renderGrid(); R.renderAlbumList();
   },
 
   switchDiscoverTab(tab) {
@@ -379,9 +402,10 @@ const App = {
   _bindSettings() { /* All settings use inline HTML handlers */ },
 
   _bindTitleBar() {
-    document.getElementById('btn-min')?.addEventListener('click', () => window.electronAPI?.window?.minimize());
-    document.getElementById('btn-max')?.addEventListener('click', () => window.electronAPI?.window?.maximize());
-    document.getElementById('btn-close')?.addEventListener('click', () => window.electronAPI?.window?.close());
+    const win = window.__TAURI__?.window?.getCurrentWindow();
+    document.getElementById('btn-min')?.addEventListener('click', () => win?.minimize());
+    document.getElementById('btn-max')?.addEventListener('click', () => win?.toggleMaximize());
+    document.getElementById('btn-close')?.addEventListener('click', () => win?.close());
   },
 
   // ====== IMAGE OPERATIONS ======
@@ -494,10 +518,12 @@ const App = {
 
 // ====== GLOBAL HELPERS ======
 
-window._openBgFolder = () => window.electronAPI?.bg?.openFolder(S.profileId);
+window._openBgFolder = async () => {
+  await API._invoke('bg_open_folder', { profileId: S.profileId });
+};
 
 window._importBg = async () => {
-  const imported = await window.electronAPI?.bg?.import(S.profileId);
+  const imported = await API._invoke('bg_import', { profileId: S.profileId });
   if (imported) {
     await API.scanAll(S.profileId);
     ST._loadBgList();
@@ -543,7 +569,7 @@ document.getElementById('lightbox-delete')?.addEventListener('click', () => App.
 document.querySelectorAll('.home-card[data-nav]').forEach(card => {
   card.addEventListener('click', () => {
     const nav = card.dataset.nav;
-    if (nav === 'album') { S.currentView = 'albums'; App.navPage('album'); }
+    if (nav === 'album') { S.currentView = 'albums'; App._switchToAlbumPage(); }
     else if (nav.startsWith('discover-')) { S.discoverTab = nav.split('-')[1]; App.navPage('discover'); }
   });
 });
