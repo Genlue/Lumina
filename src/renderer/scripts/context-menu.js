@@ -39,7 +39,7 @@ document.addEventListener('click', (e) => {
 
 // Prevent default context menu on app
 document.addEventListener('contextmenu', (e) => {
-  if (!e.target.closest('#image-grid') && !e.target.closest('#album-grid')) {
+  if (!e.target.closest('#image-grid') && !e.target.closest('#album-grid') && !e.target.closest('.home-card')) {
     // Let browser show default on other elements
     return;
   }

@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use image::codecs::jpeg::JpegEncoder;
 use image::imageops::FilterType;
-use image::{GenericImageView, ImageReader};
+use image::ImageReader;
 
 /// Generate or retrieve a cached thumbnail for the given source image.
 ///

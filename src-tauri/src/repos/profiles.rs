@@ -13,11 +13,6 @@ pub fn create_profile(conn: &Connection, folder_path: &str, name: Option<&str>) 
         params![id, profile_name, folder_path, chrono_now_ms()],
     ).unwrap();
 
-    conn.execute(
-        "INSERT OR IGNORE INTO settings (profile_id) VALUES (?1)",
-        params![id],
-    ).unwrap();
-
     conn.query_row(
         "SELECT id, name, folder_path, last_access, unavailable FROM profiles WHERE id = ?1",
         params![id],

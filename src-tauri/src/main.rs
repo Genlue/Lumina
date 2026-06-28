@@ -24,9 +24,9 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let path = db_path();
-            println!("[DB] Path: {}", path.display());
-            let db_state = db::init_database(&path)
-                .expect("Failed to initialize database");
+            println!("[DB] Central DB path: {}", path.display());
+            let db_state = db::init_central_database(&path)
+                .expect("Failed to initialize central database");
             app.manage(db_state);
             Ok(())
         })

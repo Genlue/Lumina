@@ -144,6 +144,28 @@ const App = {
         const p = profiles.find(x => x.id === card.dataset.id);
         if (p && !p.unavailable) await this._doLoad(p.id, p.folder_path);
       });
+
+      // 右键删除 profile
+      card.addEventListener('contextmenu', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const p = profiles.find(x => x.id === card.dataset.id);
+        if (!p) return;
+        CM.show(e.clientX, e.clientY);
+        const menu = document.getElementById('ctx-m');
+        menu.innerHTML = '<div data-action="delete" class="danger">🗑 删除此记录</div>';
+        menu.querySelector('[data-action="delete"]').onclick = async () => {
+          CM.hide();
+          const r = await Modal.show('删除记录',
+            `将清除「${U.esc(p.name)}」的所有配置数据，图片文件不受影响。`,
+            [{ label: '取消' }, { label: '确认删除', danger: true }]);
+          if (r.idx !== 1) return;
+          await API.removeProfile(p.id);
+          const updated = await API.listProfiles();
+          this._renderProfileList(container, updated);
+          Toast.show('已删除', 'info');
+        };
+      });
     });
     container.querySelectorAll('.btn-relocate').forEach(btn => {
       btn.addEventListener('click', async e => {

@@ -1,18 +1,7 @@
 use rusqlite::{Connection, params};
 use crate::models::Settings;
 
-const DEFAULT_SETTINGS: Settings = Settings {
-    profile_id: String::new(),
-    view_mode: String::new(), sort_by: String::new(), theme_mode: String::new(),
-    accent_color: String::new(), bg_image: None,
-    bg_blur: 20, bg_opacity: 0.0,
-    sidebar_width: 270, sidebar_opacity: 0.82,
-    draw_count: 3,
-    card_opacity: 1.0, card_blur: 0,
-    sidebar_font: 14,
-    random_interval: 3,
-    thumbnail_size: 400,
-};
+// Default settings are inlined in get_settings
 
 pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
     match conn.query_row(
