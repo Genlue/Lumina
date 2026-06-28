@@ -50,13 +50,22 @@ const API = {
   },
 
   // === Files ===
-  async getThumbnail(profileId, filename, folder) {
-    const result = await this._invoke('files_get_thumbnail', { profileId, filename, folder });
+  /** Get a thumbnail (or full image). size: null/0 = full original, number = max px dimension. */
+  async getThumbnail(profileId, filename, folder, size = null) {
+    const result = await this._invoke('files_get_thumbnail', { profileId, filename, folder, size });
     // Convert file path to Tauri asset:// URL for direct disk loading
     if (result && result.dataUrl) {
-      result.dataUrl = window.__TAURI__.core.convertFileSrc(result.dataUrl);
+      try {
+        result.dataUrl = window.__TAURI__.core.convertFileSrc(result.dataUrl);
+      } catch (e) {
+        // Keep original path if convertFileSrc fails
+      }
     }
     return result;
+  },
+  /** Load full-resolution image (lightbox, background). */
+  async getFullImage(profileId, filename, folder) {
+    return this.getThumbnail(profileId, filename, folder, null);
   },
   async renameFile(profileId, oldName, newName, folder) {
     return this._invoke('files_rename', { profileId, oldName, newName, folder });
@@ -64,8 +73,8 @@ const API = {
   async moveToTrash(profileId, filename, folder) {
     return this._invoke('files_move_to_trash', { profileId, filename, folder });
   },
-  async permanentDelete(profileId, filename) {
-    return this._invoke('files_permanent_delete', { profileId, filename });
+  async permanentDelete(profileId, filename, folder = null) {
+    return this._invoke('files_permanent_delete', { profileId, filename, folder });
   },
   async moveToFolder(profileId, filename, targetFolder) {
     return this._invoke('files_move_to_folder', { profileId, filename, targetFolder });

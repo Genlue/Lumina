@@ -3,9 +3,17 @@ use std::fs;
 use std::path::Path;
 use crate::models::{FileInfo, ScanResult};
 
+/// Safely extract image dimensions from a file header. Returns (None, None) on failure.
+fn get_image_dimensions(path: &Path) -> (Option<u32>, Option<u32>) {
+    match image::image_dimensions(path) {
+        Ok((w, h)) => (Some(w), Some(h)),
+        Err(_) => (None, None),
+    }
+}
+
 const IMG_EXTS: &[&str] = &["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp"];
 const EXCLUDE_DIRS: &[&str] = &[
-    ".album-trash", "_trash", "_config", "_data", "backgrounds",
+    ".album", "backgrounds",
     ".git", "node_modules", ".reasonix", ".vscode", ".idea",
     "__pycache__", ".cache", "AppData",
 ];
@@ -77,6 +85,7 @@ fn scan_dir_recursive(
                 continue;
             }
             if let Ok(meta) = fs::metadata(&entry.path()) {
+                let (width, height) = get_image_dimensions(&entry.path());
                 root_files.push(FileInfo {
                     name: entry_name,
                     size: meta.len(),
@@ -84,6 +93,8 @@ fn scan_dir_recursive(
                         .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                         .map(|d| d.as_millis() as f64)
                         .unwrap_or(0.0),
+                    width,
+                    height,
                 });
             }
         }
@@ -106,14 +117,14 @@ pub fn scan_profile_folder(_profile_id: &str, folder_path: &str) -> ScanResult {
         scan_dir_recursive(path, "");
 
     // Remove backgrounds from album_folders so it doesn't show as an album
-    album_folders.retain(|f| f != "backgrounds");
+    album_folders.retain(|f| f != ".album/backgrounds");
 
     // Scan backgrounds folder (retained in album_images for settings page)
-    let bg_path = path.join("backgrounds");
+    let bg_path = path.join(".album").join("backgrounds");
     if bg_path.exists() {
         if let Ok(bg_imgs) = scan_file_list(&bg_path) {
             if !bg_imgs.is_empty() {
-                album_images.insert("backgrounds".to_string(), bg_imgs);
+                album_images.insert(".album/backgrounds".to_string(), bg_imgs);
             }
         }
     }
@@ -131,6 +142,7 @@ fn scan_file_list(dir_path: &Path) -> Result<Vec<FileInfo>, std::io::Error> {
         let name = entry.file_name().to_string_lossy().to_string();
         if should_exclude(&name) || !is_image_file(&name) { continue; }
         let meta = entry.metadata()?;
+        let (width, height) = get_image_dimensions(&entry.path());
         results.push(FileInfo {
             name,
             size: meta.len(),
@@ -138,6 +150,8 @@ fn scan_file_list(dir_path: &Path) -> Result<Vec<FileInfo>, std::io::Error> {
                 .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                 .map(|d| d.as_millis() as f64)
                 .unwrap_or(0.0),
+            width,
+            height,
         });
     }
     Ok(results)

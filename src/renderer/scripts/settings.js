@@ -14,6 +14,7 @@ const ST = {
       this._setVal('set-accent', s.accent_color ?? '#60CDFF');
       this._setVal('set-bg-blur', s.bg_blur ?? 20);
       this._setVal('set-bg-opacity', Math.round((s.bg_opacity ?? 0) * 100));
+      this._setVal('set-thumb-size', s.thumbnail_size ?? 400);
       this._setVal('set-draw-count', s.draw_count ?? 3);
       this._setVal('set-random-interval', s.random_interval ?? 3);
       this._setVal('set-sidebar-w', s.sidebar_width ?? 270);
@@ -29,6 +30,7 @@ const ST = {
       this._setText('sidebar-font-val', (s.sidebar_font ?? 14) + 'px');
       this._setText('card-opacity-val', Math.round((s.card_opacity ?? 1) * 100) + '%');
       this._setText('card-blur-val', (s.card_blur ?? 0) + 'px');
+      this._setText('thumb-size-val', (s.thumbnail_size ?? 400) + 'px');
       this._setText('draw-count-val', s.draw_count ?? 3);
       this._setText('random-interval-val', (s.random_interval ?? 3) + 's');
 
@@ -93,21 +95,49 @@ const ST = {
   extractAccent() {
     const bgFile = App._settings.bg_image;
     if (!bgFile) { Toast.show('请先选择背景图片', 'info'); return; }
-    const bgLayer = document.getElementById('bg-layer');
-    if (!bgLayer || !bgLayer.style.backgroundImage) { Toast.show('请先应用背景图', 'info'); return; }
-    // Extract data URL from bgLayer
-    const bgUrl = bgLayer.style.backgroundImage;
-    const match = bgUrl.match(/url\(["']?([^)"']+)["']?\)/);
-    if (!match) { Toast.show('无法读取背景图数据', 'error'); return; }
-    extractAccentFromImage(match[1]).then(colors => {
-      if (colors && colors.dominant && colors.dominant !== '#000000') {
-        this.applyAccent(colors.dominant);
-        this._setVal('set-accent', colors.dominant);
-        Toast.show('强调色已提取', 'success');
-      } else {
+
+    API.extractColors(S.profileId, bgFile).then(result => {
+      if (!result || !result.palette || result.palette.length === 0 || result.palette[0] === '#000000') {
         Toast.show('未能提取有效颜色', 'info');
+        return;
       }
-    }).catch(() => Toast.show('提取失败', 'error'));
+
+      // WCAG contrast check against current theme background (same logic as theme-extractor.js)
+      const palette = result.palette;
+      const isDark = (App._settings?.theme_mode ?? 'dark') === 'dark';
+      const bgHex = isDark ? '#1c1c1c' : '#f3f3f3';
+      const bgRgb = hexToRgb(bgHex);
+      const MIN_CONTRAST = 5.0;
+
+      let bestColor = null;
+      for (const hex of palette) {
+        const rgb = hexToRgb(hex);
+        if (contrastRatio(rgb.r, rgb.g, rgb.b, bgRgb.r, bgRgb.g, bgRgb.b) >= MIN_CONTRAST) {
+          bestColor = hex;
+          break;
+        }
+      }
+
+      // If none pass, HSL-adapt the top candidate
+      if (!bestColor) {
+        const top = hexToRgb(palette[0]);
+        const hsl = rgbToHsl(top.r, top.g, top.b);
+        hsl.s = Math.min(1, hsl.s + 0.15);
+        if (isDark) {
+          hsl.l = Math.max(0.55, hsl.l);
+        } else {
+          hsl.l = Math.min(0.40, hsl.l);
+        }
+        const adapted = hslToRgb(hsl.h, hsl.s, hsl.l);
+        bestColor = rgbToHex(adapted.r, adapted.g, adapted.b);
+      }
+
+      this.applyAccent(bestColor);
+      this._setVal('set-accent', bestColor);
+      Toast.show('强调色已提取: ' + bestColor, 'success');
+    }).catch(e => {
+      Toast.show('提取失败: ' + (e.message || e), 'error');
+    });
   },
 
   // === Background ===
@@ -118,11 +148,18 @@ const ST = {
       if (bgLayer) { bgLayer.style.backgroundImage = ''; bgLayer.style.opacity = '0'; }
       await API.saveSettings(S.profileId, { bg_image: null });
       App._settings.bg_image = null;
+      this._loadBgList();
       return;
     }
     if (!bgLayer || !S.profileId) return;
+
+    // Update state synchronously to avoid race: user may click "extract accent"
+    // before the async thumbnail load completes.
+    App._settings.bg_image = filename;
+    this._loadBgList();
+
     try {
-      const thumb = await API.getThumbnail(S.profileId, filename, 'backgrounds');
+      const thumb = await API.getThumbnail(S.profileId, filename, BG_DIR);
       if (thumb && thumb.dataUrl) {
         bgLayer.style.backgroundImage = `url(${thumb.dataUrl})`;
         bgLayer.style.backgroundSize = 'cover';
@@ -131,13 +168,13 @@ const ST = {
         const savedOp = (App._settings.bg_opacity != null && App._settings.bg_opacity > 0) ? App._settings.bg_opacity : 0.5;
         bgLayer.style.opacity = String(savedOp);
         await API.saveSettings(S.profileId, { bg_image: filename, bg_opacity: savedOp });
-        App._settings.bg_image = filename;
         App._settings.bg_opacity = savedOp;
       }
     } catch (e) {
       Toast.show('背景图加载失败', 'error');
       if (bgLayer) bgLayer.style.backgroundImage = '';
       App._settings.bg_image = null;
+      this._loadBgList();
     }
   },
 
@@ -163,7 +200,7 @@ const ST = {
     const grid = document.getElementById('bg-thumb-grid');
     if (!grid) return;
     const currentBg = App._settings.bg_image || '';
-    const bgImgs = S.albumImages['backgrounds'] ?? [];
+    const bgImgs = S.albumImages[BG_DIR] ?? [];
     grid.innerHTML = '';
 
     // "None" option
@@ -187,7 +224,7 @@ const ST = {
       thumb.appendChild(delBtn);
       grid.appendChild(thumb);
       // Load preview
-      API.getThumbnail(S.profileId, img.name, 'backgrounds').then(t => {
+      API.getThumbnail(S.profileId, img.name, BG_DIR, THUMB_SIZES.bgPreview).then(t => {
         const imgEl = thumb.querySelector('img');
         if (imgEl && t && t.dataUrl) imgEl.src = t.dataUrl;
       }).catch(() => {});
@@ -277,6 +314,12 @@ const ST = {
     this._setText('sidebar-opacity-val', Math.round(val * 100) + '%');
     API.saveSettings(S.profileId, { sidebar_opacity: val });
     App._settings.sidebar_opacity = val;
+  },
+
+  applyThumbnailSize(val) {
+    this._setText('thumb-size-val', val + 'px');
+    API.saveSettings(S.profileId, { thumbnail_size: val });
+    App._settings.thumbnail_size = val;
   },
 
   applyDrawCount(val) {

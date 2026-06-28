@@ -11,13 +11,15 @@ const DEFAULT_SETTINGS: Settings = Settings {
     card_opacity: 1.0, card_blur: 0,
     sidebar_font: 14,
     random_interval: 3,
+    thumbnail_size: 400,
 };
 
 pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
     match conn.query_row(
         "SELECT profile_id, view_mode, sort_by, theme_mode, accent_color,
                 bg_image, bg_blur, bg_opacity, sidebar_width, sidebar_opacity,
-                draw_count, card_opacity, card_blur, sidebar_font, random_interval
+                draw_count, card_opacity, card_blur, sidebar_font, random_interval,
+                thumbnail_size
          FROM settings WHERE profile_id = ?1",
         params![profile_id],
         |row| Ok(Settings {
@@ -29,6 +31,7 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
             card_opacity: row.get(11)?, card_blur: row.get(12)?,
             sidebar_font: row.get(13)?,
             random_interval: row.get(14).unwrap_or(3),
+            thumbnail_size: row.get(15).unwrap_or(400),
         }),
     ) {
         Ok(s) => s,
@@ -36,9 +39,9 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
             conn.execute(
                 "INSERT INTO settings (profile_id, view_mode, sort_by, theme_mode, accent_color,
                  bg_image, bg_blur, bg_opacity, sidebar_width, sidebar_opacity, draw_count,
-                 card_opacity, card_blur, sidebar_font, random_interval)
+                 card_opacity, card_blur, sidebar_font, random_interval, thumbnail_size)
                  VALUES (?1, 'grid', 'name-asc', 'dark', '#6D79F6',
-                 NULL, 20, 0, 270, 0.82, 3, 1, 0, 14, 3)",
+                 NULL, 20, 0, 270, 0.82, 3, 1, 0, 14, 3, 400)",
                 params![profile_id],
             ).ok();
             Settings {
@@ -50,6 +53,7 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
                 draw_count: 3, card_opacity: 1.0, card_blur: 0,
                 sidebar_font: 14,
                 random_interval: 3,
+                thumbnail_size: 400,
             }
         }
     }
@@ -72,15 +76,18 @@ pub fn save_settings(conn: &Connection, profile_id: &str, updates: serde_json::V
     let card_blur = updates["card_blur"].as_i64().unwrap_or(current.card_blur);
     let sidebar_font = updates["sidebar_font"].as_i64().unwrap_or(current.sidebar_font);
     let random_interval = updates["random_interval"].as_i64().unwrap_or(current.random_interval);
+    let thumbnail_size = updates["thumbnail_size"].as_i64().unwrap_or(current.thumbnail_size);
 
     conn.execute(
         "UPDATE settings SET view_mode=?1, sort_by=?2, theme_mode=?3, accent_color=?4,
          bg_image=?5, bg_blur=?6, bg_opacity=?7, sidebar_width=?8, sidebar_opacity=?9,
-         draw_count=?10, card_opacity=?11, card_blur=?12, sidebar_font=?13, random_interval=?14
-         WHERE profile_id=?15",
+         draw_count=?10, card_opacity=?11, card_blur=?12, sidebar_font=?13, random_interval=?14,
+         thumbnail_size=?15
+         WHERE profile_id=?16",
         params![view_mode, sort_by, theme_mode, accent_color,
                 bg_image, bg_blur, bg_opacity, sidebar_width, sidebar_opacity,
                 draw_count, card_opacity, card_blur, sidebar_font, random_interval,
+                thumbnail_size,
                 profile_id],
     ).ok();
 }

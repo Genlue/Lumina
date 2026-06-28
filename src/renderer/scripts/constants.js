@@ -8,21 +8,30 @@ const IMG_EXTS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp']);
 /** Files/paths excluded from scanning */
 const EXCLUDE = new Set([
   'album.json', 'albums.json', 'albums.json.tmp',
-  '.album-trash', '_trash', '_config', '_data',
-  'backgrounds', 'photo-album.html',
+  '.album', 'photo-album.html',
 ]);
 
 /** Trash directory name */
-const TRASH_DIR = '.album-trash';
+const TRASH_DIR = '.album/trash';
 
 /** Backgrounds directory */
-const BG_DIR = 'backgrounds';
+const BG_DIR = '.album/backgrounds';
 
 /** Debounce delay (ms) */
 const DEBOUNCE = 300;
 
 /** Max Object URLs cached before auto-prune */
 const MAX_URLS = 80;
+
+/** Thumbnail sizes per view (max dimension in px). Quality stored as comment for reference. */
+const THUMB_SIZES = {
+  grid: 400,      // JPEG q=75
+  album: 300,      // JPEG q=75
+  waterfall: 500,  // JPEG q=75
+  draw: 400,       // JPEG q=75
+  random: 600,     // JPEG q=80
+  bgPreview: 200,  // JPEG q=70
+};
 
 // ============================================================
 // THEMES — Windows 11 native style

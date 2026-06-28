@@ -73,6 +73,7 @@ pub struct Settings {
     pub card_blur: i64,
     pub sidebar_font: i64,
     pub random_interval: i64,
+    pub thumbnail_size: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -81,6 +82,8 @@ pub struct FileInfo {
     pub size: u64,
     #[serde(rename = "lastModified")]
     pub last_modified: f64,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

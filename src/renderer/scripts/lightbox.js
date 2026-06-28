@@ -36,8 +36,8 @@ const Lb = {
     if (!img) return;
 
     try {
-      const thumb = await API.getThumbnail(S.profileId, img.name, img._folder);
-      document.getElementById('lightbox-img').src = thumb.dataUrl;
+      const full = await API.getFullImage(S.profileId, img.name, img._folder);
+      document.getElementById('lightbox-img').src = full.dataUrl;
     } catch {
       // Fallback: try reading the file
       try {

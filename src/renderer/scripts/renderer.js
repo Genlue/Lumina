@@ -77,7 +77,7 @@ const R = {
     if (S.currentView === 'trash') {
       const trashList = await API.listTrash(S.profileId);
       imgs = trashList.map(t => ({
-        name: t.trash_name, _key: t.trash_name, _folder: null,
+        name: t.trash_name, _key: t.trash_name, _folder: TRASH_DIR,
         size: 0, lastModified: new Date(t.deleted_at).getTime(),
         _isTrash: true, _trashEntry: t, _displayName: t.original_name,
       }));
@@ -143,9 +143,9 @@ const R = {
     card.dataset.key = img._key;
 
     if (viewMode === 'list') {
-      card.innerHTML = `<div style="width:42px;height:42px;background:var(--c-card);border-radius:6px;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;"><img src="" data-src="${img._key}" style="width:100%;height:100%;object-fit:cover;opacity:0;" onload="this.style.opacity='1'"></div><div style="flex:1;min-width:0;"><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${U.esc(img._displayName || img.name)}</div><div class="card-meta"><span>${img.size ? U.fmtSize(img.size) : '--'}</span><span>${img.lastModified ? U.fmtDate(img.lastModified) : '--'}</span>${img._folder ? '<span>📁 '+U.esc(img._folder)+'</span>' : ''}</div></div>`;
+      card.innerHTML = `<div style="width:42px;height:42px;background:var(--c-card);border-radius:6px;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;"><img src="" data-src="${img._key}" loading="lazy" style="width:100%;height:100%;object-fit:cover;opacity:0;" onload="this.style.opacity='1'"></div><div style="flex:1;min-width:0;"><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${U.esc(img._displayName || img.name)}</div><div class="card-meta"><span>${img.size ? U.fmtSize(img.size) : '--'}</span><span>${img.lastModified ? U.fmtDate(img.lastModified) : '--'}</span>${img._folder ? '<span>📁 '+U.esc(img._folder)+'</span>' : ''}</div></div>`;
     } else {
-      card.innerHTML = `<img src="" data-src="${img._key}" style="width:100%;height:100%;object-fit:cover;opacity:0;" onload="this.style.opacity='1'"><div class="card-name">${U.esc(img._displayName || img.name)}</div>`;
+      card.innerHTML = `<img src="" data-src="${img._key}" loading="lazy" style="width:100%;height:100%;object-fit:cover;opacity:0;" onload="this.style.opacity='1'"><div class="card-name">${U.esc(img._displayName || img.name)}</div>`;
     }
     return card;
   },
@@ -182,7 +182,8 @@ const R = {
       const imgs = S.albumImages[f] ?? [];
       if (imgs.length === 0) continue;
       try {
-        const thumb = await API.getThumbnail(S.profileId, imgs[0].name, f);
+        const ts = Math.round((App._settings.thumbnail_size ?? 400) * 0.75);
+        const thumb = await API.getThumbnail(S.profileId, imgs[0].name, f, ts);
         const coverEl = wrap.querySelector(`.album-cover[data-folder="${U.esc(f)}"]`);
         if (coverEl && thumb && thumb.dataUrl) {
           coverEl.innerHTML = `<img src="${thumb.dataUrl}" style="width:100%;height:100%;object-fit:cover;">`;
@@ -247,8 +248,14 @@ const R = {
         const imageData = S.filteredImages.find(i => (i._key || i.name) === key);
         if (!imageData) continue;
 
-        API.getThumbnail(S.profileId, imageData.name, imageData._folder)
-          .then(thumb => { img.src = thumb.dataUrl; img.removeAttribute('data-src'); })
+        const ts = App._settings.thumbnail_size ?? 400;
+        API.getThumbnail(S.profileId, imageData.name, imageData._folder, ts)
+          .then(thumb => {
+            img.src = thumb.dataUrl;
+            if (thumb.width) img.width = thumb.width;
+            if (thumb.height) img.height = thumb.height;
+            img.removeAttribute('data-src');
+          })
           .catch(() => { img.src = ''; img.removeAttribute('data-src'); });
         this._imgObserver.unobserve(img);
       }

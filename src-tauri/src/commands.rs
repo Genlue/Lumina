@@ -195,7 +195,13 @@ pub fn scanner_list_subfolders(
 // ============================================================
 
 #[tauri::command]
-pub fn files_get_thumbnail(app: AppHandle, profile_id: String, filename: String, folder: Option<String>) -> Result<ThumbnailResult, String> {
+pub async fn files_get_thumbnail(
+    app: AppHandle,
+    profile_id: String,
+    filename: String,
+    folder: Option<String>,
+    size: Option<u32>,
+) -> Result<ThumbnailResult, String> {
     let root = get_profile_folder(&app, &profile_id)?;
     let file_path = match &folder {
         Some(sf) if !sf.is_empty() => Path::new(&root).join(sf).join(&filename),
@@ -206,12 +212,81 @@ pub fn files_get_thumbnail(app: AppHandle, profile_id: String, filename: String,
         return Err(format!("File not found: {}", filename));
     }
 
-    // Return absolute file path; frontend converts to asset:// via convertFileSrc()
-    Ok(ThumbnailResult {
-        data_url: file_path.to_string_lossy().to_string(),
-        width: 0,
-        height: 0,
+    let max_dim = size.unwrap_or(0);
+
+    // Full-size mode (lightbox / background): return original path with dimensions from DB
+    if max_dim == 0 {
+        let (width, height) = {
+            let db = app.state::<DbState>();
+            let conn = db.conn.lock().map_err(|e| format!("DB lock: {}", e))?;
+            let album_id = folder.as_deref()
+                .and_then(|f| repos::albums::get_album_by_folder(&conn, &profile_id, f))
+                .map(|a| a.id);
+            repos::images::get_image_by_name(&conn, &profile_id, &filename, album_id)
+                .map(|img| (img.width.unwrap_or(0) as u32, img.height.unwrap_or(0) as u32))
+                .unwrap_or((0, 0))
+        };
+        return Ok(ThumbnailResult {
+            data_url: file_path.to_string_lossy().to_string(),
+            width,
+            height,
+        });
+    }
+
+    // Thumbnail mode: generate or retrieve cached thumbnail
+    let cache_dir = Path::new(&root).join(".album").join("cache").join("thumbnails");
+
+    // Look up image DB id for cache key
+    let cache_key = {
+        let db = app.state::<DbState>();
+        let conn = db.conn.lock().map_err(|e| format!("DB lock: {}", e))?;
+        let album_id = folder.as_deref()
+            .and_then(|f| repos::albums::get_album_by_folder(&conn, &profile_id, f))
+            .map(|a| a.id);
+        repos::images::get_image_by_name(&conn, &profile_id, &filename, album_id)
+            .map(|img| format!("{}_{}", img.id, max_dim))
+            .unwrap_or_else(|| {
+                // Fallback: hash the canonical path for images not yet in DB
+                format!("{:x}_{}", simple_hash(&file_path.to_string_lossy()), max_dim)
+            })
+    };
+
+    let fp = file_path.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        services::thumbnails::get_or_generate_thumbnail(
+            &fp, &cache_dir, &cache_key, max_dim, 75,
+        )
     })
+    .await
+    .map_err(|e| format!("Thumbnail generation error: {}", e))?;
+
+    match result {
+        Some(thumb_path) => {
+            let (tw, th) = image::image_dimensions(&thumb_path).unwrap_or((max_dim, max_dim));
+            Ok(ThumbnailResult {
+                data_url: thumb_path.to_string_lossy().to_string(),
+                width: tw,
+                height: th,
+            })
+        }
+        None => {
+            // Fallback: return original path (SVG, corrupt, etc.)
+            Ok(ThumbnailResult {
+                data_url: file_path.to_string_lossy().to_string(),
+                width: 0,
+                height: 0,
+            })
+        }
+    }
+}
+
+/// Simple non-cryptographic hash for cache key fallback when image not in DB.
+fn simple_hash(s: &str) -> u64 {
+    let mut h: u64 = 5381;
+    for b in s.bytes() {
+        h = h.wrapping_mul(33).wrapping_add(b as u64);
+    }
+    h
 }
 
 #[tauri::command]
@@ -236,7 +311,7 @@ pub fn files_rename(app: AppHandle, profile_id: String, old_name: String, new_na
 #[tauri::command]
 pub fn files_move_to_trash(app: AppHandle, profile_id: String, filename: String, folder: Option<String>) -> Result<String, String> {
     let root = get_profile_folder(&app, &profile_id)?;
-    let trash_dir = Path::new(&root).join(".album-trash");
+    let trash_dir = Path::new(&root).join(".album").join("trash");
     fs::create_dir_all(&trash_dir).map_err(|e| format!("Create trash dir: {}", e))?;
 
     let old_path = match &folder {
@@ -263,9 +338,12 @@ pub fn files_move_to_trash(app: AppHandle, profile_id: String, filename: String,
 }
 
 #[tauri::command]
-pub fn files_permanent_delete(app: AppHandle, profile_id: String, filename: String) -> Result<(), String> {
+pub fn files_permanent_delete(app: AppHandle, profile_id: String, filename: String, folder: Option<String>) -> Result<(), String> {
     let root = get_profile_folder(&app, &profile_id)?;
-    let file_path = Path::new(&root).join(&filename);
+    let file_path = match &folder {
+        Some(f) if !f.is_empty() => Path::new(&root).join(f).join(&filename),
+        _ => Path::new(&root).join(&filename),
+    };
     if file_path.exists() {
         fs::remove_file(&file_path).map_err(|e| format!("Delete error: {}", e))?;
     }
@@ -473,15 +551,40 @@ pub fn favorites_count(app: AppHandle, profile_id: String) -> Result<i64, String
 
 #[tauri::command]
 pub fn trash_list(app: AppHandle, profile_id: String) -> Result<Vec<TrashRecord>, String> {
+    let root = get_profile_folder(&app, &profile_id)?;
     let db = app.state::<DbState>();
     let conn = db.conn.lock().map_err(|e| format!("DB lock: {}", e))?;
-    Ok(repos::trash::list_trash(&conn, &profile_id))
+    let records = repos::trash::list_trash(&conn, &profile_id);
+
+    // Auto-clean ghost records + migrate files from old .album-trash/ path
+    let new_trash_dir = Path::new(&root).join(".album").join("trash");
+    let old_trash_dir = Path::new(&root).join(".album-trash");
+    let mut valid = Vec::new();
+    for rec in &records {
+        let new_path = new_trash_dir.join(&rec.trash_name);
+        if new_path.exists() {
+            valid.push(rec.clone());
+            continue;
+        }
+        // Try old path — migrate file if found
+        let old_path = old_trash_dir.join(&rec.trash_name);
+        if old_path.exists() {
+            fs::create_dir_all(&new_trash_dir).ok();
+            if fs::rename(&old_path, &new_path).is_ok() {
+                valid.push(rec.clone());
+                continue;
+            }
+        }
+        // File missing entirely — remove ghost DB record
+        repos::trash::remove_trash_entry(&conn, &profile_id, &rec.trash_name);
+    }
+    Ok(valid)
 }
 
 #[tauri::command]
 pub fn trash_restore(app: AppHandle, profile_id: String, trash_name: String, original_name: String, original_folder: Option<String>) -> Result<String, String> {
     let root = get_profile_folder(&app, &profile_id)?;
-    let trash_dir = Path::new(&root).join(".album-trash");
+    let trash_dir = Path::new(&root).join(".album").join("trash");
     let trash_path = trash_dir.join(&trash_name);
 
     let restore_path = match &original_folder {
@@ -532,7 +635,7 @@ pub fn trash_count(app: AppHandle, profile_id: String) -> Result<i64, String> {
 #[tauri::command]
 pub fn trash_empty(app: AppHandle, profile_id: String) -> Result<i64, String> {
     let root = get_profile_folder(&app, &profile_id)?;
-    let trash_dir = Path::new(&root).join(".album-trash");
+    let trash_dir = Path::new(&root).join(".album").join("trash");
     if trash_dir.exists() {
         if let Ok(entries) = fs::read_dir(&trash_dir) {
             for entry in entries.flatten() {
@@ -571,7 +674,7 @@ pub fn settings_save(app: AppHandle, profile_id: String, updates: serde_json::Va
 #[tauri::command]
 pub fn theme_extract_colors(app: AppHandle, profile_id: String, filename: String) -> Result<ThemeColors, String> {
     let root = get_profile_folder(&app, &profile_id)?;
-    let file_path = Path::new(&root).join("backgrounds").join(&filename);
+    let file_path = Path::new(&root).join(".album").join("backgrounds").join(&filename);
     if !file_path.exists() { return Err(format!("Background file not found: {}", filename)); }
     Ok(services::theme::extract_theme_colors(&file_path.to_string_lossy()))
 }
@@ -595,7 +698,7 @@ pub fn bg_import(app: AppHandle, profile_id: String) -> Result<Option<String>, S
     let src = src_path.as_path().ok_or("Invalid file path")?.to_path_buf();
 
     let root = get_profile_folder(&app, &profile_id)?;
-    let bg_dir = Path::new(&root).join("backgrounds");
+    let bg_dir = Path::new(&root).join(".album").join("backgrounds");
     fs::create_dir_all(&bg_dir).map_err(|e| format!("Create bg dir: {}", e))?;
 
     let filename = src.file_name().unwrap().to_string_lossy().to_string();
@@ -622,7 +725,7 @@ pub fn bg_import(app: AppHandle, profile_id: String) -> Result<Option<String>, S
 #[tauri::command]
 pub fn bg_open_folder(app: AppHandle, profile_id: String) -> Result<(), String> {
     let root = get_profile_folder(&app, &profile_id)?;
-    let bg_path = Path::new(&root).join("backgrounds");
+    let bg_path = Path::new(&root).join(".album").join("backgrounds");
     fs::create_dir_all(&bg_path).ok();
     // Open in system file explorer
     if let Err(e) = open::that(&bg_path) {
@@ -634,7 +737,7 @@ pub fn bg_open_folder(app: AppHandle, profile_id: String) -> Result<(), String> 
 #[tauri::command]
 pub fn bg_delete(app: AppHandle, profile_id: String, filename: String) -> Result<(), String> {
     let root = get_profile_folder(&app, &profile_id)?;
-    let file_path = Path::new(&root).join("backgrounds").join(&filename);
+    let file_path = Path::new(&root).join(".album").join("backgrounds").join(&filename);
     if file_path.exists() {
         fs::remove_file(&file_path).map_err(|e| format!("Delete error: {}", e))?;
     }

@@ -3,8 +3,8 @@
 // ============================================================
 
 const D = {
-  /** Render waterfall layout */
-  async renderWaterfall() {
+  /** Render waterfall layout with lazy loading */
+  renderWaterfall() {
     const grid = document.getElementById('waterfall-grid');
     if (!grid) return;
 
@@ -14,23 +14,46 @@ const D = {
       return;
     }
 
+    // Disconnect previous observer
+    if (this._wfObserver) this._wfObserver.disconnect();
+
     grid.innerHTML = '';
     for (const img of all) {
       const container = document.createElement('div');
       const imgEl = document.createElement('img');
       imgEl.alt = img.name;
+      imgEl.dataset.src = img._key;
+      imgEl.dataset.folder = img._folder || '';
+      imgEl.style.opacity = '0';
       container.appendChild(imgEl);
       grid.appendChild(container);
-
-      API.getThumbnail(S.profileId, img.name, img._folder)
-        .then(thumb => { imgEl.src = thumb.dataUrl; })
-        .catch(() => {});
 
       imgEl.addEventListener('click', () => {
         S.filteredImages = all;
         Lb.open(all.indexOf(img));
       });
     }
+
+    // Lazy-load waterfall images via IntersectionObserver
+    this._wfObserver = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const img = entry.target;
+        const key = img.dataset.src;
+        const folder = img.dataset.folder || null;
+        if (!key) continue;
+        const imageData = all.find(i => (i._key || i.name) === key);
+        if (!imageData) continue;
+
+        const ts = Math.round((App._settings.thumbnail_size ?? 400) * 1.25);
+        API.getThumbnail(S.profileId, imageData.name, folder || imageData._folder, ts)
+          .then(thumb => { img.src = thumb.dataUrl; img.style.opacity = '1'; })
+          .catch(() => {});
+        this._wfObserver.unobserve(img);
+      }
+    }, { rootMargin: '400px' });
+
+    grid.querySelectorAll('img[data-src]').forEach(img => this._wfObserver.observe(img));
   },
 
   /** Render draw (random card flip) */
@@ -69,7 +92,8 @@ const D = {
 
     // Load images
     selected.forEach((img, i) => {
-      API.getThumbnail(S.profileId, img.name, img._folder)
+      const ts = App._settings.thumbnail_size ?? 400;
+      API.getThumbnail(S.profileId, img.name, img._folder, ts)
         .then(thumb => {
           const el = area.querySelector(`.draw-img-${i}`);
           if (el) el.src = thumb.dataUrl;
@@ -164,16 +188,34 @@ const D = {
     if (!S._randomImgs) return;
     const img = S._randomImgs[S._randomIdx];
     if (!img) return;
-    API.getThumbnail(S.profileId, img.name, img._folder)
+    const ts = Math.round((App._settings.thumbnail_size ?? 400) * 1.5);
+    API.getThumbnail(S.profileId, img.name, img._folder, ts)
       .then(thumb => {
         const el = document.getElementById('random-img');
-        if (el) el.src = thumb.dataUrl;
+        if (el) {
+          el.src = thumb.dataUrl;
+          el.style.opacity = '1';
+        }
       })
       .catch(() => {});
     const info = document.getElementById('random-info');
     if (info) {
       info.textContent = `${img.name}${img._folder ? ` (${img._folder})` : ''}`;
     }
+    // Preload next image
+    this._preloadNext();
+  },
+
+  _preloadNext() {
+    if (!S._randomImgs || S._randomImgs.length <= 1) return;
+    const nextIdx = (S._randomIdx + 1) % S._randomImgs.length;
+    const nextImg = S._randomImgs[nextIdx];
+    if (!nextImg) return;
+    const ts = Math.round((App._settings.thumbnail_size ?? 400) * 1.5);
+    // Fire-and-forget preload
+    API.getThumbnail(S.profileId, nextImg.name, nextImg._folder, ts)
+      .then(thumb => { S._preloadedSrc = thumb?.dataUrl || null; })
+      .catch(() => { S._preloadedSrc = null; });
   },
 
   stopRandom() {

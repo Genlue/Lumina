@@ -133,5 +133,13 @@ fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
         println!("[DB] Migration V4 applied: random interval");
     }
 
+    if version < 5 {
+        conn.execute_batch(
+            "ALTER TABLE settings ADD COLUMN thumbnail_size INTEGER NOT NULL DEFAULT 400;
+             INSERT INTO _schema_version (version) VALUES (5);"
+        )?;
+        println!("[DB] Migration V5 applied: thumbnail size");
+    }
+
     Ok(())
 }

@@ -1,12 +1,14 @@
+use std::fs;
+use std::path::Path;
 use rusqlite::{Connection, params};
 use crate::models::{ImageRecord, FileInfo};
 
 pub fn sync_images(conn: &Connection, profile_id: &str, album_id: Option<i64>, files: &[FileInfo]) {
     for f in files {
         conn.execute(
-            "INSERT OR REPLACE INTO images (profile_id, album_id, filename, file_size, file_date)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![profile_id, album_id, f.name, f.size as i64, f.last_modified as i64],
+            "INSERT OR REPLACE INTO images (profile_id, album_id, filename, file_size, file_date, width, height)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![profile_id, album_id, f.name, f.size as i64, f.last_modified as i64, f.width.map(|w| w as i64), f.height.map(|h| h as i64)],
         ).ok();
     }
 
@@ -110,5 +112,18 @@ pub fn update_image_meta(conn: &Connection, id: i64, width: Option<i64>, height:
             "UPDATE images SET width = ?1, height = ?2 WHERE id = ?3",
             params![w, h, id],
         ).ok();
+    }
+}
+
+/// Delete cached thumbnail files for an image (any size variant).
+pub fn purge_thumbnails_for_image(cache_dir: &Path, image_id: i64) {
+    let prefix = format!("{}_", image_id);
+    if let Ok(entries) = fs::read_dir(cache_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.starts_with(&prefix) && name.ends_with(".jpg") {
+                let _ = fs::remove_file(entry.path());
+            }
+        }
     }
 }

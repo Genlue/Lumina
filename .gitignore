@@ -8,4 +8,6 @@ Thumbs.db
 *.log
 target/
 data/
+*.bak*
+photo-album.exe.WebView2/
 

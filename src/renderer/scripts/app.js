@@ -202,14 +202,20 @@ const App = {
     // Theme (from profile DB settings)
     ST.applyTheme(App._settings.theme_mode ?? 'dark');
     ST.applyAccent(App._settings.accent_color ?? '#60CDFF');
-    document.documentElement.style.setProperty('--sidebar-opacity', String(App._settings.sidebar_opacity ?? 0.85));
-    document.documentElement.style.setProperty('--sidebar-font', (App._settings.sidebar_font ?? 14) + 'px');
-    document.documentElement.style.setProperty('--card-opacity', String(App._settings.card_opacity ?? 1));
-    document.documentElement.style.setProperty('--card-blur', (App._settings.card_blur ?? 0) + 'px');
 
     document.getElementById('startup').classList.add('hidden');
     document.getElementById('app').classList.remove('hidden');
     document.querySelector('#folder-info span').textContent = folderPath;
+
+    // Apply layout settings in rAF — ensures browser has performed layout after un-hiding
+    requestAnimationFrame(() => {
+      ST.applySidebarWidth(App._settings.sidebar_width ?? 270);
+      ST.applySidebarOpacity(App._settings.sidebar_opacity ?? 0.85);
+      ST.applySidebarFont(App._settings.sidebar_font ?? 14);
+      ST.applySidebarBlur(App._settings.sidebar_blur ?? 16);
+      ST.applyCardOpacity(App._settings.card_opacity ?? 1);
+      ST.applyCardBlur(App._settings.card_blur ?? 0);
+    });
 
     // Restore bg settings AFTER DOM is visible
     ST.applyBlur(App._settings.bg_blur ?? 20);
@@ -453,6 +459,32 @@ const App = {
     e.preventDefault();
     CM.show(e.clientX, e.clientY);
     const menu = document.getElementById('ctx-m');
+
+    if (img._isTrash) {
+      // Trash-specific context menu
+      const te = img._trashEntry;
+      menu.innerHTML = `
+        <div data-action="restore">↩ 还原到原位置</div>
+        <div class="ctx-sep"></div>
+        <div data-action="delete" class="danger">🗑 永久删除</div>
+      `;
+      menu.querySelector('[data-action="restore"]').onclick = () => {
+        CM.hide();
+        App.restore(te.trash_name, te.original_name, te.original_folder);
+      };
+      menu.querySelector('[data-action="delete"]').onclick = async () => {
+        CM.hide();
+        const r = await Modal.show('永久删除', '文件将彻底删除，无法恢复', [{ label: '取消' }, { label: '删除', danger: true }]);
+        if (r.idx !== 1) return;
+        try {
+          await API.permanentDelete(S.profileId, te.trash_name, TRASH_DIR);
+          await API.scanAll(S.profileId); R.renderGrid(); R.updateCount();
+          Toast.show('已永久删除', 'info');
+        } catch (e) { Toast.show('删除失败', 'error'); }
+      };
+      return;
+    }
+
     const isFav = S.favoritesSet.has(img._key);
     const isRootImg = !img._folder;
     menu.innerHTML = `
