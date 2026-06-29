@@ -619,12 +619,16 @@ img {
   padding: 0;
   overflow: hidden;
   cursor: default;
+  background: rgba(var(--c-card-r,42),var(--c-card-g,42),var(--c-card-b,42),var(--card-opacity,1));
+  -webkit-backdrop-filter: blur(var(--card-blur,0px));
+  backdrop-filter: blur(var(--card-blur,0px));
 }
 .dashboard-card:hover {
   transform: none !important;
   border-color: var(--c-border) !important;
   box-shadow: none !important;
 }
+
 .dashboard-stats {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -632,27 +636,66 @@ img {
   height: 100%;
   background: var(--c-border);
 }
+
 .stat-item {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 16px 8px;
-  background: var(--c-card);
+  gap: 2px;
+  padding: 12px 8px;
+  position: relative;
+  border-top: 3px solid transparent;
+  background: rgba(var(--c-card-r,42),var(--c-card-g,42),var(--c-card-b,42),var(--card-opacity,1));
 }
-.stat-icon {
-  font-size: 1.5em;
-}
+
 .stat-label {
-  font-size: 0.75em;
-  color: var(--c-text3);
+  font-size: 0.82em;
+  color: var(--c-text2);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  opacity: 0.85;
 }
+
 .stat-value {
-  font-size: 1.3em;
+  font-size: 1.6em;
   font-weight: var(--font-weight-bold);
-  color: var(--c-accent);
+  line-height: 1.2;
 }
+
+/* 四色主题 */
+.stat-imgs {
+  border-top-color: var(--c-accent);
+  background:
+    linear-gradient(180deg, rgba(96,205,255,0.07) 0%, transparent 45%),
+    rgba(var(--c-card-r,42),var(--c-card-g,42),var(--c-card-b,42),var(--card-opacity,1));
+}
+.stat-imgs .stat-value { color: var(--c-accent); }
+
+.stat-size {
+  border-top-color: var(--c-success);
+  background:
+    linear-gradient(180deg, rgba(76,195,138,0.07) 0%, transparent 45%),
+    rgba(var(--c-card-r,42),var(--c-card-g,42),var(--c-card-b,42),var(--card-opacity,1));
+}
+.stat-size .stat-value { color: var(--c-success); }
+
+.stat-albums {
+  border-top-color: var(--c-warning);
+  background:
+    linear-gradient(180deg, rgba(242,163,78,0.07) 0%, transparent 45%),
+    rgba(var(--c-card-r,42),var(--c-card-g,42),var(--c-card-b,42),var(--card-opacity,1));
+}
+.stat-albums .stat-value { color: var(--c-warning); }
+
+.stat-favs {
+  border-top-color: var(--c-danger);
+  background:
+    linear-gradient(180deg, rgba(255,68,68,0.07) 0%, transparent 45%),
+    rgba(var(--c-card-r,42),var(--c-card-g,42),var(--c-card-b,42),var(--card-opacity,1));
+}
+.stat-favs .stat-value { color: var(--c-danger); }
 
 /* ============================
    Lightbox
