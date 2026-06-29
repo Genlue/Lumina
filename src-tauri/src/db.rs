@@ -238,6 +238,14 @@ fn init_profile_db_schema(conn: &Connection) -> rusqlite::Result<()> {
         println!("[DB] Profile DB migration V4 applied (toolbar settings)");
     }
 
+    if version < 5 {
+        conn.execute_batch(
+            "ALTER TABLE settings ADD COLUMN select_overlay_opacity REAL NOT NULL DEFAULT 0.2;"
+        )?;
+        conn.execute("INSERT INTO _schema_version (version) VALUES (5)", [])?;
+        println!("[DB] Profile DB migration V5 applied (select_overlay_opacity)");
+    }
+
     Ok(())
 }
 

@@ -8,7 +8,8 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
         "SELECT profile_id, view_mode, sort_by, theme_mode, accent_color,
                 bg_image, bg_blur, bg_opacity, sidebar_width, sidebar_opacity,
                 draw_count, card_opacity, card_blur, sidebar_font, random_interval,
-                thumbnail_size, toolbar_height, toolbar_blur, toolbar_opacity
+                thumbnail_size, toolbar_height, toolbar_blur, toolbar_opacity,
+                select_overlay_opacity
          FROM settings WHERE profile_id = ?1",
         params![profile_id],
         |row| Ok(Settings {
@@ -24,6 +25,7 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
             toolbar_height: row.get(16).unwrap_or(48),
             toolbar_blur: row.get(17).unwrap_or(16),
             toolbar_opacity: row.get(18).unwrap_or(0.85),
+            select_overlay_opacity: row.get(19).unwrap_or(0.2),
         }),
     ) {
         Ok(s) => s,
@@ -32,10 +34,11 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
                 "INSERT INTO settings (profile_id, view_mode, sort_by, theme_mode, accent_color,
                  bg_image, bg_blur, bg_opacity, sidebar_width, sidebar_opacity, draw_count,
                  card_opacity, card_blur, sidebar_font, random_interval, thumbnail_size,
-                 toolbar_height, toolbar_blur, toolbar_opacity)
+                 toolbar_height, toolbar_blur, toolbar_opacity,
+                 select_overlay_opacity)
                  VALUES (?1, 'grid', 'name-asc', 'dark', '#6D79F6',
                  NULL, 20, 0, 270, 0.82, 3, 1, 0, 14, 3, 400,
-                 48, 16, 0.85)",
+                 48, 16, 0.85, 0.2)",
                 params![profile_id],
             ).ok();
             Settings {
@@ -51,6 +54,7 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
                 toolbar_height: 48,
                 toolbar_blur: 16,
                 toolbar_opacity: 0.85,
+                select_overlay_opacity: 0.2,
             }
         }
     }
@@ -77,17 +81,20 @@ pub fn save_settings(conn: &Connection, profile_id: &str, updates: serde_json::V
     let toolbar_height = updates["toolbar_height"].as_i64().unwrap_or(current.toolbar_height);
     let toolbar_blur = updates["toolbar_blur"].as_i64().unwrap_or(current.toolbar_blur);
     let toolbar_opacity = updates["toolbar_opacity"].as_f64().unwrap_or(current.toolbar_opacity);
+    let select_overlay_opacity = updates["select_overlay_opacity"].as_f64().unwrap_or(current.select_overlay_opacity);
 
     conn.execute(
         "UPDATE settings SET view_mode=?1, sort_by=?2, theme_mode=?3, accent_color=?4,
          bg_image=?5, bg_blur=?6, bg_opacity=?7, sidebar_width=?8, sidebar_opacity=?9,
          draw_count=?10, card_opacity=?11, card_blur=?12, sidebar_font=?13, random_interval=?14,
-         thumbnail_size=?15, toolbar_height=?16, toolbar_blur=?17, toolbar_opacity=?18
-         WHERE profile_id=?19",
+         thumbnail_size=?15, toolbar_height=?16, toolbar_blur=?17, toolbar_opacity=?18,
+         select_overlay_opacity=?19
+         WHERE profile_id=?20",
         params![view_mode, sort_by, theme_mode, accent_color,
                 bg_image, bg_blur, bg_opacity, sidebar_width, sidebar_opacity,
                 draw_count, card_opacity, card_blur, sidebar_font, random_interval,
                 thumbnail_size, toolbar_height, toolbar_blur, toolbar_opacity,
+                select_overlay_opacity,
                 profile_id],
     ).ok();
 }

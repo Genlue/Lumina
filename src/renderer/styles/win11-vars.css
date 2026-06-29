@@ -46,6 +46,7 @@
   --toolbar-h: 48px;
   --toolbar-blur: 16px;
   --toolbar-opacity: 0.85;
+  --overlay-opacity: 0.2;
 }
 
 /* ---- Mica/Acrylic support (when available) ---- */

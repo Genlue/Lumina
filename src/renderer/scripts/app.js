@@ -246,6 +246,7 @@ const App = {
       ST.applyToolbarHeight(App._settings.toolbar_height ?? 48);
       ST.applyToolbarBlur(App._settings.toolbar_blur ?? 16);
       ST.applyToolbarOpacity(App._settings.toolbar_opacity ?? 0.85);
+      document.documentElement.style.setProperty('--overlay-opacity', String(App._settings.select_overlay_opacity ?? 0.2));
     });
 
     // Restore bg settings AFTER DOM is visible
@@ -473,8 +474,15 @@ const App = {
     document.getElementById('btn-multi-select')?.addEventListener('click', () => {
       S.multiselect = !S.multiselect;
       const btn = document.getElementById('btn-multi-select');
-      if (S.multiselect) { btn.classList.add('active'); btn.textContent = '☑ 多选'; }
-      else { btn.classList.remove('active'); btn.textContent = '☐ 多选'; S.selected.clear(); R.uiSel(); }
+      const overlay = document.getElementById('multi-overlay');
+      if (S.multiselect) {
+          btn.classList.add('active'); btn.textContent = '☑ 多选';
+          if (overlay) overlay.classList.remove('hidden');
+      } else {
+          btn.classList.remove('active'); btn.textContent = '☐ 多选';
+          S.selected.clear(); R.uiSel();
+          if (overlay) overlay.classList.add('hidden');
+      }
     });
 
     document.getElementById('search-input')?.addEventListener('input', U.debounce(async () => {
@@ -758,6 +766,8 @@ const App = {
     S.selected.clear();
     const btn = document.getElementById('btn-multi-select');
     if (btn) { btn.classList.remove('active'); btn.textContent = '☐ 多选'; }
+    const overlay = document.getElementById('multi-overlay');
+    if (overlay) overlay.classList.add('hidden');
     R.uiSel();
   },
 

@@ -20,22 +20,26 @@ const ST = {
       this._setVal('set-sidebar-w', s.sidebar_width ?? 270);
       this._setVal('set-sidebar-opacity', Math.round((s.sidebar_opacity ?? 0.85) * 100));
       this._setVal('set-sidebar-font', s.sidebar_font ?? 14);
+      this._setVal('set-sidebar-blur', s.sidebar_blur ?? 16);
       this._setVal('set-card-opacity', Math.round((s.card_opacity ?? 1) * 100));
       this._setVal('set-card-blur', s.card_blur ?? 0);
       this._setVal('set-toolbar-h', s.toolbar_height ?? 48);
       this._setVal('set-toolbar-blur', s.toolbar_blur ?? 16);
       this._setVal('set-toolbar-opacity', Math.round((s.toolbar_opacity ?? 0.85) * 100));
+      this._setVal('set-overlay-opacity', Math.round((s.select_overlay_opacity ?? 0.2) * 100));
 
       this._setText('bg-blur-val', (s.bg_blur ?? 20) + 'px');
       this._setText('bg-opacity-val', Math.round((s.bg_opacity ?? 0) * 100) + '%');
       this._setText('sidebar-w-val', (s.sidebar_width ?? 270) + 'px');
       this._setText('sidebar-opacity-val', Math.round((s.sidebar_opacity ?? 0.85) * 100) + '%');
       this._setText('sidebar-font-val', (s.sidebar_font ?? 14) + 'px');
+      this._setText('sidebar-blur-val', (s.sidebar_blur ?? 16) + 'px');
       this._setText('card-opacity-val', Math.round((s.card_opacity ?? 1) * 100) + '%');
       this._setText('card-blur-val', (s.card_blur ?? 0) + 'px');
       this._setText('toolbar-h-val', (s.toolbar_height ?? 48) + 'px');
       this._setText('toolbar-blur-val', (s.toolbar_blur ?? 16) + 'px');
       this._setText('toolbar-opacity-val', Math.round((s.toolbar_opacity ?? 0.85) * 100) + '%');
+      this._setText('overlay-opacity-val', Math.round((s.select_overlay_opacity ?? 0.2) * 100) + '%');
       this._setText('thumb-size-val', (s.thumbnail_size ?? 400) + 'px');
       this._setText('draw-count-val', s.draw_count ?? 3);
       this._setText('random-interval-val', (s.random_interval ?? 3) + 's');
@@ -320,6 +324,13 @@ const ST = {
     this._setText('toolbar-opacity-val', Math.round(val * 100) + '%');
     API.saveSettings(S.profileId, { toolbar_opacity: val });
     App._settings.toolbar_opacity = val;
+  },
+
+  applyOverlayOpacity(val) {
+    document.documentElement.style.setProperty('--overlay-opacity', String(val));
+    this._setText('overlay-opacity-val', Math.round(val * 100) + '%');
+    API.saveSettings(S.profileId, { select_overlay_opacity: val });
+    App._settings.select_overlay_opacity = val;
   },
 
   clearCache() {

@@ -420,7 +420,27 @@ img {
 }
 .image-card.selected {
   border-color: var(--c-accent);
-  box-shadow: 0 0 0 2px var(--c-accent-bg);
+  box-shadow: 0 0 0 2px var(--c-accent-bg), inset 0 0 0 1px rgba(96,205,255,0.3);
+}
+.image-card.selected::after {
+  content: '\2713';
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  background: var(--c-accent);
+  color: #000;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: bold;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  z-index: 3;
+  line-height: 24px;
+  text-align: center;
 }
 .image-card img {
   width: 100%;
@@ -611,6 +631,17 @@ img {
 .settings-card input[type="range"] {
   accent-color: var(--c-accent);
 }
+.settings-group-label {
+  grid-column: 1 / -1;
+  font-size: 0.82em;
+  font-weight: var(--font-weight-semibold);
+  color: var(--c-text2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 12px 0 4px 0;
+  border-bottom: 1px solid var(--c-border);
+  margin-bottom: 4px;
+}
 
 /* Dashboard card */
 .dashboard-card {
@@ -696,6 +727,22 @@ img {
     rgba(var(--c-card-r,42),var(--c-card-g,42),var(--c-card-b,42),var(--card-opacity,1));
 }
 .stat-favs .stat-value { color: var(--c-danger); }
+
+/* Multi-select overlay */
+#multi-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  background: rgba(0, 0, 0, var(--overlay-opacity, 0.2));
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s, visibility 0.2s;
+}
+#multi-overlay:not(.hidden) {
+  opacity: 1;
+  visibility: visible;
+}
 
 /* ============================
    Lightbox

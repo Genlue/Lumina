@@ -77,6 +77,7 @@ pub struct Settings {
     pub toolbar_height: i64,
     pub toolbar_blur: i64,
     pub toolbar_opacity: f64,
+    pub select_overlay_opacity: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
