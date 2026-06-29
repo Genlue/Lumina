@@ -83,7 +83,16 @@ const R = {
       }));
     } else if (S.currentView === 'favorites') {
       await API.listFav(S.profileId);
-      imgs = imgs.filter(i => S.favoritesSet.has(i._key));
+      // Build directly from favoritesList — avoids key mismatch with buildAllImgs
+      imgs = S.favoritesList.map(f => ({
+        name: f.filename || '',
+        _key: f.folder_name ? f.folder_name + '/' + f.filename : f.filename,
+        _folder: f.folder_name || null,
+        size: f.file_size || 0,
+        lastModified: f.file_date || 0,
+        width: f.width || 0,
+        height: f.height || 0,
+      }));
     } else if (S.currentView !== 'all' && S.currentView !== 'albums') {
       imgs = imgs.filter(i => i._folder === S.currentView);
     }

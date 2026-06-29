@@ -205,10 +205,27 @@ fn init_profile_db_schema(conn: &Connection) -> rusqlite::Result<()> {
             "UPDATE favorites SET
                 filename = (SELECT filename FROM images WHERE images.id = favorites.image_id),
                 album_id = (SELECT album_id FROM images WHERE images.id = favorites.image_id)
-             WHERE EXISTS (SELECT 1 FROM images WHERE images.id = favorites.image_id)"
+             WHERE EXISTS (SELECT 1 FROM images WHERE images.id = favorites.image_id)",
+            [],
         )?;
         conn.execute("INSERT INTO _schema_version (version) VALUES (2)", [])?;
         println!("[DB] Profile DB migration V2 applied (favorites filename/album_id)");
+    }
+
+    if version < 3 {
+        conn.execute_batch(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_images_unique_all
+             ON images(profile_id, COALESCE(album_id, -1), filename);
+
+             DELETE FROM images WHERE rowid NOT IN (
+                 SELECT MIN(rowid) FROM images
+                 GROUP BY profile_id, COALESCE(album_id, -1), filename
+             );
+
+             DELETE FROM favorites WHERE image_id NOT IN (SELECT id FROM images);"
+        )?;
+        conn.execute("INSERT INTO _schema_version (version) VALUES (3)", [])?;
+        println!("[DB] Profile DB migration V3 applied (unique index for NULL album_id)");
     }
 
     Ok(())
@@ -463,6 +480,9 @@ pub fn get_profile_conn(
         .map_err(|e| format!("Open profile DB: {}", e))?;
     conn.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")
         .map_err(|e| format!("Profile DB pragma: {}", e))?;
+
+    // Ensure schema migrations run (handles new profiles and existing profiles that need V3+)
+    init_profile_db_schema(&conn).map_err(|e| format!("Profile DB schema: {}", e))?;
 
     let arc = Arc::new(Mutex::new(conn));
     cache.insert(profile_id.to_string(), arc.clone());

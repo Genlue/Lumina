@@ -5,16 +5,30 @@ use crate::models::{ImageRecord, FileInfo};
 
 pub fn sync_images(conn: &Connection, profile_id: &str, album_id: Option<i64>, files: &[FileInfo]) {
     for f in files {
-        conn.execute(
-            "INSERT INTO images (profile_id, album_id, filename, file_size, file_date, width, height)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-             ON CONFLICT(profile_id, album_id, filename) DO UPDATE SET
-                 file_size = excluded.file_size,
-                 file_date = excluded.file_date,
-                 width = excluded.width,
-                 height = excluded.height",
-            params![profile_id, album_id, f.name, f.size as i64, f.last_modified as i64, f.width.map(|w| w as i64), f.height.map(|h| h as i64)],
-        ).ok();
+        // Try UPDATE first — preserves image id so favorites FK (ON DELETE CASCADE) is not triggered
+        let updated = conn.execute(
+            "UPDATE images SET file_size = ?1, file_date = ?2, width = ?3, height = ?4
+             WHERE profile_id = ?5 AND (album_id IS ?6 OR album_id = ?7) AND filename = ?8",
+            params![
+                f.size as i64,
+                f.last_modified as i64,
+                f.width.map(|w| w as i64),
+                f.height.map(|h| h as i64),
+                profile_id,
+                album_id,
+                album_id,
+                f.name,
+            ],
+        ).unwrap_or(0);
+
+        if updated == 0 {
+            // No existing row — insert new one (new image or new profile)
+            conn.execute(
+                "INSERT INTO images (profile_id, album_id, filename, file_size, file_date, width, height)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params![profile_id, album_id, f.name, f.size as i64, f.last_modified as i64, f.width.map(|w| w as i64), f.height.map(|h| h as i64)],
+            ).ok();
+        }
     }
 
     if !files.is_empty() {
