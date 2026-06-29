@@ -157,13 +157,13 @@ const App = {
         menu.querySelector('[data-action="delete"]').onclick = async () => {
           CM.hide();
           const r = await Modal.show('删除记录',
-            `将清除「${U.esc(p.name)}」的所有配置数据，图片文件不受影响。`,
+            `仅删除项目注册记录，「${U.esc(p.name)}」的 .album 配置和图片文件不受影响。`,
             [{ label: '取消' }, { label: '确认删除', danger: true }]);
           if (r.idx !== 1) return;
           await API.removeProfile(p.id);
           const updated = await API.listProfiles();
           this._renderProfileList(container, updated);
-          Toast.show('已删除', 'info');
+          Toast.show('已删除记录', 'info');
         };
       });
     });
@@ -177,7 +177,7 @@ const App = {
     container.querySelectorAll('.btn-del-profile').forEach(btn => {
       btn.addEventListener('click', async e => {
         e.stopPropagation();
-        const r = await Modal.show('删除记录', '将删除所有配置数据，图片文件不受影响。', [{ label: '取消' }, { label: '确认删除', danger: true }]);
+        const r = await Modal.show('删除记录', '仅删除项目注册记录，.album 配置和图片文件不受影响。', [{ label: '取消' }, { label: '确认删除', danger: true }]);
         if (r.idx !== 1) return;
         await API.removeProfile(btn.dataset.id);
         this._renderProfileList(container, await API.listProfiles());
