@@ -474,14 +474,14 @@ const App = {
     document.getElementById('btn-multi-select')?.addEventListener('click', () => {
       S.multiselect = !S.multiselect;
       const btn = document.getElementById('btn-multi-select');
-      const overlay = document.getElementById('multi-overlay');
+      const appEl = document.getElementById('app');
       if (S.multiselect) {
           btn.classList.add('active'); btn.textContent = '☑ 多选';
-          if (overlay) overlay.classList.remove('hidden');
+          if (appEl) appEl.classList.add('multiselect-mode');
       } else {
           btn.classList.remove('active'); btn.textContent = '☐ 多选';
           S.selected.clear(); R.uiSel();
-          if (overlay) overlay.classList.add('hidden');
+          if (appEl) appEl.classList.remove('multiselect-mode');
       }
     });
 
@@ -647,6 +647,7 @@ const App = {
   showMultiCtx(e) {
     if (!S.multiselect || S.selected.size === 0) return;
     e.preventDefault();
+    const allImgs = S.buildAllImgs();
     const menu = document.getElementById('ctx-m');
     menu.innerHTML = `
       <div data-action="fav-all">☆ 批量收藏</div>
@@ -672,7 +673,7 @@ const App = {
         let count = 0;
         for (const key of S.selected) {
             if (S.favoritesSet.has(key)) continue;
-            const img = S.filteredImages.find(i => i._key === key);
+            const img = allImgs.find(i => i._key === key);
             if (img) {
                 try {
                     await API.toggleFav(S.profileId, img.name, img._folder || undefined);
@@ -693,7 +694,7 @@ const App = {
         let count = 0;
         for (const key of S.selected) {
             if (!S.favoritesSet.has(key)) continue;
-            const img = S.filteredImages.find(i => i._key === key);
+            const img = allImgs.find(i => i._key === key);
             if (img) {
                 try {
                     await API.toggleFav(S.profileId, img.name, img._folder || undefined);
@@ -715,7 +716,7 @@ const App = {
         if (!folderName) return;
         let count = 0;
         for (const key of S.selected) {
-            const img = S.filteredImages.find(i => i._key === key);
+            const img = allImgs.find(i => i._key === key);
             if (img && img._folder !== folderName) {
                 try {
                     if (img._folder) {
@@ -742,7 +743,7 @@ const App = {
         if (r.idx !== 1) return;
         let count = 0;
         for (const key of S.selected) {
-            const img = S.filteredImages.find(i => i._key === key);
+            const img = allImgs.find(i => i._key === key);
             if (img) {
                 try {
                     await API.moveToTrash(S.profileId, img.name, img._folder);
@@ -766,8 +767,8 @@ const App = {
     S.selected.clear();
     const btn = document.getElementById('btn-multi-select');
     if (btn) { btn.classList.remove('active'); btn.textContent = '☐ 多选'; }
-    const overlay = document.getElementById('multi-overlay');
-    if (overlay) overlay.classList.add('hidden');
+    const appEl = document.getElementById('app');
+    if (appEl) appEl.classList.remove('multiselect-mode');
     R.uiSel();
   },
 

@@ -728,20 +728,17 @@ img {
 }
 .stat-favs .stat-value { color: var(--c-danger); }
 
-/* Multi-select overlay */
-#multi-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 5;
-  background: rgba(0, 0, 0, var(--overlay-opacity, 0.2));
-  pointer-events: none;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.2s, visibility 0.2s;
+/* Multi-select dimming */
+.multiselect-mode .image-card {
+  transition: opacity 0.2s, filter 0.2s;
 }
-#multi-overlay:not(.hidden) {
+.multiselect-mode .image-card:not(.selected) {
+  opacity: calc(1 - var(--overlay-opacity, 0.2));
+  filter: brightness(calc(1 - var(--overlay-opacity, 0.2)));
+}
+.multiselect-mode .image-card.selected {
   opacity: 1;
-  visibility: visible;
+  filter: none;
 }
 
 /* ============================
