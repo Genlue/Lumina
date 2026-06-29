@@ -487,22 +487,159 @@ pub fn get_profile_conn(
     profile_id: &str,
     folder_path: &str,
 ) -> Result<Arc<Mutex<Connection>>, String> {
-    let mut cache = state.profile_conns.lock().map_err(|e| format!("Cache lock: {}", e))?;
-
-    if let Some(conn) = cache.get(profile_id) {
-        return Ok(conn.clone());
+    // 1. Short-term lock: only check cache, reduce lock holding time
+    {
+        let cache = state.profile_conns.lock().map_err(|e| format!("Cache lock: {}", e))?;
+        if let Some(conn) = cache.get(profile_id) {
+            return Ok(conn.clone());
+        }
     }
 
     let profile_db_path = Path::new(folder_path).join(".album").join("data.db");
+
+    // 2. Ensure root folder exists
+    if !Path::new(folder_path).exists() {
+        return Err(format!("Folder not found: {}", folder_path));
+    }
+
+    // 3. Auto-create .album/data.db if missing
+    if !profile_db_path.exists() {
+        if let Some(parent) = profile_db_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| format!("Create .album dir: {}", e))?;
+        }
+        // Create and initialize temporary connection
+        let conn = Connection::open(&profile_db_path)
+            .map_err(|e| format!("Create profile DB: {}", e))?;
+        conn.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")
+            .map_err(|e| format!("Profile DB pragma: {}", e))?;
+        init_profile_db_schema(&conn).map_err(|e| format!("Profile DB schema: {}", e))?;
+        // conn dropped here
+    }
+
+    // 4. Open connection
     let conn = Connection::open(&profile_db_path)
         .map_err(|e| format!("Open profile DB: {}", e))?;
     conn.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")
         .map_err(|e| format!("Profile DB pragma: {}", e))?;
 
-    // Ensure schema migrations run (handles new profiles and existing profiles that need V3+)
+    // 5. Ensure schema is up to date
     init_profile_db_schema(&conn).map_err(|e| format!("Profile DB schema: {}", e))?;
 
+    // 6. Check profile_id match in settings; if mismatch, perform safe migration
+    let profile_matches: bool = conn.query_row(
+        "SELECT 1 FROM settings WHERE profile_id = ?1",
+        rusqlite::params![profile_id],
+        |_| Ok(true),
+    ).unwrap_or(false);
+
+    if !profile_matches {
+        eprintln!("[DB] Profile ID mismatch in data.db for {}, adopting data", profile_id);
+
+        let tx = conn.unchecked_transaction()
+            .map_err(|e| format!("Migration TX begin: {}", e))?;
+
+        // Read old settings row (with a different profile_id)
+        struct OldSettings {
+            view_mode: String, sort_by: String, theme_mode: String,
+            accent_color: String, bg_image: Option<String>,
+            bg_blur: i64, bg_opacity: f64,
+            sidebar_width: i64, sidebar_opacity: f64,
+            draw_count: i64, card_opacity: f64, card_blur: i64,
+            sidebar_font: i64, random_interval: i64, thumbnail_size: i64,
+            toolbar_height: i64, toolbar_blur: i64, toolbar_opacity: f64,
+            select_overlay_opacity: f64,
+        }
+
+        let old = conn.query_row(
+            "SELECT view_mode, sort_by, theme_mode, accent_color,
+                    bg_image, bg_blur, bg_opacity, sidebar_width, sidebar_opacity,
+                    draw_count, card_opacity, card_blur, sidebar_font, random_interval,
+                    thumbnail_size, toolbar_height, toolbar_blur, toolbar_opacity,
+                    select_overlay_opacity
+             FROM settings WHERE profile_id != ?1 LIMIT 1",
+            rusqlite::params![profile_id],
+            |row| Ok(OldSettings {
+                view_mode: row.get(0)?, sort_by: row.get(1)?, theme_mode: row.get(2)?,
+                accent_color: row.get(3)?, bg_image: row.get(4)?,
+                bg_blur: row.get(5)?, bg_opacity: row.get(6)?,
+                sidebar_width: row.get(7)?, sidebar_opacity: row.get(8)?,
+                draw_count: row.get(9)?, card_opacity: row.get(10)?, card_blur: row.get(11)?,
+                sidebar_font: row.get(12)?, random_interval: row.get(13)?, thumbnail_size: row.get(14)?,
+                toolbar_height: row.get(15)?, toolbar_blur: row.get(16)?,
+                toolbar_opacity: row.get(17)?, select_overlay_opacity: row.get(18)?,
+            }),
+        ).ok();
+
+        // Delete conflicting row with target profile_id
+        conn.execute(
+            "DELETE FROM settings WHERE profile_id = ?1",
+            rusqlite::params![profile_id],
+        ).ok();
+        // Delete other old profile_id rows
+        conn.execute(
+            "DELETE FROM settings WHERE profile_id != ?1",
+            rusqlite::params![profile_id],
+        ).ok();
+
+        // If old settings exist, re-insert with new profile_id
+        if let Some(s) = old {
+            conn.execute(
+                "INSERT INTO settings (profile_id, view_mode, sort_by, theme_mode, accent_color,
+                 bg_image, bg_blur, bg_opacity, sidebar_width, sidebar_opacity, draw_count,
+                 card_opacity, card_blur, sidebar_font, random_interval, thumbnail_size,
+                 toolbar_height, toolbar_blur, toolbar_opacity, select_overlay_opacity)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)",
+                rusqlite::params![profile_id, s.view_mode, s.sort_by, s.theme_mode, s.accent_color,
+                        s.bg_image, s.bg_blur, s.bg_opacity, s.sidebar_width, s.sidebar_opacity,
+                        s.draw_count, s.card_opacity, s.card_blur, s.sidebar_font, s.random_interval,
+                        s.thumbnail_size, s.toolbar_height, s.toolbar_blur, s.toolbar_opacity,
+                        s.select_overlay_opacity],
+            ).map_err(|e| format!("Migration INSERT settings: {}", e))?;
+        }
+
+        // favorites: remove conflicts, then update profile_id
+        conn.execute(
+            "DELETE FROM favorites WHERE profile_id != ?1 AND image_id IN (
+                 SELECT image_id FROM favorites WHERE profile_id = ?1
+             )",
+            rusqlite::params![profile_id, profile_id],
+        ).ok();
+        conn.execute(
+            "UPDATE favorites SET profile_id = ?1 WHERE profile_id != ?1",
+            rusqlite::params![profile_id],
+        ).ok();
+
+        // albums, images, trash: update profile_id
+        for table in &["albums", "images", "trash"] {
+            conn.execute(
+                &format!("UPDATE {} SET profile_id = ?1 WHERE profile_id != ?1", table),
+                rusqlite::params![profile_id],
+            ).ok();
+        }
+
+        // Fallback: ensure at least one settings row for target profile_id
+        let still_empty: bool = conn.query_row(
+            "SELECT 1 FROM settings WHERE profile_id = ?1",
+            rusqlite::params![profile_id],
+            |_| Ok(true),
+        ).unwrap_or(false);
+        if !still_empty {
+            conn.execute(
+                "INSERT OR IGNORE INTO settings (profile_id) VALUES (?1)",
+                rusqlite::params![profile_id],
+            ).ok();
+        }
+
+        tx.commit().map_err(|e| format!("Migration TX commit: {}", e))?;
+        eprintln!("[DB] Profile ID migration for {} completed", profile_id);
+    }
+
+    // 7. Cache connection (double-check pattern)
     let arc = Arc::new(Mutex::new(conn));
+    let mut cache = state.profile_conns.lock().map_err(|e| format!("Cache lock: {}", e))?;
+    if let Some(existing) = cache.get(profile_id) {
+        return Ok(existing.clone());
+    }
     cache.insert(profile_id.to_string(), arc.clone());
     Ok(arc)
 }
@@ -512,5 +649,413 @@ pub fn close_profile_conn(state: &DbState, profile_id: &str) {
     if let Ok(mut cache) = state.profile_conns.lock() {
         cache.remove(profile_id);
         println!("[DB] Closed profile connection: {}", profile_id);
+    }
+}
+
+// ============================================================
+// Tests
+// ============================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+    use std::path::PathBuf;
+
+    /// Create a temporary directory for test isolation
+    fn temp_test_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("photo_album_test_{}_{}", name, std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// Create a minimal DbState for testing (central DB has profiles table)
+    fn setup_state(central_dir: &std::path::Path) -> DbState {
+        let central_path = central_dir.join("central.db");
+        let conn = Connection::open(&central_path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS profiles (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                folder_path TEXT NOT NULL,
+                last_access INTEGER,
+                unavailable INTEGER NOT NULL DEFAULT 0
+            );"
+        ).unwrap();
+        DbState {
+            conn: Mutex::new(conn),
+            profile_conns: Mutex::new(HashMap::new()),
+        }
+    }
+
+    fn count_settings_rows(conn: &Connection, profile_id: &str) -> i64 {
+        conn.query_row(
+            "SELECT COUNT(*) FROM settings WHERE profile_id = ?1",
+            rusqlite::params![profile_id],
+            |row| row.get(0),
+        ).unwrap_or(0)
+    }
+
+    // ============================================================
+    // Test 1: Auto-create .album/data.db when it doesn't exist
+    // ============================================================
+
+    #[test]
+    fn test_get_profile_conn_creates_db_automatically() {
+        let dir = temp_test_dir("auto_create");
+        let state = setup_state(&dir);
+        let profile_id = "test-profile-1";
+        let folder_path = dir.join("photos");
+        std::fs::create_dir_all(&folder_path).unwrap();
+
+        // Initial state: .album doesn't exist
+        let album_dir = folder_path.join(".album");
+        assert!(!album_dir.exists(), ".album should not exist before call");
+
+        let result = get_profile_conn(&state, profile_id, folder_path.to_str().unwrap());
+        assert!(result.is_ok(), "get_profile_conn should succeed: {:?}", result.err());
+
+        // Verify .album/data.db was created
+        assert!(album_dir.exists(), ".album directory should exist");
+        let data_db = album_dir.join("data.db");
+        assert!(data_db.exists(), "data.db should exist");
+
+        // Verify schema was initialized (settings table exists with correct schema)
+        let conn = Connection::open(&data_db).unwrap();
+        let version: i64 = conn.query_row(
+            "SELECT COALESCE(MAX(version), 0) FROM _schema_version", [], |r| r.get(0)
+        ).unwrap();
+        assert!(version >= 5, "Schema version should be at least 5, got {}", version);
+
+        // Verify settings row was created for the profile_id
+        let count = count_settings_rows(&conn, profile_id);
+        assert_eq!(count, 1, "Should have exactly 1 settings row for profile_id");
+
+        // Cleanup
+        close_profile_conn(&state, profile_id);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ============================================================
+    // Test 2: Open existing DB with matching profile_id
+    // ============================================================
+
+    #[test]
+    fn test_get_profile_conn_matching_profile_id() {
+        let dir = temp_test_dir("matching_id");
+        let state = setup_state(&dir);
+        let profile_id = "matching-profile";
+        let folder_path = dir.join("photos");
+        std::fs::create_dir_all(&folder_path).unwrap();
+
+        // First call creates the DB
+        let r1 = get_profile_conn(&state, profile_id, folder_path.to_str().unwrap());
+        assert!(r1.is_ok());
+
+        // Second call should succeed with matching profile_id
+        let r2 = get_profile_conn(&state, profile_id, folder_path.to_str().unwrap());
+        assert!(r2.is_ok(), "Second call with same profile_id should succeed");
+
+        // Close and reopen should also work
+        close_profile_conn(&state, profile_id);
+        let r3 = get_profile_conn(&state, profile_id, folder_path.to_str().unwrap());
+        assert!(r3.is_ok(), "Reopen after close should succeed");
+
+        // Verify settings are preserved
+        let conn_arc = r3.unwrap();
+        let conn = conn_arc.lock().unwrap();
+        let view_mode: String = conn.query_row(
+            "SELECT view_mode FROM settings WHERE profile_id = ?1",
+            rusqlite::params![profile_id],
+            |r| r.get(0),
+        ).unwrap();
+        assert_eq!(view_mode, "grid", "Default view_mode should be 'grid'");
+
+        // Cleanup
+        close_profile_conn(&state, profile_id);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ============================================================
+    // Test 3: Profile ID mismatch → migration
+    // ============================================================
+
+    #[test]
+    fn test_get_profile_conn_migrates_mismatched_id() {
+        let dir = temp_test_dir("mismatch");
+        let state = setup_state(&dir);
+        let old_id = "old-profile-id";
+        let new_id = "new-profile-id";
+        let folder_path = dir.join("photos");
+        std::fs::create_dir_all(&folder_path).unwrap();
+
+        // Step 1: Create DB with old_id
+        let r1 = get_profile_conn(&state, old_id, folder_path.to_str().unwrap());
+        assert!(r1.is_ok());
+        close_profile_conn(&state, old_id);
+
+        // Modify settings to non-default values so we can verify migration
+        let data_db_path = folder_path.join(".album").join("data.db");
+        let conn = Connection::open(&data_db_path).unwrap();
+        conn.execute(
+            "UPDATE settings SET view_mode='list', theme_mode='light', accent_color='#FF0000' WHERE profile_id=?1",
+            rusqlite::params![old_id],
+        ).unwrap();
+        drop(conn);
+
+        // Step 2: Open with new_id — should trigger migration
+        let r2 = get_profile_conn(&state, new_id, folder_path.to_str().unwrap());
+        assert!(r2.is_ok(), "Migration should succeed: {:?}", r2.err());
+
+        // Verify settings were migrated to new_id
+        let conn_arc = r2.unwrap();
+        let conn = conn_arc.lock().unwrap();
+        let old_count = count_settings_rows(&conn, old_id);
+        assert_eq!(old_count, 0, "Old profile_id should have 0 settings rows");
+
+        let new_count = count_settings_rows(&conn, new_id);
+        assert_eq!(new_count, 1, "New profile_id should have 1 settings row");
+
+        // Verify custom settings were preserved
+        let view_mode: String = conn.query_row(
+            "SELECT view_mode FROM settings WHERE profile_id = ?1",
+            rusqlite::params![new_id],
+            |r| r.get(0),
+        ).unwrap();
+        assert_eq!(view_mode, "list", "view_mode should be migrated from old settings");
+        let theme: String = conn.query_row(
+            "SELECT theme_mode FROM settings WHERE profile_id = ?1",
+            rusqlite::params![new_id],
+            |r| r.get(0),
+        ).unwrap();
+        assert_eq!(theme, "light", "theme_mode should be migrated from old settings");
+
+        // Cleanup
+        close_profile_conn(&state, new_id);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ============================================================
+    // Test 4: Error when folder doesn't exist
+    // ============================================================
+
+    #[test]
+    fn test_get_profile_conn_folder_not_found() {
+        let dir = temp_test_dir("not_found");
+        let state = setup_state(&dir);
+        let profile_id = "ghost-profile";
+
+        // Non-existent folder
+        let bogus_path = dir.join("nonexistent_folder");
+        let result = get_profile_conn(&state, profile_id, bogus_path.to_str().unwrap());
+        assert!(result.is_err(), "Should return error for non-existent folder");
+        let err_msg = result.err().unwrap();
+        assert!(err_msg.contains("Folder not found"), "Error should mention 'Folder not found', got: {}", err_msg);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ============================================================
+    // Test 5: Cache returns same connection for same profile_id
+    // ============================================================
+
+    #[test]
+    fn test_get_profile_conn_cache_hit() {
+        let dir = temp_test_dir("cache");
+        let state = setup_state(&dir);
+        let profile_id = "cache-test-profile";
+        let folder_path = dir.join("photos");
+        std::fs::create_dir_all(&folder_path).unwrap();
+
+        let r1 = get_profile_conn(&state, profile_id, folder_path.to_str().unwrap());
+        assert!(r1.is_ok());
+        let arc1 = r1.unwrap();
+
+        let r2 = get_profile_conn(&state, profile_id, folder_path.to_str().unwrap());
+        assert!(r2.is_ok());
+        let arc2 = r2.unwrap();
+
+        // Both should point to the same Arc (same connection)
+        assert!(Arc::ptr_eq(&arc1, &arc2), "Cache should return same Arc for same profile_id");
+
+        close_profile_conn(&state, profile_id);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ============================================================
+    // Test 6: Empty DB fallback (create → no settings rows → fallback insert)
+    // ============================================================
+
+    #[test]
+    fn test_get_profile_conn_empty_db_fallback() {
+        let dir = temp_test_dir("empty_db");
+        let state = setup_state(&dir);
+        let profile_id = "empty-fallback";
+        let folder_path = dir.join("photos");
+        std::fs::create_dir_all(&folder_path).unwrap();
+
+        // Create a blank data.db with no settings rows
+        let album_dir = folder_path.join(".album");
+        std::fs::create_dir_all(&album_dir).unwrap();
+        let data_db = album_dir.join("data.db");
+        {
+            let conn = Connection::open(&data_db).unwrap();
+            conn.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;").unwrap();
+            // Schema without settings table — init_profile_db_schema will create it
+            init_profile_db_schema(&conn).unwrap();
+            // Don't insert any settings rows — simulate empty state
+        }
+
+        // Now open with profile_id — should trigger mismatch path and INSERT OR IGNORE fallback
+        let result = get_profile_conn(&state, profile_id, folder_path.to_str().unwrap());
+        assert!(result.is_ok(), "Should handle empty DB gracefully: {:?}", result.err());
+
+        let conn_arc = result.unwrap();
+        let conn = conn_arc.lock().unwrap();
+        let count = count_settings_rows(&conn, profile_id);
+        assert_eq!(count, 1, "Should have exactly 1 settings row after fallback");
+
+        close_profile_conn(&state, profile_id);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ============================================================
+    // Test 7: Multiple profiles with different folder_paths
+    // ============================================================
+
+    #[test]
+    fn test_get_profile_conn_multiple_profiles() {
+        let dir = temp_test_dir("multi");
+        let state = setup_state(&dir);
+
+        let profile_a = "profile-a";
+        let profile_b = "profile-b";
+        let folder_a = dir.join("folder_a");
+        let folder_b = dir.join("folder_b");
+        std::fs::create_dir_all(&folder_a).unwrap();
+        std::fs::create_dir_all(&folder_b).unwrap();
+
+        let r_a = get_profile_conn(&state, profile_a, folder_a.to_str().unwrap());
+        assert!(r_a.is_ok());
+        let r_b = get_profile_conn(&state, profile_b, folder_b.to_str().unwrap());
+        assert!(r_b.is_ok());
+
+        let conn_a = r_a.unwrap();
+        let conn_b = r_b.unwrap();
+
+        // Different profiles should have different connections
+        assert!(!Arc::ptr_eq(&conn_a, &conn_b), "Different profiles should have different connections");
+
+        // Each should have its own settings row
+        {
+            let ca = conn_a.lock().unwrap();
+            let count_a = count_settings_rows(&ca, profile_a);
+            assert_eq!(count_a, 1, "Profile A should have 1 settings row");
+        }
+        {
+            let cb = conn_b.lock().unwrap();
+            let count_b = count_settings_rows(&cb, profile_b);
+            assert_eq!(count_b, 1, "Profile B should have 1 settings row");
+        }
+
+        close_profile_conn(&state, profile_a);
+        close_profile_conn(&state, profile_b);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ============================================================
+    // Test 8: Migration preserves data across tables
+    // ============================================================
+
+    #[test]
+    fn test_get_profile_conn_migration_preserves_all_data() {
+        let dir = temp_test_dir("migration_data");
+        let state = setup_state(&dir);
+        let old_id = "old-data-profile";
+        let new_id = "new-data-profile";
+        let folder_path = dir.join("photos");
+        std::fs::create_dir_all(&folder_path).unwrap();
+
+        // Create DB with old_id and add data to multiple tables
+        let r1 = get_profile_conn(&state, old_id, folder_path.to_str().unwrap());
+        assert!(r1.is_ok());
+        close_profile_conn(&state, old_id);
+
+        let data_db_path = folder_path.join(".album").join("data.db");
+        let conn = Connection::open(&data_db_path).unwrap();
+
+        // Add test data
+        conn.execute(
+            "UPDATE settings SET view_mode='list', accent_color='#123456' WHERE profile_id=?1",
+            rusqlite::params![old_id],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO albums (profile_id, folder_name) VALUES (?1, 'test-album')",
+            rusqlite::params![old_id],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO images (profile_id, album_id, filename) VALUES (?1, 1, 'test.jpg')",
+            rusqlite::params![old_id],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO favorites (profile_id, image_id, filename) VALUES (?1, 1, 'test.jpg')",
+            rusqlite::params![old_id],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO trash (profile_id, original_name, trash_name) VALUES (?1, 'test.jpg', 'test_del.jpg')",
+            rusqlite::params![old_id],
+        ).unwrap();
+        drop(conn);
+
+        // Trigger migration by opening with new_id
+        let r2 = get_profile_conn(&state, new_id, folder_path.to_str().unwrap());
+        assert!(r2.is_ok());
+
+        let conn_arc = r2.unwrap();
+        let conn = conn_arc.lock().unwrap();
+
+        // Verify old_id has no data
+        let old_settings = count_settings_rows(&conn, old_id);
+        assert_eq!(old_settings, 0, "Old profile_id should have no settings");
+
+        // Verify new_id has the settings
+        let new_settings = count_settings_rows(&conn, new_id);
+        assert_eq!(new_settings, 1, "New profile_id should have migrated settings");
+
+        let accent: String = conn.query_row(
+            "SELECT accent_color FROM settings WHERE profile_id=?1",
+            rusqlite::params![new_id],
+            |r| r.get(0),
+        ).unwrap();
+        assert_eq!(accent, "#123456", "Custom accent_color should be preserved");
+
+        // Verify albums, images, trash, favorites migrated
+        let album_count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM albums WHERE profile_id=?1",
+            rusqlite::params![new_id], |r| r.get(0),
+        ).unwrap();
+        assert_eq!(album_count, 1, "Albums should be migrated");
+
+        let image_count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM images WHERE profile_id=?1",
+            rusqlite::params![new_id], |r| r.get(0),
+        ).unwrap();
+        assert_eq!(image_count, 1, "Images should be migrated");
+
+        let fav_count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM favorites WHERE profile_id=?1",
+            rusqlite::params![new_id], |r| r.get(0),
+        ).unwrap();
+        assert_eq!(fav_count, 1, "Favorites should be migrated");
+
+        let trash_count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM trash WHERE profile_id=?1",
+            rusqlite::params![new_id], |r| r.get(0),
+        ).unwrap();
+        assert_eq!(trash_count, 1, "Trash entries should be migrated");
+
+        close_profile_conn(&state, new_id);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

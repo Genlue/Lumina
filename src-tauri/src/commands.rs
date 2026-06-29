@@ -77,29 +77,13 @@ pub fn profiles_create(
         return Ok(profile);
     }
 
-    // 2. 初始化 profile DB（创建 .album/data.db 并建表）
-    let profile_db_path = Path::new(&folder_path).join(".album").join("data.db");
-    db::init_profile_database(&profile_db_path)
-        .map_err(|e| format!("Init profile DB: {}", e))?;
-
-    // 3. 插入默认 settings 行
-    // repo 的 settings::get_settings 中有自动 INSERT，我们这里手动 INSERT OR IGNORE
-    // 先获取 profile DB 连接
+    // 2. 获取/创建 profile DB 连接
+    // get_profile_conn 自动创建 .album 目录和 data.db、建表、处理 profile_id 迁移
     let p_conn_arc = db::get_profile_conn(&db, &profile.id, &folder_path)
         .map_err(|e| format!("Get profile DB: {}", e))?;
     let p_conn = p_conn_arc.lock().map_err(|e| format!("Profile DB lock: {}", e))?;
 
-    // 采用已有数据：如果 profile DB 中已有旧 profile_id 的数据（例如中央 DB
-    // 重建后生成了新 UUID），将所有行的 profile_id 更新为新值。
-    // 这会保留设置、收藏、回收站、相册元数据和图片记录。
-    for table in &["settings", "favorites", "trash", "albums", "images"] {
-        p_conn.execute(
-            &format!("UPDATE {} SET profile_id = ?1 WHERE profile_id != ?1", table),
-            rusqlite::params![profile.id],
-        ).ok();
-    }
-
-    // 插入默认 settings (INSERT OR IGNORE) — 当没有旧数据时兜底
+    // 3. 插入默认 settings (INSERT OR IGNORE) — 当没有旧数据时兜底
     p_conn
         .execute(
             "INSERT OR IGNORE INTO settings (profile_id) VALUES (?1)",
@@ -180,13 +164,7 @@ pub fn profiles_relocate(app: AppHandle, id: String) -> Result<Option<Profile>, 
     let conn = state.conn.lock().map_err(|e| format!("DB lock: {}", e))?;
     repos::profiles::update_folder_path(&conn, &id, &new_path);
 
-    // 确保新路径下有 profile DB，若没有则初始化
-    let profile_db_path = Path::new(&new_path).join(".album").join("data.db");
-    if !profile_db_path.exists() {
-        db::init_profile_database(&profile_db_path)
-            .map_err(|e| format!("Init profile DB: {}", e))?;
-    }
-
+    // get_profile_conn 自动创建/打开 data.db 并处理 profile_id 迁移
     // 重新扫描并同步
     let p_conn_arc = db::get_profile_conn(&state, &id, &new_path)
         .map_err(|e| format!("Get profile DB: {}", e))?;

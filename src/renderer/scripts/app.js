@@ -142,7 +142,28 @@ const App = {
       card.addEventListener('click', async e => {
         if (e.target.tagName === 'BUTTON') return;
         const p = profiles.find(x => x.id === card.dataset.id);
-        if (p && !p.unavailable) await this._doLoad(p.id, p.folder_path);
+        if (!p) return;
+        if (p.unavailable) {
+          const r = await Modal.show('文件夹不可用',
+            `「${U.esc(p.name)}」的文件夹路径 ${U.esc(p.folder_path)} 不存在或已被移动。`,
+            [
+              { label: '重新定位', primary: true },
+              { label: '删除记录', danger: true },
+              { label: '取消' }
+            ]
+          );
+          if (r.idx === 0) {
+            const result = await API.relocateProfile(p.id);
+            if (result) await this._doLoad(result.id, result.folder_path);
+          } else if (r.idx === 1) {
+            await API.removeProfile(p.id);
+            const updated = await API.listProfiles();
+            this._renderProfileList(container, updated);
+            Toast.show('已删除记录', 'info');
+          }
+          return;
+        }
+        await this._doLoad(p.id, p.folder_path);
       });
 
       // 右键删除 profile
@@ -203,73 +224,78 @@ const App = {
   },
 
   async _doLoad(profileId, folderPath) {
-    S.profileId = profileId;
-    S.profileFolder = folderPath;
-    S.profileName = folderPath.split(/[/\\]/).pop() || '未命名';
+    try {
+      S.profileId = profileId;
+      S.profileFolder = folderPath;
+      S.profileName = folderPath.split(/[/\\]/).pop() || '未命名';
 
-    await API.touchProfile(profileId);
-    App._settings = await API.getSettings(profileId);
-    await API.scanAll(profileId);
-    await API.listFav(profileId);
-    console.log('[App] After scanAll - albumFolders:', S.albumFolders);
-    console.log('[App] After scanAll - albumImages keys:', Object.keys(S.albumImages));
+      await API.touchProfile(profileId);
+      App._settings = await API.getSettings(profileId);
+      await API.scanAll(profileId);
+      await API.listFav(profileId);
+      console.log('[App] After scanAll - albumFolders:', S.albumFolders);
+      console.log('[App] After scanAll - albumImages keys:', Object.keys(S.albumImages));
 
-    // Show scan summary toast
-    const rootCount = S.rootImages.length;
-    const albumCount = S.albumFolders.length;
-    const imgCount = S.buildAllImgs().length;
-    Toast.show(`扫描完成: ${albumCount} 个相册, ${imgCount} 张图片 (根${rootCount})`, 'info', 5000);
+      // Show scan summary toast
+      const rootCount = S.rootImages.length;
+      const albumCount = S.albumFolders.length;
+      const imgCount = S.buildAllImgs().length;
+      Toast.show(`扫描完成: ${albumCount} 个相册, ${imgCount} 张图片 (根${rootCount})`, 'info', 5000);
 
-    // Background
-    if (App._settings.bg_image) {
-      ST.applyBgImage(App._settings.bg_image);
-    } else {
-      ST.applyBgImage(null);
-    }
-
-    // Theme (from profile DB settings)
-    ST.applyTheme(App._settings.theme_mode ?? 'dark');
-    ST.applyAccent(App._settings.accent_color ?? '#60CDFF');
-
-    document.getElementById('startup').classList.add('hidden');
-    document.getElementById('app').classList.remove('hidden');
-    document.querySelector('#folder-info span').textContent = folderPath;
-
-    // Apply layout settings in rAF — ensures browser has performed layout after un-hiding
-    requestAnimationFrame(() => {
-      ST.applySidebarWidth(App._settings.sidebar_width ?? 270);
-      ST.applySidebarOpacity(App._settings.sidebar_opacity ?? 0.85);
-      ST.applySidebarFont(App._settings.sidebar_font ?? 14);
-      ST.applySidebarBlur(App._settings.sidebar_blur ?? 16);
-      ST.applyCardOpacity(App._settings.card_opacity ?? 1);
-      ST.applyCardBlur(App._settings.card_blur ?? 0);
-      ST.applyToolbarHeight(App._settings.toolbar_height ?? 48);
-      ST.applyToolbarBlur(App._settings.toolbar_blur ?? 16);
-      ST.applyToolbarOpacity(App._settings.toolbar_opacity ?? 0.85);
-      document.documentElement.style.setProperty('--overlay-opacity', String(App._settings.select_overlay_opacity ?? 0.2));
-    });
-
-    // Restore bg settings AFTER DOM is visible
-    ST.applyBlur(App._settings.bg_blur ?? 20);
-    ST.applyOpacity(App._settings.bg_opacity ?? 0);
-
-    this.navPage('home');
-    this._showAlbumList();
-    R.renderAlbumList();
-    R.updateCount();
-    this._updateDashboard();
-
-    API.onFileChange(async payload => {
-      if (payload.profileId === profileId) {
-        await API.scanAll(profileId);
-        if (S.currentPage === 'album') R.renderGrid();
-        R.renderAlbumList();
-        R.updateCount();
-        Toast.show('检测到文件变更，已刷新', 'info', 1500);
+      // Background
+      if (App._settings.bg_image) {
+        ST.applyBgImage(App._settings.bg_image);
+      } else {
+        ST.applyBgImage(null);
       }
-    });
 
-    Toast.show('已加载: ' + S.profileName, 'success');
+      // Theme (from profile DB settings)
+      ST.applyTheme(App._settings.theme_mode ?? 'dark');
+      ST.applyAccent(App._settings.accent_color ?? '#60CDFF');
+
+      document.getElementById('startup').classList.add('hidden');
+      document.getElementById('app').classList.remove('hidden');
+      document.querySelector('#folder-info span').textContent = folderPath;
+
+      // Apply layout settings in rAF — ensures browser has performed layout after un-hiding
+      requestAnimationFrame(() => {
+        ST.applySidebarWidth(App._settings.sidebar_width ?? 270);
+        ST.applySidebarOpacity(App._settings.sidebar_opacity ?? 0.85);
+        ST.applySidebarFont(App._settings.sidebar_font ?? 14);
+        ST.applySidebarBlur(App._settings.sidebar_blur ?? 16);
+        ST.applyCardOpacity(App._settings.card_opacity ?? 1);
+        ST.applyCardBlur(App._settings.card_blur ?? 0);
+        ST.applyToolbarHeight(App._settings.toolbar_height ?? 48);
+        ST.applyToolbarBlur(App._settings.toolbar_blur ?? 16);
+        ST.applyToolbarOpacity(App._settings.toolbar_opacity ?? 0.85);
+        document.documentElement.style.setProperty('--overlay-opacity', String(App._settings.select_overlay_opacity ?? 0.2));
+      });
+
+      // Restore bg settings AFTER DOM is visible
+      ST.applyBlur(App._settings.bg_blur ?? 20);
+      ST.applyOpacity(App._settings.bg_opacity ?? 0);
+
+      this.navPage('home');
+      this._showAlbumList();
+      R.renderAlbumList();
+      R.updateCount();
+      this._updateDashboard();
+
+      API.onFileChange(async payload => {
+        if (payload.profileId === profileId) {
+          await API.scanAll(profileId);
+          if (S.currentPage === 'album') R.renderGrid();
+          R.renderAlbumList();
+          R.updateCount();
+          Toast.show('检测到文件变更，已刷新', 'info', 1500);
+        }
+      });
+
+      Toast.show('已加载: ' + S.profileName, 'success');
+    } catch (e) {
+      console.error('_doLoad error:', e);
+      Toast.show('加载失败: ' + (e.message || e), 'error', 5000);
+    }
   },
 
   // ====== SIDEBAR ALBUM LIST ======

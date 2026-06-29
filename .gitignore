@@ -10,4 +10,6 @@ target/
 data/
 *.bak*
 photo-album.exe.WebView2/
+photo-album.exe
+*.exe
 
