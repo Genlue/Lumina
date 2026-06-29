@@ -154,7 +154,7 @@ fn init_profile_db_schema(conn: &Connection) -> rusqlite::Result<()> {
 
             CREATE TABLE favorites (
                 profile_id TEXT NOT NULL,
-                image_id   INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+                image_id   INTEGER NOT NULL REFERENCES images(id),
                 added_at   TEXT NOT NULL DEFAULT (datetime('now')),
                 PRIMARY KEY(profile_id, image_id)
             );
@@ -193,6 +193,22 @@ fn init_profile_db_schema(conn: &Connection) -> rusqlite::Result<()> {
         )?;
         conn.execute("INSERT INTO _schema_version (version) VALUES (1)", [])?;
         println!("[DB] Profile DB migration V1 applied");
+    }
+
+    if version < 2 {
+        conn.execute_batch(
+            "ALTER TABLE favorites ADD COLUMN filename TEXT;
+             ALTER TABLE favorites ADD COLUMN album_id INTEGER;"
+        )?;
+        // Backfill existing favorites with data from the images table
+        conn.execute(
+            "UPDATE favorites SET
+                filename = (SELECT filename FROM images WHERE images.id = favorites.image_id),
+                album_id = (SELECT album_id FROM images WHERE images.id = favorites.image_id)
+             WHERE EXISTS (SELECT 1 FROM images WHERE images.id = favorites.image_id)"
+        )?;
+        conn.execute("INSERT INTO _schema_version (version) VALUES (2)", [])?;
+        println!("[DB] Profile DB migration V2 applied (favorites filename/album_id)");
     }
 
     Ok(())

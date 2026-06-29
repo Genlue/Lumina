@@ -2,7 +2,22 @@ use rusqlite::{Connection, params};
 use crate::models::Profile;
 use uuid::Uuid;
 
-pub fn create_profile(conn: &Connection, folder_path: &str, name: Option<&str>) -> Profile {
+pub fn create_profile(conn: &Connection, folder_path: &str, name: Option<&str>) -> (Profile, bool) {
+    // If a profile for this folder already exists and is not marked unavailable, return it.
+    if let Some(existing) = conn.query_row(
+        "SELECT id, name, folder_path, last_access, unavailable FROM profiles WHERE folder_path = ?1 AND unavailable = 0",
+        params![folder_path],
+        |row| Ok(Profile {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            folder_path: row.get(2)?,
+            last_access: row.get(3)?,
+            unavailable: row.get(4)?,
+        }),
+    ).ok() {
+        return (existing, true);
+    }
+
     let id = Uuid::new_v4().to_string();
     let profile_name = name.unwrap_or(
         folder_path.split(&['/', '\\'][..]).last().unwrap_or("未命名")
@@ -13,7 +28,7 @@ pub fn create_profile(conn: &Connection, folder_path: &str, name: Option<&str>) 
         params![id, profile_name, folder_path, chrono_now_ms()],
     ).unwrap();
 
-    conn.query_row(
+    let profile = conn.query_row(
         "SELECT id, name, folder_path, last_access, unavailable FROM profiles WHERE id = ?1",
         params![id],
         |row| Ok(Profile {
@@ -23,7 +38,9 @@ pub fn create_profile(conn: &Connection, folder_path: &str, name: Option<&str>) 
             last_access: row.get(3)?,
             unavailable: row.get(4)?,
         }),
-    ).unwrap()
+    ).unwrap();
+
+    (profile, false)
 }
 
 pub fn list_profiles(conn: &Connection) -> Vec<Profile> {

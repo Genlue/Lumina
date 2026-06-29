@@ -67,10 +67,15 @@ pub fn profiles_create(
     folder_path: String,
     name: Option<String>,
 ) -> Result<Profile, String> {
-    // 1. 写入中央 DB
+    // 1. 写入中央 DB（若相同 folder_path 的 profile 已存在则直接返回）
     let db = app.state::<DbState>();
     let conn = db.conn.lock().map_err(|e| format!("DB lock: {}", e))?;
-    let profile = repos::profiles::create_profile(&conn, &folder_path, name.as_deref());
+    let (profile, is_existing) = repos::profiles::create_profile(&conn, &folder_path, name.as_deref());
+
+    if is_existing {
+        // 重复引入：DB 已初始化，扫描由调用方 _doLoad 触发
+        return Ok(profile);
+    }
 
     // 2. 初始化 profile DB（创建 .album/data.db 并建表）
     let profile_db_path = Path::new(&folder_path).join(".album").join("data.db");
@@ -674,7 +679,7 @@ pub fn favorites_toggle(
     let img = repos::images::get_image_by_name(&p_conn, &profile_id, &filename, album_id)
         .ok_or_else(|| format!("Image not found: {}", filename))?;
 
-    Ok(repos::favorites::toggle_favorite(&p_conn, &profile_id, img.id))
+    Ok(repos::favorites::toggle_favorite(&p_conn, &profile_id, img.id, &img.filename, img.album_id))
 }
 
 #[tauri::command]

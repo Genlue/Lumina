@@ -6,8 +6,13 @@ use crate::models::{ImageRecord, FileInfo};
 pub fn sync_images(conn: &Connection, profile_id: &str, album_id: Option<i64>, files: &[FileInfo]) {
     for f in files {
         conn.execute(
-            "INSERT OR REPLACE INTO images (profile_id, album_id, filename, file_size, file_date, width, height)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT INTO images (profile_id, album_id, filename, file_size, file_date, width, height)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+             ON CONFLICT(profile_id, album_id, filename) DO UPDATE SET
+                 file_size = excluded.file_size,
+                 file_date = excluded.file_date,
+                 width = excluded.width,
+                 height = excluded.height",
             params![profile_id, album_id, f.name, f.size as i64, f.last_modified as i64, f.width.map(|w| w as i64), f.height.map(|h| h as i64)],
         ).ok();
     }

@@ -192,6 +192,12 @@ const App = {
   },
 
   async _loadProfile(folderPath) {
+    const profiles = await API.listProfiles();
+    const existing = profiles.find(p => p.folder_path === folderPath);
+    if (existing) {
+      await this._doLoad(existing.id, existing.folder_path);
+      return;
+    }
     const p = await API.createProfile(folderPath);
     await this._doLoad(p.id, folderPath);
   },
@@ -203,8 +209,8 @@ const App = {
 
     await API.touchProfile(profileId);
     App._settings = await API.getSettings(profileId);
-    await API.listFav(profileId);
     await API.scanAll(profileId);
+    await API.listFav(profileId);
     console.log('[App] After scanAll - albumFolders:', S.albumFolders);
     console.log('[App] After scanAll - albumImages keys:', Object.keys(S.albumImages));
 
