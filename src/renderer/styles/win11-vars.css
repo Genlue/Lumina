@@ -43,7 +43,9 @@
 
   /* ---- Layout ---- */
   --sidebar-w: 270px;
-  --toolbar-h: 52px;
+  --toolbar-h: 48px;
+  --toolbar-blur: 16px;
+  --toolbar-opacity: 0.85;
 }
 
 /* ---- Mica/Acrylic support (when available) ---- */

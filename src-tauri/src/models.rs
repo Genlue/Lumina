@@ -74,6 +74,9 @@ pub struct Settings {
     pub sidebar_font: i64,
     pub random_interval: i64,
     pub thumbnail_size: i64,
+    pub toolbar_height: i64,
+    pub toolbar_blur: i64,
+    pub toolbar_opacity: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

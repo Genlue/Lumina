@@ -243,6 +243,9 @@ const App = {
       ST.applySidebarBlur(App._settings.sidebar_blur ?? 16);
       ST.applyCardOpacity(App._settings.card_opacity ?? 1);
       ST.applyCardBlur(App._settings.card_blur ?? 0);
+      ST.applyToolbarHeight(App._settings.toolbar_height ?? 48);
+      ST.applyToolbarBlur(App._settings.toolbar_blur ?? 16);
+      ST.applyToolbarOpacity(App._settings.toolbar_opacity ?? 0.85);
     });
 
     // Restore bg settings AFTER DOM is visible

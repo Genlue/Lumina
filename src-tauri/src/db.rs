@@ -228,6 +228,16 @@ fn init_profile_db_schema(conn: &Connection) -> rusqlite::Result<()> {
         println!("[DB] Profile DB migration V3 applied (unique index for NULL album_id)");
     }
 
+    if version < 4 {
+        conn.execute_batch(
+            "ALTER TABLE settings ADD COLUMN toolbar_height INTEGER NOT NULL DEFAULT 48;
+             ALTER TABLE settings ADD COLUMN toolbar_blur INTEGER NOT NULL DEFAULT 16;
+             ALTER TABLE settings ADD COLUMN toolbar_opacity REAL NOT NULL DEFAULT 0.85;"
+        )?;
+        conn.execute("INSERT INTO _schema_version (version) VALUES (4)", [])?;
+        println!("[DB] Profile DB migration V4 applied (toolbar settings)");
+    }
+
     Ok(())
 }
 

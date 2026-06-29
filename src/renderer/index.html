@@ -100,14 +100,18 @@
           <span id="image-count"></span>
         </div>
         <div id="album-toolbar"><span id="breadcrumb-albums">相册列表</span></div>
-        <div id="album-grid-wrap"><div id="album-grid"></div><div class="empty-wrap hidden" id="albums-empty"><div class="empty-text">尚无相册</div></div></div>
-        <div id="image-container"><div id="image-grid"></div><div class="empty-wrap hidden" id="empty-state"><div class="empty-text">暂无图片</div></div></div>
+        <div class="page-scroll">
+          <div id="album-grid-wrap"><div id="album-grid"></div><div class="empty-wrap hidden" id="albums-empty"><div class="empty-text">尚无相册</div></div></div>
+          <div id="image-container"><div id="image-grid"></div><div class="empty-wrap hidden" id="empty-state"><div class="empty-text">暂无图片</div></div></div>
+        </div>
       </section>
       <section id="page-discover" class="page-panel hidden">
         <div class="discover-tabs"><button class="discover-tab active" data-tab="waterfall">瀑布流</button><button class="discover-tab" data-tab="draw">随机抽卡</button><button class="discover-tab" data-tab="random">随机欣赏</button></div>
-        <div id="discover-waterfall" class="discover-panel"><div id="waterfall-grid"></div></div>
-        <div id="discover-draw" class="discover-panel hidden"><div id="draw-area"></div></div>
-        <div id="discover-random" class="discover-panel hidden"><div id="random-area"></div></div>
+        <div class="page-scroll">
+          <div id="discover-waterfall" class="discover-panel"><div id="waterfall-grid"></div></div>
+          <div id="discover-draw" class="discover-panel hidden"><div id="draw-area"></div></div>
+          <div id="discover-random" class="discover-panel hidden"><div id="random-area"></div></div>
+        </div>
       </section>
       <section id="page-settings" class="page-panel hidden">
         <div class="settings-grid">
@@ -125,6 +129,9 @@
           <div class="settings-card"><h3>侧边栏透明度</h3><input type="range" id="set-sidebar-opacity" oninput="ST.applySidebarOpacity(parseInt(this.value)/100)" min="0" max="100" value="85"><span id="sidebar-opacity-val">85%</span></div>
           <div class="settings-card"><h3>卡片透明度</h3><input type="range" id="set-card-opacity" oninput="ST.applyCardOpacity(this.value/100)" min="0" max="100" value="100"><span id="card-opacity-val">100%</span></div>
           <div class="settings-card"><h3>卡片模糊</h3><input type="range" id="set-card-blur" oninput="ST.applyCardBlur(parseInt(this.value))" min="0" max="30" value="0"><span id="card-blur-val">0px</span></div>
+          <div class="settings-card"><h3>顶栏高度</h3><input type="range" id="set-toolbar-h" oninput="ST.applyToolbarHeight(parseInt(this.value))" min="36" max="80" value="48"><span id="toolbar-h-val">48px</span></div>
+          <div class="settings-card"><h3>顶栏模糊</h3><input type="range" id="set-toolbar-blur" oninput="ST.applyToolbarBlur(parseInt(this.value))" min="0" max="50" value="16"><span id="toolbar-blur-val">16px</span></div>
+          <div class="settings-card"><h3>顶栏透明度</h3><input type="range" id="set-toolbar-opacity" oninput="ST.applyToolbarOpacity(parseInt(this.value)/100)" min="0" max="100" value="85"><span id="toolbar-opacity-val">85%</span></div>
         </div>
       </section>
     </main>
