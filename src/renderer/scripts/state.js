@@ -89,6 +89,7 @@ const State = (() => {
     get favoritesList() { return _favoritesList; },
     set favoritesList(v) { _favoritesList = v; },
     get favoritesSet() { return _favoritesSet; },
+    set favoritesSet(v) { _favoritesSet = v; },
   };
 
   /** Build a flat array of all images */
