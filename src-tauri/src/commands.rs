@@ -89,7 +89,17 @@ pub fn profiles_create(
         .map_err(|e| format!("Get profile DB: {}", e))?;
     let p_conn = p_conn_arc.lock().map_err(|e| format!("Profile DB lock: {}", e))?;
 
-    // 插入默认 settings (INSERT OR IGNORE)
+    // 采用已有数据：如果 profile DB 中已有旧 profile_id 的数据（例如中央 DB
+    // 重建后生成了新 UUID），将所有行的 profile_id 更新为新值。
+    // 这会保留设置、收藏、回收站、相册元数据和图片记录。
+    for table in &["settings", "favorites", "trash", "albums", "images"] {
+        p_conn.execute(
+            &format!("UPDATE {} SET profile_id = ?1 WHERE profile_id != ?1", table),
+            rusqlite::params![profile.id],
+        ).ok();
+    }
+
+    // 插入默认 settings (INSERT OR IGNORE) — 当没有旧数据时兜底
     p_conn
         .execute(
             "INSERT OR IGNORE INTO settings (profile_id) VALUES (?1)",
