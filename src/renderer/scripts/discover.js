@@ -32,6 +32,11 @@ const D = {
         S.filteredImages = all;
         Lb.open(all.indexOf(img));
       });
+      imgEl.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        S.filteredImages = all;
+        App.showCtx(e, img);
+      });
     }
 
     // Lazy-load waterfall images via IntersectionObserver
@@ -117,6 +122,11 @@ const D = {
         S.filteredImages = D._drawCards;
         Lb.open(i);
       });
+      card.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        S.filteredImages = D._drawCards;
+        App.showCtx(e, D._drawCards[i]);
+      });
     });
   },
 
@@ -181,6 +191,11 @@ const D = {
       S._lbFromRandom = true;
       S.filteredImages = S._randomImgs;
       Lb.open(S._randomIdx);
+    });
+    document.getElementById('random-img')?.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      S.filteredImages = S._randomImgs;
+      App.showCtx(e, S._randomImgs[S._randomIdx]);
     });
   },
 

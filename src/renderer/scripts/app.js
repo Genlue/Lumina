@@ -536,6 +536,10 @@ const App = {
       if (added) S.favoritesSet.add(img._key);
       else S.favoritesSet.delete(img._key);
       R.updateFavCount();
+      if (S.currentView === 'favorites') {
+        await API.listFav(S.profileId);
+        R.renderGrid();
+      }
       Toast.show(added ? '已收藏' : '已取消收藏', 'success');
     };
     menu.querySelector('[data-action="rename"]').onclick = async () => {
@@ -592,6 +596,131 @@ const App = {
         Toast.show('已删除', 'info');
       } catch (e) { Toast.show('删除失败', 'error'); }
     };
+  },
+
+  showMultiCtx(e) {
+    if (!S.multiselect || S.selected.size === 0) return;
+    e.preventDefault();
+    const menu = document.getElementById('ctx-m');
+    menu.innerHTML = `
+      <div data-action="fav-all">☆ 批量收藏</div>
+      <div data-action="unfav-all">★ 批量取消收藏</div>
+      <div class="ctx-sep"></div>
+      <div data-action="move">📁 移动到文件夹</div>
+      <div class="ctx-sep"></div>
+      <div data-action="delete" class="danger">🗑 批量删除</div>
+    `;
+    CM.show(e.clientX, e.clientY);
+
+    const favAllBtn = menu.querySelector('[data-action="fav-all"]');
+    const unfavAllBtn = menu.querySelector('[data-action="unfav-all"]');
+
+    // Check if there's anything to do for each action
+    const hasUnfav = [...S.selected].some(key => !S.favoritesSet.has(key));
+    const hasFav = [...S.selected].some(key => S.favoritesSet.has(key));
+    if (!hasUnfav) favAllBtn.style.opacity = '0.4';
+    if (!hasFav) unfavAllBtn.style.opacity = '0.4';
+
+    favAllBtn.onclick = async () => {
+        CM.hide();
+        let count = 0;
+        for (const key of S.selected) {
+            if (S.favoritesSet.has(key)) continue;
+            const img = S.filteredImages.find(i => i._key === key);
+            if (img) {
+                try {
+                    await API.toggleFav(S.profileId, img.name, img._folder || undefined);
+                    S.favoritesSet.add(key);
+                    count++;
+                } catch(e) {}
+            }
+        }
+        await API.listFav(S.profileId);
+        if (S.currentView === 'favorites') R.renderGrid();
+        R.updateFavCount();
+        App._exitMultiSelect();
+        Toast.show(`已收藏 ${count} 张图片`, 'success');
+    };
+
+    unfavAllBtn.onclick = async () => {
+        CM.hide();
+        let count = 0;
+        for (const key of S.selected) {
+            if (!S.favoritesSet.has(key)) continue;
+            const img = S.filteredImages.find(i => i._key === key);
+            if (img) {
+                try {
+                    await API.toggleFav(S.profileId, img.name, img._folder || undefined);
+                    S.favoritesSet.delete(key);
+                    count++;
+                } catch(e) {}
+            }
+        }
+        await API.listFav(S.profileId);
+        if (S.currentView === 'favorites') R.renderGrid();
+        R.updateFavCount();
+        App._exitMultiSelect();
+        Toast.show(`已取消收藏 ${count} 张图片`, 'success');
+    };
+
+    menu.querySelector('[data-action="move"]').onclick = async () => {
+        CM.hide();
+        const folderName = await Modal.prompt('移动到文件夹', '输入目标文件夹名称');
+        if (!folderName) return;
+        let count = 0;
+        for (const key of S.selected) {
+            const img = S.filteredImages.find(i => i._key === key);
+            if (img && img._folder !== folderName) {
+                try {
+                    if (img._folder) {
+                        await API.moveBetween(S.profileId, img.name, img._folder, folderName);
+                    } else {
+                        await API.moveToFolder(S.profileId, img.name, folderName);
+                    }
+                    count++;
+                } catch(e) {}
+            }
+        }
+        if (count > 0) {
+            await API.scanAll(S.profileId);
+            R.renderGrid();
+            R.renderAlbumList();
+        }
+        App._exitMultiSelect();
+        Toast.show(`已移动 ${count} 张图片`, 'success');
+    };
+
+    menu.querySelector('[data-action="delete"]').onclick = async () => {
+        CM.hide();
+        const r = await Modal.show('批量删除', `将 ${S.selected.size} 张图片移入回收站？`, [{ label: '取消' }, { label: '删除', danger: true }]);
+        if (r.idx !== 1) return;
+        let count = 0;
+        for (const key of S.selected) {
+            const img = S.filteredImages.find(i => i._key === key);
+            if (img) {
+                try {
+                    await API.moveToTrash(S.profileId, img.name, img._folder);
+                    count++;
+                } catch(e) {}
+            }
+        }
+        if (count > 0) {
+            await API.scanAll(S.profileId);
+            R.renderGrid();
+            R.renderAlbumList();
+            R.updateCount();
+        }
+        App._exitMultiSelect();
+        Toast.show(`已删除 ${count} 张图片`, 'success');
+    };
+  },
+
+  _exitMultiSelect() {
+    S.multiselect = false;
+    S.selected.clear();
+    const btn = document.getElementById('btn-multi-select');
+    if (btn) { btn.classList.remove('active'); btn.textContent = '☐ 多选'; }
+    R.uiSel();
   },
 
   async deleteFromLb() {

@@ -138,7 +138,11 @@ const R = {
       });
       card.addEventListener('contextmenu', e => {
         e.preventDefault();
-        App.showCtx(e, S.filteredImages[idx]);
+        if (S.multiselect && S.selected.size > 0) {
+          App.showMultiCtx(e);
+        } else {
+          App.showCtx(e, S.filteredImages[idx]);
+        }
       });
     });
 
