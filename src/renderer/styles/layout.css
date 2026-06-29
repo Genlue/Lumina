@@ -817,4 +817,8 @@ img {
 .sidebar-btn{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px;border-radius:var(--radius-sm);font-size:var(--font-size-sm);font-weight:var(--font-weight-medium);transition:all 0.1s var(--ease-standard);width:100%;cursor:pointer;border:none;background:none;font-family:inherit;color:var(--c-text2);}#startup-profiles{text-align:center;width:100%;max-width:500px;margin:auto;}
 #main{background:transparent;}.page-panel{background:transparent;}
 
+#btn-back {
+  margin-right: 4px;
+}
+
 

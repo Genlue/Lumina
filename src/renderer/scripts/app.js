@@ -346,6 +346,22 @@ const App = {
       R.renderGrid();
       this._showAlbumList();
     }
+    // Back button visibility
+    const btnBack = document.getElementById('btn-back');
+    if (btnBack) {
+        const isRoot = S.currentView === 'all' || S.currentView === 'albums' || S.currentView === 'trash' || S.currentView === 'favorites';
+        btnBack.style.display = isRoot ? 'none' : '';
+    }
+
+    // Nav highlight: update sidebar active tab
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    let pageKey = 'album';
+    if (S.currentView === 'all') pageKey = 'all';
+    else if (S.currentView === 'favorites') pageKey = 'favorites';
+    else if (S.currentView === 'trash') pageKey = 'trash';
+    const navItem = document.querySelector(`.nav-item[data-page="${pageKey}"]`);
+    if (navItem) navItem.classList.add('active');
+
     R.renderAlbumList();
   },
 
@@ -473,6 +489,16 @@ const App = {
       App._settings.sort_by = e.target.value;
       API.saveSettings(S.profileId, { sort_by: e.target.value });
       R.renderGrid();
+    });
+
+    // Back button
+    document.getElementById('btn-back')?.addEventListener('click', () => App.navToParent());
+
+    // Search right-click clear
+    document.getElementById('search-input')?.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.target.value = '';
+        e.target.dispatchEvent(new Event('input'));
     });
   },
 
@@ -874,6 +900,17 @@ document.addEventListener('keydown', e => {
   if (e.ctrlKey && e.key === 'f' && S.currentPage === 'album') {
     e.preventDefault();
     document.getElementById('search-input')?.focus();
+    return;
+  }
+  // 空格聚焦搜索栏（仅在 album 页面、不在搜索框内、不在其他输入框内、灯箱关闭时）
+  if (e.key === ' ' && S.lbIdx < 0 && S.currentPage === 'album'
+      && document.activeElement !== document.getElementById('search-input')
+      && document.activeElement?.tagName !== 'INPUT'
+      && document.activeElement?.tagName !== 'TEXTAREA') {
+    e.preventDefault();
+    const si = document.getElementById('search-input');
+    if (si) { si.focus(); si.select(); }
+    return;
   }
 });
 
