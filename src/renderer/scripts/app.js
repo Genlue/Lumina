@@ -256,6 +256,7 @@ const App = {
     this._showAlbumList();
     R.renderAlbumList();
     R.updateCount();
+    this._updateDashboard();
 
     API.onFileChange(async payload => {
       if (payload.profileId === profileId) {
@@ -760,6 +761,20 @@ const App = {
     R.uiSel();
   },
 
+  _updateDashboard() {
+    const totalImgs = S.rootImages.length + Object.values(S.albumImages).reduce((s, a) => s + a.length, 0);
+    const totalSize = S.rootImages.reduce((s, img) => s + (img.size || 0), 0)
+        + Object.values(S.albumImages).reduce((s, arr) => s + arr.reduce((s2, img) => s2 + (img.size || 0), 0), 0);
+    const elImgs = document.getElementById('stat-total-imgs');
+    const elSize = document.getElementById('stat-total-size');
+    const elAlbums = document.getElementById('stat-albums');
+    const elFavs = document.getElementById('stat-favs');
+    if (elImgs) elImgs.textContent = totalImgs;
+    if (elSize) elSize.textContent = U.fmtSize(totalSize);
+    if (elAlbums) elAlbums.textContent = S.albumFolders.length;
+    if (elFavs) elFavs.textContent = S.favoritesSet.size;
+  },
+
   async deleteFromLb() {
     if (S.lbIdx < 0) return;
     const img = S.filteredImages[S.lbIdx];
@@ -869,6 +884,7 @@ document.querySelectorAll('.home-card[data-action="rescan"]').forEach(card => {
       await API.scanAll(S.profileId);
       R.renderAlbumList();
       R.updateCount();
+      App._updateDashboard();
       if (S.currentPage === 'album') R.renderGrid();
       Toast.show('已刷新', 'success');
     } catch (e) {

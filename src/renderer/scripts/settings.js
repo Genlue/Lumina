@@ -42,6 +42,15 @@ const ST = {
 
       this._highlightThemeBtns(s.theme_mode ?? 'dark');
       this._loadBgList();
+
+      // Cache info
+      API.getCacheInfo(S.profileId).then(info => {
+        const label = document.getElementById('cache-size-label');
+        if (label) {
+          const sizeStr = info.size > 0 ? U.fmtSize(info.size) : '0 B';
+          label.textContent = `缓存 ${info.file_count} 个文件 (${sizeStr})`;
+        }
+      }).catch(() => {});
     } catch (e) { console.error('ST.render error:', e); }
   },
 
@@ -311,6 +320,23 @@ const ST = {
     this._setText('toolbar-opacity-val', Math.round(val * 100) + '%');
     API.saveSettings(S.profileId, { toolbar_opacity: val });
     App._settings.toolbar_opacity = val;
+  },
+
+  clearCache() {
+    Modal.show('清除缓存', '确定清除缩略图缓存？重新加载图片时需要重新生成。', [{ label: '取消' }, { label: '清除', danger: true }]).then(r => {
+      if (r.idx !== 1) return;
+      const btn = document.getElementById('btn-clear-cache');
+      if (btn) { btn.disabled = true; btn.textContent = '清除中...'; }
+      API.clearCache(S.profileId).then(count => {
+        Toast.show(`已清除 ${count} 个缓存文件`, 'success');
+        const label = document.getElementById('cache-size-label');
+        if (label) label.textContent = '缓存 0 个文件 (0 B)';
+      }).catch(e => {
+        Toast.show('清除缓存失败: ' + (e.message || e), 'error');
+      }).finally(() => {
+        if (btn) { btn.disabled = false; btn.textContent = '清除缓存'; }
+      });
+    });
   },
 
   applySidebarWidth(val) {

@@ -83,6 +83,14 @@
       <section id="page-home" class="page-panel">
         <div class="home-hero"><h1>我的相册</h1><p>浏览、整理、发现你的照片</p></div>
         <div class="home-grid">
+          <div class="home-card dashboard-card" style="cursor:default;">
+            <div class="dashboard-stats">
+              <div class="stat-item"><span class="stat-icon">🖼</span><span class="stat-label">图片总数</span><span class="stat-value" id="stat-total-imgs">0</span></div>
+              <div class="stat-item"><span class="stat-icon">📦</span><span class="stat-label">占用空间</span><span class="stat-value" id="stat-total-size">0 B</span></div>
+              <div class="stat-item"><span class="stat-icon">📁</span><span class="stat-label">相册数</span><span class="stat-value" id="stat-albums">0</span></div>
+              <div class="stat-item"><span class="stat-icon">⭐</span><span class="stat-label">收藏数</span><span class="stat-value" id="stat-favs">0</span></div>
+            </div>
+          </div>
           <div class="home-card" data-action="rescan"><h3>🔄 刷新图片</h3><p>重新扫描文件夹，同步新增/删除的图片</p></div>
           <div class="home-card" data-nav="album"><h3>相册浏览</h3><p>按文件夹整理，拖拽管理</p></div>
           <div class="home-card" data-nav="discover-waterfall"><h3>瀑布流</h3><p>自适应列布局</p></div>
@@ -133,6 +141,7 @@
           <div class="settings-card"><h3>顶栏高度</h3><input type="range" id="set-toolbar-h" oninput="ST.applyToolbarHeight(parseInt(this.value))" min="36" max="80" value="48"><span id="toolbar-h-val">48px</span></div>
           <div class="settings-card"><h3>顶栏模糊</h3><input type="range" id="set-toolbar-blur" oninput="ST.applyToolbarBlur(parseInt(this.value))" min="0" max="50" value="16"><span id="toolbar-blur-val">16px</span></div>
           <div class="settings-card"><h3>顶栏透明度</h3><input type="range" id="set-toolbar-opacity" oninput="ST.applyToolbarOpacity(parseInt(this.value)/100)" min="0" max="100" value="85"><span id="toolbar-opacity-val">85%</span></div>
+          <div class="settings-card"><h3>缓存管理</h3><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><span id="cache-size-label">计算中...</span><button id="btn-clear-cache" class="btn-primary" onclick="ST.clearCache()" style="padding:6px 16px;">清除缓存</button></div></div>
         </div>
       </section>
     </main>

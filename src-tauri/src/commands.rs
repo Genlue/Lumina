@@ -970,3 +970,44 @@ pub fn dialog_open_folder(app: AppHandle, title: Option<String>) -> Result<Optio
 
     Ok(folder.map(|p| p.to_string()))
 }
+
+// ============================================================
+// Cache
+// ============================================================
+
+#[tauri::command]
+pub fn cache_get_info(app: AppHandle, profile_id: String) -> Result<CacheInfo, String> {
+    let folder = get_profile_folder(&app, &profile_id)?;
+    let cache_dir = Path::new(&folder).join(".album").join("cache").join("thumbnails");
+    if !cache_dir.exists() {
+        return Ok(CacheInfo { size: 0, file_count: 0 });
+    }
+    let mut total_size: u64 = 0;
+    let mut count: u64 = 0;
+    if let Ok(entries) = fs::read_dir(&cache_dir) {
+        for entry in entries.flatten() {
+            if entry.path().is_file() {
+                total_size += entry.metadata().map(|m| m.len()).unwrap_or(0);
+                count += 1;
+            }
+        }
+    }
+    Ok(CacheInfo { size: total_size, file_count: count })
+}
+
+#[tauri::command]
+pub fn cache_clear(app: AppHandle, profile_id: String) -> Result<u64, String> {
+    let folder = get_profile_folder(&app, &profile_id)?;
+    let cache_dir = Path::new(&folder).join(".album").join("cache").join("thumbnails");
+    if !cache_dir.exists() { return Ok(0); }
+    let mut count: u64 = 0;
+    if let Ok(entries) = fs::read_dir(&cache_dir) {
+        for entry in entries.flatten() {
+            if entry.path().is_file() {
+                fs::remove_file(entry.path()).ok();
+                count += 1;
+            }
+        }
+    }
+    Ok(count)
+}

@@ -159,6 +159,14 @@ const API = {
     return this._invoke('dialog_open_folder', { title });
   },
 
+  // === Cache ===
+  async getCacheInfo(profileId) {
+    return this._invoke('cache_get_info', { profileId });
+  },
+  async clearCache(profileId) {
+    return this._invoke('cache_clear', { profileId });
+  },
+
   // === Events — not exposing file watcher for now, same scan-on-demand approach ===
   onFileChange(callback) {
     // Tauri can emit events; for now, watcher is not enabled (same behavior as without chokidar)

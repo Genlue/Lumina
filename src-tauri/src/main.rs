@@ -70,6 +70,8 @@ pub fn run() {
             commands::bg_open_folder,
             commands::bg_delete,
             commands::dialog_open_folder,
+            commands::cache_get_info,
+            commands::cache_clear,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

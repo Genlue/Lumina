@@ -100,6 +100,12 @@ pub struct ScanResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CacheInfo {
+    pub size: u64,
+    pub file_count: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThumbnailResult {
     #[serde(rename = "dataUrl")]
     pub data_url: String,
