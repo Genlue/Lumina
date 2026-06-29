@@ -460,7 +460,15 @@ const App = {
       else { btn.classList.remove('active'); btn.textContent = '☐ 多选'; S.selected.clear(); R.uiSel(); }
     });
 
-    document.getElementById('search-input')?.addEventListener('input', U.debounce(() => R.renderGrid(), DEBOUNCE));
+    document.getElementById('search-input')?.addEventListener('input', U.debounce(async () => {
+      S._searchAlbumMatchType = {};
+      await R.renderGrid();
+      if (S.currentView === 'albums' || S.currentView === 'all'
+          || (S.currentView !== 'trash' && S.currentView !== 'favorites'
+              && S.hasChildAlbums(S.currentView))) {
+          await R.renderAlbumGrid();
+      }
+    }, DEBOUNCE));
     document.getElementById('sort-select')?.addEventListener('change', e => {
       App._settings.sort_by = e.target.value;
       API.saveSettings(S.profileId, { sort_by: e.target.value });

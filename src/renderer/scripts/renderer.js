@@ -99,7 +99,16 @@ const R = {
 
     // Search
     const search = document.getElementById('search-input')?.value?.toLowerCase() ?? '';
-    if (search) imgs = imgs.filter(i => i.name.toLowerCase().includes(search));
+    if (search) {
+        const isInAlbum = S.currentView !== 'all' && S.currentView !== 'albums'
+            && S.currentView !== 'trash' && S.currentView !== 'favorites';
+        const matchType = S._searchAlbumMatchType?.[S.currentView];
+        if (isInAlbum && matchType === 'name') {
+            // 相册名匹配 → 显示全部图片，不做图片名过滤
+        } else {
+            imgs = imgs.filter(i => i.name.toLowerCase().includes(search));
+        }
+    }
 
     // Sort
     const sortBy = App._settings?.sort_by ?? 'name-asc';
@@ -170,10 +179,32 @@ const R = {
     if (!wrap || !empty) return;
 
     const currentPath = (S.currentView === 'all' || S.currentView === 'albums') ? '' : S.currentView;
-    const childFolders = S.getChildAlbums(currentPath);
+    let childFolders = S.getChildAlbums(currentPath);
+
+    // Search filtering for albums
+    const search = document.getElementById('search-input')?.value?.toLowerCase() ?? '';
+    if (search) {
+        const matchType = {};
+        const filtered = childFolders.filter(f => {
+            const displayName = S.getDisplayName(f).toLowerCase();
+            const nameMatch = displayName.includes(search);
+            const images = S.albumImages[f] ?? [];
+            const imgMatch = images.some(img => img.name.toLowerCase().includes(search));
+            if (nameMatch || imgMatch) {
+                matchType[f] = nameMatch ? 'name' : 'image-only';
+                return true;
+            }
+            return false;
+        });
+        childFolders = filtered;
+        // Merge而非替换，保留当前相册的匹配状态
+        S._searchAlbumMatchType = { ...(S._searchAlbumMatchType || {}), ...matchType };
+    }
 
     if (childFolders.length === 0) {
-      wrap.innerHTML = ''; empty.classList.remove('hidden'); return;
+      wrap.innerHTML = ''; empty.classList.remove('hidden');
+      empty.querySelector('.empty-text').textContent = search ? `未找到"${search}"` : '尚无相册';
+      return;
     }
     empty.classList.add('hidden');
 

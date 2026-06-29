@@ -33,6 +33,9 @@ const State = (() => {
   let _favoritesList = [];
   let _favoritesSet = new Set();
 
+  // Search
+  let _searchAlbumMatchType = {};
+
   const api = {
     get profileId() { return _profileId; },
     set profileId(v) { _profileId = v; },
@@ -90,6 +93,9 @@ const State = (() => {
     set favoritesList(v) { _favoritesList = v; },
     get favoritesSet() { return _favoritesSet; },
     set favoritesSet(v) { _favoritesSet = v; },
+
+    get _searchAlbumMatchType() { return _searchAlbumMatchType; },
+    set _searchAlbumMatchType(v) { _searchAlbumMatchType = v; },
   };
 
   /** Build a flat array of all images */
