@@ -229,6 +229,9 @@ const App = {
       S.profileFolder = folderPath;
       S.profileName = folderPath.split(/[/\\]/).pop() || '未命名';
 
+      document.getElementById('search-input').value = '';
+      document.getElementById('search-neg').value = '';
+
       await API.touchProfile(profileId);
       App._settings = await API.getSettings(profileId);
       await API.scanAll(profileId);
@@ -256,6 +259,10 @@ const App = {
       document.getElementById('startup').classList.add('hidden');
       document.getElementById('app').classList.remove('hidden');
       document.querySelector('#folder-info span').textContent = folderPath;
+      document.getElementById('folder-info').onclick = () => {
+        API.openInExplorer(folderPath);
+      };
+      document.getElementById('folder-info').style.cursor = 'pointer';
 
       // Apply layout settings in rAF — ensures browser has performed layout after un-hiding
       requestAnimationFrame(() => {
@@ -607,6 +614,9 @@ const App = {
       <div data-action="fav">${isFav ? '★ 取消收藏' : '☆ 收藏'}</div>
       <div data-action="rename">重命名</div>
       <div data-action="cover">设为封面</div>
+      <div class="ctx-sep"></div>
+      <div data-action="explorer">📂 在资源管理器中打开</div>
+      <div class="ctx-sep"></div>
       <div data-action="delete" class="danger">删除</div>
     `;
 
@@ -655,13 +665,30 @@ const App = {
         Toast.show('已设为封面', 'success');
       }
     };
+    menu.querySelector('[data-action="explorer"]').onclick = () => {
+      CM.hide();
+      const dirPath = img._folder
+        ? S.profileFolder + '/' + img._folder
+        : S.profileFolder;
+      API.openInExplorer(dirPath);
+    };
   },
 
   albumCtx(e, folder) {
     e.preventDefault();
     CM.show(e.clientX, e.clientY);
     const menu = document.getElementById('ctx-m');
-    menu.innerHTML = '<div data-action="ra">重命名相册</div><div data-action="da" class="danger">删除相册</div>';
+    menu.innerHTML = `
+      <div data-action="explorer">📂 在资源管理器中打开</div>
+      <div class="ctx-sep"></div>
+      <div data-action="ra">重命名相册</div>
+      <div data-action="da" class="danger">删除相册</div>
+    `;
+    menu.querySelector('[data-action="explorer"]').onclick = () => {
+      CM.hide();
+      const folderPath = S.profileFolder + '/' + folder;
+      API.openInExplorer(folderPath);
+    };
     menu.querySelector('[data-action="ra"]').onclick = async () => {
       CM.hide();
       const nn = await Modal.prompt('重命名', '新名称', folder);

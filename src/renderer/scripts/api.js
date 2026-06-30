@@ -163,6 +163,9 @@ const API = {
   async openFolder(title) {
     return this._invoke('dialog_open_folder', { title });
   },
+  async openInExplorer(path) {
+    return this._invoke('open_in_explorer', { path });
+  },
 
   // === Cache ===
   async getCacheInfo(profileId) {

@@ -999,3 +999,12 @@ pub fn cache_clear(app: AppHandle, profile_id: String) -> Result<u64, String> {
     }
     Ok(count)
 }
+
+// ============================================================
+// System
+// ============================================================
+
+#[tauri::command]
+pub fn open_in_explorer(path: String) -> Result<(), String> {
+    open::that(&path).map_err(|e| format!("Open error: {}", e))
+}

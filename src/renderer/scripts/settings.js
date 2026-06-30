@@ -63,9 +63,8 @@ const ST = {
               negIcon.style.display = 'none';
           }
       }
-      // Update button text
-      const revBtn = document.getElementById('btn-toggle-reverse-search');
-      if (revBtn) revBtn.textContent = reverseSearchEnabled ? '关闭逆搜索' : '启用逆搜索';
+      // Highlight reverse search buttons
+      this._highlightReverseBtns(reverseSearchEnabled);
 
       // Cache info
       API.getCacheInfo(S.profileId).then(info => {
@@ -116,6 +115,13 @@ const ST = {
     const l = document.getElementById('btn-theme-light');
     if (d) d.style.borderColor = mode === 'dark' ? 'var(--c-accent)' : 'transparent';
     if (l) l.style.borderColor = mode === 'light' ? 'var(--c-accent)' : 'transparent';
+  },
+
+  _highlightReverseBtns(enabled) {
+    const onBtn = document.getElementById('btn-reverse-on');
+    const offBtn = document.getElementById('btn-reverse-off');
+    if (onBtn) onBtn.style.borderColor = enabled ? 'var(--c-accent)' : 'transparent';
+    if (offBtn) offBtn.style.borderColor = enabled ? 'transparent' : 'var(--c-accent)';
   },
 
   // === Accent ===
@@ -420,29 +426,31 @@ const ST = {
 
   // === Reverse Search ===
 
-  toggleReverseSearch() {
-    const enabled = !(App._settings?.reverse_search_enabled ?? false);
+  toggleReverseSearch(enabled) {
     App._settings.reverse_search_enabled = enabled;
     API.saveSettings(S.profileId, { reverse_search_enabled: enabled });
 
     const wrap = document.getElementById('search-wrap');
     const negInput = document.getElementById('search-neg');
     const negIcon = document.querySelector('.search-neg-icon');
-    const revBtn = document.getElementById('btn-toggle-reverse-search');
     if (!wrap || !negInput || !negIcon) return;
 
     if (enabled) {
         wrap.classList.add('dual');
         negInput.style.display = '';
         negIcon.style.display = '';
-        if (revBtn) revBtn.textContent = '关闭逆搜索';
     } else {
         wrap.classList.remove('dual');
         negInput.style.display = 'none';
         negIcon.style.display = 'none';
         negInput.value = '';
-        if (revBtn) revBtn.textContent = '启用逆搜索';
     }
+
+    // 高亮按钮（与深色/浅色按钮模式一致）
+    const onBtn = document.getElementById('btn-reverse-on');
+    const offBtn = document.getElementById('btn-reverse-off');
+    if (onBtn) onBtn.style.borderColor = enabled ? 'var(--c-accent)' : 'transparent';
+    if (offBtn) offBtn.style.borderColor = enabled ? 'transparent' : 'var(--c-accent)';
 
     // 触发重新搜索
     document.getElementById('search-input')?.dispatchEvent(new Event('input'));

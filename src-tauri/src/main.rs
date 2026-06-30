@@ -68,6 +68,7 @@ pub fn run() {
             commands::theme_extract_colors,
             commands::bg_import,
             commands::bg_open_folder,
+            commands::open_in_explorer,
             commands::bg_delete,
             commands::dialog_open_folder,
             commands::cache_get_info,
