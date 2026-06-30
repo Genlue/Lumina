@@ -48,23 +48,7 @@ const ST = {
       this._loadBgList();
 
       // Sync reverse search UI state
-      const reverseSearchEnabled = App._settings?.reverse_search_enabled ?? false;
-      const wrap = document.getElementById('search-wrap');
-      const negInput = document.getElementById('search-neg');
-      const negIcon = document.querySelector('.search-neg-icon');
-      if (wrap && negInput && negIcon) {
-          if (reverseSearchEnabled) {
-              wrap.classList.add('dual');
-              negInput.style.display = '';
-              negIcon.style.display = '';
-          } else {
-              wrap.classList.remove('dual');
-              negInput.style.display = 'none';
-              negIcon.style.display = 'none';
-          }
-      }
-      // Highlight reverse search buttons
-      this._highlightReverseBtns(reverseSearchEnabled);
+      this.applyReverseSearch(App._settings?.reverse_search_enabled ?? false);
 
       // Cache info
       API.getCacheInfo(S.profileId).then(info => {
@@ -122,6 +106,24 @@ const ST = {
     const offBtn = document.getElementById('btn-reverse-off');
     if (onBtn) onBtn.style.borderColor = enabled ? 'var(--c-accent)' : 'transparent';
     if (offBtn) offBtn.style.borderColor = enabled ? 'transparent' : 'var(--c-accent)';
+  },
+
+  applyReverseSearch(enabled) {
+    const wrap = document.getElementById('search-wrap');
+    const negInput = document.getElementById('search-neg');
+    const negIcon = document.querySelector('.search-neg-icon');
+    if (!wrap || !negInput || !negIcon) return;
+    if (enabled) {
+        wrap.classList.add('dual');
+        negInput.style.display = '';
+        negIcon.style.display = '';
+    } else {
+        wrap.classList.remove('dual');
+        negInput.style.display = 'none';
+        negIcon.style.display = 'none';
+        negInput.value = '';
+    }
+    this._highlightReverseBtns(enabled);
   },
 
   // === Accent ===
@@ -429,29 +431,7 @@ const ST = {
   toggleReverseSearch(enabled) {
     App._settings.reverse_search_enabled = enabled;
     API.saveSettings(S.profileId, { reverse_search_enabled: enabled });
-
-    const wrap = document.getElementById('search-wrap');
-    const negInput = document.getElementById('search-neg');
-    const negIcon = document.querySelector('.search-neg-icon');
-    if (!wrap || !negInput || !negIcon) return;
-
-    if (enabled) {
-        wrap.classList.add('dual');
-        negInput.style.display = '';
-        negIcon.style.display = '';
-    } else {
-        wrap.classList.remove('dual');
-        negInput.style.display = 'none';
-        negIcon.style.display = 'none';
-        negInput.value = '';
-    }
-
-    // 高亮按钮（与深色/浅色按钮模式一致）
-    const onBtn = document.getElementById('btn-reverse-on');
-    const offBtn = document.getElementById('btn-reverse-off');
-    if (onBtn) onBtn.style.borderColor = enabled ? 'var(--c-accent)' : 'transparent';
-    if (offBtn) offBtn.style.borderColor = enabled ? 'transparent' : 'var(--c-accent)';
-
+    this.applyReverseSearch(enabled);
     // 触发重新搜索
     document.getElementById('search-input')?.dispatchEvent(new Event('input'));
   },

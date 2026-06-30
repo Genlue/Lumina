@@ -78,6 +78,7 @@ pub struct Settings {
     pub toolbar_blur: i64,
     pub toolbar_opacity: f64,
     pub select_overlay_opacity: f64,
+    pub reverse_search_enabled: i64,  // 0=关, 1=开
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
