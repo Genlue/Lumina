@@ -279,6 +279,26 @@ const App = {
         document.documentElement.style.setProperty('--overlay-opacity', String(App._settings.select_overlay_opacity ?? 0.2));
         ST.applyReverseSearch(App._settings.reverse_search_enabled ?? false);
         ST.applyListColumns(App._settings.list_columns ?? 1);
+
+        // Sync view mode toolbar buttons
+        const currViewMode = App._settings.view_mode ?? 'grid';
+        const gvBtn = document.getElementById('btn-view-grid');
+        const lvBtn = document.getElementById('btn-view-list');
+        if (gvBtn && lvBtn) {
+          if (currViewMode === 'list') {
+            lvBtn.classList.add('active');
+            gvBtn.classList.remove('active');
+          } else {
+            gvBtn.classList.add('active');
+            lvBtn.classList.remove('active');
+          }
+        }
+
+        // Sync sort select
+        const sortSelectEl = document.getElementById('sort-select');
+        if (sortSelectEl) {
+          sortSelectEl.value = App._settings.sort_by ?? 'name-asc';
+        }
       });
 
       // Restore bg settings AFTER DOM is visible
