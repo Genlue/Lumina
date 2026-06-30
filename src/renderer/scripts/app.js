@@ -2,6 +2,9 @@
 // Photo Album — App Controller (clean)
 // ============================================================
 
+// 存储各视图的滚动位置
+const _scrollPos = {};
+
 const App = {
   _settings: {},
   _eventsBound: false,
@@ -128,9 +131,8 @@ const App = {
           await API.createFolder(S.profileId, name, S.currentView === 'albums' ? undefined : S.currentView);
           await API.scanAll(S.profileId);
           R.renderAlbumList();
-          if (S.currentView === 'albums' || S.hasChildAlbums(S.currentView)) {
-            R.renderAlbumGrid();
-          }
+          R.renderAlbumGrid();
+          R.updateCount();
           Toast.show('文件夹已创建', 'success');
         } catch (e) {
           Toast.show('创建失败: ' + e.message, 'error');
@@ -485,12 +487,24 @@ const App = {
   },
 
   navToAlbum(folder) {
+    // 保存当前视图的滚动位置
+    const scrollEl = document.querySelector('#page-album .page-scroll');
+    if (scrollEl) _scrollPos[S.currentView] = scrollEl.scrollTop;
+
     S.currentView = folder;
     S.currentPage = 'album';
     document.querySelectorAll('.page-panel').forEach(p => p.classList.add('hidden'));
     document.getElementById('page-album')?.classList.remove('hidden');
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     this._renderAlbumPageContent();
+
+    // 恢复目标视图的滚动位置（延迟确保DOM渲染）
+    setTimeout(() => {
+        const scrollEl2 = document.querySelector('#page-album .page-scroll');
+        if (scrollEl2 && _scrollPos[folder] !== undefined) {
+            scrollEl2.scrollTop = _scrollPos[folder];
+        }
+    }, 50);
   },
 
   /** Navigate up one level in the folder hierarchy */
@@ -560,6 +574,8 @@ const App = {
         await API.createFolder(S.profileId, name);
         await API.scanAll(S.profileId);
         R.renderAlbumList();
+        R.renderAlbumGrid();
+        R.updateCount();
         Toast.show(`相册已创建: ${name}`, 'success');
       } catch (e) { Toast.show('创建失败: ' + e.message, 'error'); }
     });
@@ -663,22 +679,10 @@ const App = {
       const te = img._trashEntry;
       menu.innerHTML = `
         <div data-action="restore">${Icons.icon('undo', 14)} 还原到原位置</div>
-        <div class="ctx-sep"></div>
-        <div data-action="delete" class="danger">${Icons.icon('trash', 14)} 永久删除</div>
       `;
       menu.querySelector('[data-action="restore"]').onclick = () => {
         CM.hide();
         App.restore(te.trash_name, te.original_name, te.original_folder);
-      };
-      menu.querySelector('[data-action="delete"]').onclick = async () => {
-        CM.hide();
-        const r = await Modal.show('永久删除', '文件将彻底删除，无法恢复', [{ label: '取消' }, { label: '删除', danger: true }]);
-        if (r.idx !== 1) return;
-        try {
-          await API.permanentDelete(S.profileId, te.trash_name, TRASH_DIR);
-          await API.scanAll(S.profileId); R.renderGrid(); R.updateCount();
-          Toast.show('已永久删除', 'info');
-        } catch (e) { Toast.show('删除失败', 'error'); }
       };
       return;
     }
@@ -788,7 +792,7 @@ const App = {
       if (r.idx < 0 || r.idx > 1) return;
       try {
         await API.deleteFolder(S.profileId, folder, r.idx === 0);
-        await API.scanAll(S.profileId); R.renderAlbumList(); R.renderAlbumGrid();
+        await API.scanAll(S.profileId); R.renderAlbumList(); R.renderAlbumGrid(); R.updateCount();
         Toast.show('已删除', 'info');
       } catch (e) { Toast.show('删除失败', 'error'); }
     };
@@ -799,6 +803,38 @@ const App = {
     e.preventDefault();
     const allImgs = S.buildAllImgs();
     const menu = document.getElementById('ctx-m');
+
+    if (S.currentView === 'trash') {
+        e.preventDefault();
+        menu.innerHTML = `
+          <div data-action="restore-all">${Icons.icon('undo', 14)} 批量还原</div>
+        `;
+        CM.show(e.clientX, e.clientY);
+        menu.querySelector('[data-action="restore-all"]').onclick = async () => {
+            CM.hide();
+            let count = 0;
+            for (const key of S.selected) {
+                const img = S.buildAllImgs().find(i => i._key === key);
+                if (img && img._isTrash && img._trashEntry) {
+                    const te = img._trashEntry;
+                    try {
+                        await API.restore(S.profileId, te.trash_name, te.original_name, te.original_folder);
+                        count++;
+                    } catch(e) {}
+                }
+            }
+            if (count > 0) {
+                await API.scanAll(S.profileId);
+                R.renderGrid();
+                R.renderAlbumList();
+                R.updateCount();
+            }
+            App._exitMultiSelect();
+            Toast.show(`已还原 ${count} 张图片`, 'success');
+        };
+        return;
+    }
+
     menu.innerHTML = `
       <div data-action="fav-all">${Icons.icon('star', 14)} 批量收藏</div>
       <div data-action="unfav-all">${Icons.icon('star', 14)} 批量取消收藏</div>
@@ -882,6 +918,7 @@ const App = {
             await API.scanAll(S.profileId);
             R.renderGrid();
             R.renderAlbumList();
+            R.updateCount();
         }
         App._exitMultiSelect();
         Toast.show(`已移动 ${count} 张图片`, 'success');
@@ -913,15 +950,22 @@ const App = {
   },
 
   async _moveToFolder(img) {
-    const name = await Modal.prompt('目标文件夹名称（相对于当前相册）', '');
-    if (!name) return;
+    const selectedPath = await API.openFolder('选择目标文件夹');
+    if (!selectedPath) return;
+    const prefix = S.profileFolder.replace(/[/\\]$/, '') + '/';
+    const targetFolder = selectedPath.startsWith(prefix) ? selectedPath.slice(prefix.length) : selectedPath;
     try {
-      await API.moveToFolder(S.profileId, img.name, name);
-      await API.scanAll(S.profileId);
-      R.renderGrid();
-      Toast.show('已移动', 'success');
+        if (img._folder) {
+            await API.moveBetween(S.profileId, img.name, img._folder, targetFolder);
+        } else {
+            await API.moveToFolder(S.profileId, img.name, targetFolder);
+        }
+        await API.scanAll(S.profileId);
+        R.renderGrid();
+        R.updateCount();
+        Toast.show('已移动', 'success');
     } catch (e) {
-      Toast.show('移动失败: ' + e.message, 'error');
+        Toast.show('移动失败: ' + e.message, 'error');
     }
   },
 

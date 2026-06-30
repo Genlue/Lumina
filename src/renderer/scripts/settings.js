@@ -442,7 +442,7 @@ const ST = {
   renderHomeTitleSettings() {
     const title = App._settings?.home_title;
     const elTitle = document.getElementById('set-home-title');
-    if (elTitle && title) elTitle.value = title;
+    if (elTitle) elTitle.value = title || '我的相册';
   },
   saveHomeTitle() {
     const title = document.getElementById('set-home-title')?.value?.trim() || '我的相册';
