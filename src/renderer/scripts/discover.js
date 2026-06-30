@@ -90,8 +90,11 @@ const D = {
           </div>
         `).join('')}
       </div>
-      <div style="text-align:center;padding:16px;">
-        <button class="btn-primary" onclick="D.renderDraw()">重新抽取</button>
+      <div style="display:flex;justify-content:center;padding:20px;">
+        <div class="draw-action-card" onclick="D.renderDraw()">
+          ${Icons.icon('shuffle', 32)}
+          <span>重新抽取</span>
+        </div>
       </div>
     `;
 
@@ -148,13 +151,15 @@ const D = {
     if (!area) return;
 
     area.innerHTML = `
-      <div style="position:relative;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;">
         <img id="random-img" style="max-width:90%;max-height:70vh;object-fit:contain;border-radius:8px;cursor:pointer;" src="">
-        <div id="random-info" style="margin-top:12px;color:var(--c-text2);font-size:0.85em;"></div>
-        <div style="display:flex;gap:10px;margin-top:12px;">
-          <button class="toolbar-btn" id="random-prev">${Icons.icon('chevron-left', 14)}</button>
-          <button class="toolbar-btn" id="random-pause">${Icons.icon('pause', 14)}</button>
-          <button class="toolbar-btn" id="random-next">${Icons.icon('chevron-right', 14)}</button>
+        <div style="width:100%;max-width:400px;margin-top:16px;background:rgba(var(--c-card-r,42),var(--c-card-g,42),var(--c-card-b,42),var(--card-opacity,0.85));backdrop-filter:blur(var(--card-blur,0px));-webkit-backdrop-filter:blur(var(--card-blur,0px));border:1px solid var(--c-border);border-radius:var(--radius-md);padding:16px;">
+          <div id="random-info" style="text-align:center;color:var(--c-text2);font-size:0.9em;font-weight:var(--font-weight-medium);margin-bottom:12px;"></div>
+          <div style="display:flex;gap:12px;justify-content:center;">
+            <button class="toolbar-btn" id="random-prev">${Icons.icon('chevron-left', 16)}</button>
+            <button class="toolbar-btn" id="random-pause">${Icons.icon('pause', 16)}</button>
+            <button class="toolbar-btn" id="random-next">${Icons.icon('chevron-right', 16)}</button>
+          </div>
         </div>
       </div>
     `;

@@ -125,6 +125,10 @@ img {
 }
 
 #sidebar-logo{display:flex;align-items:center;gap:8px;padding:10px 14px;font-weight:var(--font-weight-semibold);font-size:0.95em;letter-spacing:-0.01em;}
+#sidebar-logo span {
+  color: var(--c-accent);
+  font-weight: var(--font-weight-bold);
+}
 
 #folder-info{padding:0 14px 8px;color:var(--c-text3);font-size:0.75em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 #folder-info span {
@@ -148,8 +152,12 @@ img {
 }
 .nav-item .count {
   margin-left: auto;
-  font-size: var(--font-size-sm);
+  font-size: 0.9em;
+  font-weight: var(--font-weight-semibold);
   color: var(--c-text3);
+}
+.nav-item.active .count {
+  color: var(--c-accent);
 }
 
 .sidebar-divider {
@@ -191,10 +199,10 @@ img {
 }
 .count-badge {
   margin-left: auto;
-  font-size: 0.78em;
+  font-size: 0.85em;
   background: var(--c-accent-bg);
   color: var(--c-accent);
-  padding: 1px 7px;
+  padding: 2px 10px;
   border-radius: 10px;
 }
 
@@ -242,6 +250,30 @@ img {
 .home-hero p {
   color: var(--c-text2);
   margin-top: 4px;
+}
+
+/* Home top bar for readability */
+.home-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 16px 24px;
+  margin: -24px -24px 24px -24px;
+  background: rgba(var(--c-surface-r,45),var(--c-surface-g,45),var(--c-surface-b,45),0.92);
+  -webkit-backdrop-filter: blur(var(--toolbar-blur,16px));
+  backdrop-filter: blur(var(--toolbar-blur,16px));
+  border-bottom: 1px solid var(--c-border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.home-topbar h1 {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+}
+.home-topbar p {
+  font-size: var(--font-size-sm);
+  color: var(--c-text2);
 }
 
 .home-grid {
@@ -335,6 +367,9 @@ img {
 #search-wrap.dual .search-neg-icon { display: inline; }
 
 .toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 6px 10px;
   border-radius: var(--radius-sm);
   font-size: var(--font-size-sm);
@@ -561,11 +596,9 @@ img {
    ============================ */
 .discover-tabs {
   display: flex;
-  gap: 0;
-  margin: 0;
+  gap: 8px;
   padding: 10px 24px;
-  border-radius: 0;
-  overflow: hidden;
+  margin: 0;
   position: sticky;
   top: 0;
   z-index: 10;
@@ -575,18 +608,27 @@ img {
   border-bottom: 1px solid var(--c-border);
 }
 .discover-tab {
-  padding: 8px 16px;
+  padding: 8px 18px;
   font-size: var(--font-size-sm);
   color: var(--c-text2);
-  transition: all 0.1s;
+  transition: all 0.15s;
+  border-radius: var(--radius-md);
+  background: rgba(var(--c-card-r,42),var(--c-card-g,42),var(--c-card-b,42),var(--card-opacity,0.5));
+  -webkit-backdrop-filter: blur(var(--card-blur,0px));
+  backdrop-filter: blur(var(--card-blur,0px));
+  border: 1px solid var(--c-border);
+  cursor: pointer;
+  font-family: inherit;
 }
 .discover-tab:hover {
-  background: var(--c-card, #2a2a2a);
+  background: var(--c-card-hover);
+  border-color: var(--c-accent);
 }
 .discover-tab.active {
   background: var(--c-accent-bg);
   color: var(--c-accent);
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-semibold);
+  border-color: var(--c-accent);
 }
 .discover-panel {
   flex: 1;
@@ -642,14 +684,25 @@ img {
 }
 .settings-group-label {
   grid-column: 1 / -1;
-  font-size: 0.82em;
-  font-weight: var(--font-weight-semibold);
+  background: rgba(var(--c-card-r,42),var(--c-card-g,42),var(--c-card-b,42),var(--card-opacity,0.6));
+  -webkit-backdrop-filter: blur(var(--card-blur,0px));
+  backdrop-filter: blur(var(--card-blur,0px));
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  font-size: 0.85em;
+  font-weight: var(--font-weight-bold);
   color: var(--c-text2);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  padding: 12px 0 4px 0;
-  border-bottom: 1px solid var(--c-border);
+  border: 1px solid var(--c-border);
+  border-left: 3px solid var(--c-accent);
   margin-bottom: 4px;
+}
+.settings-card span[id$="-val"] {
+  font-size: 1.1em;
+  font-weight: var(--font-weight-semibold);
+  color: var(--c-text);
+  margin-left: 8px;
 }
 
 /* Dashboard card - redesigned asymmetric layout */
@@ -1023,4 +1076,42 @@ img {
 
 .toolbar-btn svg {
   vertical-align: middle;
+}
+
+/* 统一图标-文字对齐 */
+.nav-item svg, .sidebar-btn svg, .toolbar-btn svg, .home-card h3 svg, .storage-label svg, .dash-label svg, .dash-label-sm svg {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.sidebar-btn { justify-content: flex-start !important; }
+
+.draw-action-card {
+  width: 120px;
+  height: 120px;
+  background: rgba(var(--c-card-r,42),var(--c-card-g,42),var(--c-card-b,42),var(--card-opacity,0.85));
+  -webkit-backdrop-filter: blur(var(--card-blur,0px));
+  backdrop-filter: blur(var(--card-blur,0px));
+  border: 2px solid var(--c-border);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.draw-action-card:hover {
+  border-color: var(--c-accent);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.draw-action-card svg {
+  stroke: var(--c-accent);
+}
+.draw-action-card span {
+  font-size: 0.85em;
+  color: var(--c-text2);
 }
