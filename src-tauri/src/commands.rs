@@ -416,6 +416,14 @@ pub fn files_move_to_trash(
     // 记录到 profile DB
     let (p_conn_arc, _) = get_profile_db(&app, &profile_id)?;
     let p_conn = p_conn_arc.lock().map_err(|e| format!("Profile DB lock: {}", e))?;
+
+    // 取消收藏（如果已收藏）
+    let img_fav = repos::images::get_image_by_name(&p_conn, &profile_id, &filename,
+        folder.as_deref().and_then(|f| repos::albums::get_album_by_folder(&p_conn, &profile_id, f)).map(|a| a.id));
+    if let Some(img) = img_fav {
+        repos::favorites::remove_by_image_id(&p_conn, &profile_id, img.id);
+    }
+
     repos::trash::add_trash_entry(&p_conn, &profile_id, &filename, &trash_name, folder.as_deref());
 
     Ok(trash_name)
@@ -539,19 +547,56 @@ pub fn folders_delete(
     }
 
     if move_up {
+        // 挪至根目录：保留原逻辑，把内容上移
         if let Ok(entries) = fs::read_dir(&full_path) {
             for entry in entries.flatten() {
                 let dest = Path::new(&root).join(entry.file_name());
                 fs::rename(entry.path(), &dest).ok();
             }
         }
+        fs::remove_dir_all(&full_path).ok();
+    } else {
+        // 一并删除：先递归处理所有图片到回收站，再删空文件夹
+        let (p_conn_arc, _) = get_profile_db(&app, &profile_id)?;
+        let p_conn = p_conn_arc.lock().map_err(|e| format!("Profile DB lock: {}", e))?;
+
+        // 递归收集所有图片文件
+        let trash_dir = Path::new(&root).join(".album").join("trash");
+        fs::create_dir_all(&trash_dir).ok();
+
+        let all_images = collect_images_recursive(&full_path, Path::new(&root));
+        for (rel_path, filename) in &all_images {
+            let old_path = Path::new(&root).join(rel_path);
+            let ts = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis();
+            let ext = old_path.extension().and_then(|e| e.to_str()).unwrap_or("");
+            let base = old_path.file_stem().and_then(|s| s.to_str()).unwrap_or(filename);
+            let trash_name = format!("{}_{}.{}", base, ts, ext);
+            let new_path = trash_dir.join(&trash_name);
+
+            fs::rename(&old_path, &new_path).ok();
+            repos::trash::add_trash_entry(&p_conn, &profile_id, filename, &trash_name,
+                Path::new(rel_path).parent().and_then(|p| p.to_str()));
+
+            // 取消收藏
+            let folder_part = Path::new(rel_path).parent().and_then(|p| p.to_str());
+            let album_for = folder_part.and_then(|f| repos::albums::get_album_by_folder(&p_conn, &profile_id, f));
+            let aid = album_for.map(|a| a.id);
+            let img = repos::images::get_image_by_name(&p_conn, &profile_id, filename, aid);
+            if let Some(im) = img {
+                repos::favorites::remove_by_image_id(&p_conn, &profile_id, im.id);
+            }
+        }
+
+        // 删除空文件夹
+        fs::remove_dir_all(&full_path).ok();
     }
 
-    fs::remove_dir_all(&full_path).map_err(|e| format!("Delete error: {}", e))?;
-
+    // 清理DB记录（两种模式都需要）
     let (p_conn_arc, _) = get_profile_db(&app, &profile_id)?;
     let p_conn = p_conn_arc.lock().map_err(|e| format!("Profile DB lock: {}", e))?;
-    // Delete this album and all sub-albums (cascade)
     repos::albums::delete_album(&p_conn, &profile_id, &folder_path);
     let prefix = format!("{}/", folder_path);
     p_conn
@@ -561,6 +606,37 @@ pub fn folders_delete(
         )
         .ok();
     Ok(())
+}
+
+/// 递归收集文件夹中所有图片的相对路径
+fn collect_images_recursive(dir: &Path, root: &Path) -> Vec<(String, String)> {
+    let mut result = Vec::new();
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                // 跳过 .album 目录
+                if path.file_name().and_then(|n| n.to_str()) == Some(".album") {
+                    continue;
+                }
+                result.extend(collect_images_recursive(&path, root));
+            } else if path.is_file() {
+                if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                    let ext_lower = ext.to_lowercase();
+                    if matches!(ext_lower.as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "svg" | "bmp") {
+                        if let Ok(rel) = path.strip_prefix(root) {
+                            if let Some(rel_str) = rel.to_str() {
+                                if let Some(fname) = path.file_name().and_then(|n| n.to_str()) {
+                                    result.push((rel_str.to_string(), fname.to_string()));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    result
 }
 
 #[tauri::command]
@@ -645,6 +721,13 @@ pub fn albums_set_order(
     Ok(())
 }
 
+#[tauri::command]
+pub fn albums_list(app: AppHandle, profile_id: String) -> Result<Vec<Album>, String> {
+    let (p_conn_arc, _) = get_profile_db(&app, &profile_id)?;
+    let p_conn = p_conn_arc.lock().map_err(|e| format!("Profile DB lock: {}", e))?;
+    Ok(repos::albums::list_albums(&p_conn, &profile_id))
+}
+
 // ============================================================
 // Favorites（使用 profile DB）
 // ============================================================
@@ -664,10 +747,20 @@ pub fn favorites_toggle(
         .and_then(|f| repos::albums::get_album_by_folder(&p_conn, &profile_id, f));
     let album_id = album.map(|a| a.id);
 
-    let img = repos::images::get_image_by_name(&p_conn, &profile_id, &filename, album_id)
-        .ok_or_else(|| format!("Image not found: {}", filename))?;
+    // 先尝试通过图片名查找
+    let img = repos::images::get_image_by_name(&p_conn, &profile_id, &filename, album_id);
 
-    Ok(repos::favorites::toggle_favorite(&p_conn, &profile_id, img.id, &img.filename, img.album_id))
+    match img {
+        Some(image) => {
+            // 图片存在：正常切换收藏
+            Ok(repos::favorites::toggle_favorite(&p_conn, &profile_id, image.id, &image.filename, image.album_id))
+        }
+        None => {
+            // 图片不存在（可能已损坏/丢失），但仍然尝试删除收藏记录
+            repos::favorites::remove_by_filename(&p_conn, &profile_id, &filename, album_id);
+            Ok(false)
+        }
+    }
 }
 
 #[tauri::command]

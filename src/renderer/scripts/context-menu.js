@@ -11,15 +11,17 @@ const CM = {
   show(x, y) {
     const menu = document.getElementById('ctx-m');
     if (!menu) return;
-
-    // Position
-    const w = 180;
-    const h = menu.offsetHeight || 200;
-    const maxX = window.innerWidth - w - 8;
-    const maxY = window.innerHeight - h - 8;
-    menu.style.left = Math.min(x, maxX) + 'px';
-    menu.style.top = Math.min(y, maxY) + 'px';
     menu.classList.remove('hidden');
+    const w = menu.offsetWidth || 180;
+    const h = menu.offsetHeight;
+    const maxX = window.innerWidth - w - 8;
+    let finalY = y;
+    if (y + h > window.innerHeight - 8) {
+      finalY = y - h;
+    }
+    if (finalY < 4) finalY = 4;
+    menu.style.left = Math.min(x, maxX) + 'px';
+    menu.style.top = finalY + 'px';
   },
 
   /** Hide context menu */
@@ -29,18 +31,3 @@ const CM = {
   },
 };
 
-// Global click handler to close menu
-document.addEventListener('click', (e) => {
-  const menu = document.getElementById('ctx-m');
-  if (menu && !menu.classList.contains('hidden') && !menu.contains(e.target)) {
-    CM.hide();
-  }
-});
-
-// Prevent default context menu on app
-document.addEventListener('contextmenu', (e) => {
-  if (!e.target.closest('#image-grid') && !e.target.closest('#album-grid') && !e.target.closest('.home-card') && !e.target.closest('.discover-panel')) {
-    // Let browser show default on other elements
-    return;
-  }
-});

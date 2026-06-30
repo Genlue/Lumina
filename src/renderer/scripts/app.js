@@ -86,6 +86,57 @@ const App = {
       this._bindSettings();
       this._bindTitleBar();
 
+      // Global handlers: browser contextmenu prevention
+      document.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+      });
+
+      // Click outside context menu closes it
+      document.addEventListener('click', (e) => {
+        const ctxMenu = document.getElementById('ctx-m');
+        if (ctxMenu && !ctxMenu.classList.contains('hidden') && !ctxMenu.contains(e.target)) {
+          CM.hide();
+        }
+      });
+
+      // Blank area in album grid → new folder
+      document.getElementById('album-grid-wrap')?.addEventListener('contextmenu', async (e) => {
+        if (e.target.closest('.album-card')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const name = await Modal.prompt('新建文件夹', '输入文件夹名称');
+        if (!name) return;
+        try {
+          await API.createFolder(S.profileId, name, S.currentView === 'albums' ? undefined : S.currentView);
+          await API.scanAll(S.profileId);
+          R.renderAlbumList();
+          R.renderAlbumGrid();
+          Toast.show('文件夹已创建', 'success');
+        } catch (e) {
+          Toast.show('创建失败: ' + e.message, 'error');
+        }
+      });
+
+      // Blank area on page-scroll → new folder
+      document.querySelector('#page-album .page-scroll')?.addEventListener('contextmenu', async (e) => {
+        if (e.target.closest('.album-card') || e.target.closest('.image-card') || e.target.closest('#album-grid') || e.target.closest('#image-grid')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const name = await Modal.prompt('新建文件夹', '输入文件夹名称');
+        if (!name) return;
+        try {
+          await API.createFolder(S.profileId, name, S.currentView === 'albums' ? undefined : S.currentView);
+          await API.scanAll(S.profileId);
+          R.renderAlbumList();
+          if (S.currentView === 'albums' || S.hasChildAlbums(S.currentView)) {
+            R.renderAlbumGrid();
+          }
+          Toast.show('文件夹已创建', 'success');
+        } catch (e) {
+          Toast.show('创建失败: ' + e.message, 'error');
+        }
+      });
+
       setProgress(100);
       setStatus('就绪');
       // Hide loading bar after fade
@@ -299,6 +350,12 @@ const App = {
         if (sortSelectEl) {
           sortSelectEl.value = App._settings.sort_by ?? 'name-asc';
         }
+
+        // Apply home_title
+        const homeTitleEl = document.getElementById('home-title');
+        if (homeTitleEl) {
+          homeTitleEl.textContent = App._settings.home_title || '我的相册';
+        }
       });
 
       // Restore bg settings AFTER DOM is visible
@@ -310,9 +367,6 @@ const App = {
       R.renderAlbumList();
       R.updateCount();
       this._updateDashboard();
-
-      const elHomeTitle = document.getElementById('home-title');
-      if (elHomeTitle) elHomeTitle.textContent = App._settings?.home_title || '我的相册';
 
       API.onFileChange(async payload => {
         if (payload.profileId === profileId) {
@@ -638,6 +692,8 @@ const App = {
       <div data-action="rename">重命名</div>
       <div data-action="cover">设为封面</div>
       <div class="ctx-sep"></div>
+      <div data-action="move">${Icons.icon('folder', 14)} 移动到文件夹</div>
+      <div class="ctx-sep"></div>
       <div data-action="explorer">${Icons.icon('external-link', 14)} 在资源管理器中打开</div>
       <div class="ctx-sep"></div>
       <div data-action="delete" class="danger">删除</div>
@@ -687,6 +743,10 @@ const App = {
         await API.setCover(S.profileId, img._folder, img.name);
         Toast.show('已设为封面', 'success');
       }
+    };
+    menu.querySelector('[data-action="move"]').onclick = async () => {
+      CM.hide();
+      App._moveToFolder(img);
     };
     menu.querySelector('[data-action="explorer"]').onclick = () => {
       CM.hide();
@@ -850,6 +910,19 @@ const App = {
         App._exitMultiSelect();
         Toast.show(`已删除 ${count} 张图片`, 'success');
     };
+  },
+
+  async _moveToFolder(img) {
+    const name = await Modal.prompt('目标文件夹名称（相对于当前相册）', '');
+    if (!name) return;
+    try {
+      await API.moveToFolder(S.profileId, img.name, name);
+      await API.scanAll(S.profileId);
+      R.renderGrid();
+      Toast.show('已移动', 'success');
+    } catch (e) {
+      Toast.show('移动失败: ' + e.message, 'error');
+    }
   },
 
   _exitMultiSelect() {

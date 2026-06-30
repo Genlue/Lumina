@@ -55,6 +55,7 @@ pub fn run() {
             commands::folders_rename,
             commands::albums_set_cover,
             commands::albums_set_order,
+            commands::albums_list,
             commands::favorites_toggle,
             commands::favorites_list,
             commands::favorites_is_favorite,

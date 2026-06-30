@@ -112,6 +112,9 @@ const API = {
   async setOrder(profileId, folderName, order) {
     return this._invoke('albums_set_order', { profileId, folderName, order });
   },
+  async listAlbums(profileId) {
+    return this._invoke('albums_list', { profileId });
+  },
 
   // === Favorites ===
   async toggleFav(profileId, filename, folder) {

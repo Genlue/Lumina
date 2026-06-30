@@ -227,6 +227,13 @@ const R = {
     }
     empty.classList.add('hidden');
 
+    // Build cover image map: folder_name → cover_image
+    let coverMap = {};
+    try {
+      const albums = await API.listAlbums(S.profileId);
+      albums.forEach(a => { coverMap[a.folder_name] = a.cover_image; });
+    } catch(e) { /* ignore */ }
+
     wrap.innerHTML = childFolders.map(f => {
       // getChildAlbums returns full paths like "2/艾莉" - use directly
       const count = (S.albumImages[f] ?? []).length;
@@ -246,7 +253,13 @@ const R = {
       if (imgs.length === 0) continue;
       try {
         const ts = Math.round((App._settings.thumbnail_size ?? 400) * 0.75);
-        const thumb = await API.getThumbnail(S.profileId, imgs[0].name, f, ts);
+        const coverName = coverMap[f];
+        let targetImg = null;
+        if (coverName) {
+          targetImg = imgs.find(img => img.name === coverName);
+        }
+        if (!targetImg) targetImg = imgs[0];
+        const thumb = await API.getThumbnail(S.profileId, targetImg.name, f, ts);
         const coverEl = wrap.querySelector(`.album-cover[data-folder="${U.esc(f)}"]`);
         if (coverEl && thumb && thumb.dataUrl) {
           coverEl.innerHTML = `<img src="${thumb.dataUrl}" style="width:100%;height:100%;object-fit:cover;">`;

@@ -9,7 +9,7 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
                 bg_image, bg_blur, bg_opacity, sidebar_width, sidebar_opacity,
                 draw_count, card_opacity, card_blur, sidebar_font, random_interval,
                 thumbnail_size, toolbar_height, toolbar_blur, toolbar_opacity,
-                select_overlay_opacity, reverse_search_enabled, list_columns
+                select_overlay_opacity, reverse_search_enabled, home_title, list_columns
          FROM settings WHERE profile_id = ?1",
         params![profile_id],
         |row| Ok(Settings {
@@ -27,7 +27,8 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
             toolbar_opacity: row.get(18).unwrap_or(0.85),
             select_overlay_opacity: row.get(19).unwrap_or(0.2),
             reverse_search_enabled: row.get(20).unwrap_or(0),
-            list_columns: row.get(21).unwrap_or(1),
+            home_title: row.get(21).ok().flatten(),
+            list_columns: row.get(22).unwrap_or(1),
         }),
     ) {
         Ok(s) => s,
@@ -37,10 +38,10 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
                  bg_image, bg_blur, bg_opacity, sidebar_width, sidebar_opacity, draw_count,
                  card_opacity, card_blur, sidebar_font, random_interval, thumbnail_size,
                  toolbar_height, toolbar_blur, toolbar_opacity,
-                 select_overlay_opacity, reverse_search_enabled, list_columns)
+                 select_overlay_opacity, reverse_search_enabled, home_title, list_columns)
                  VALUES (?1, 'grid', 'name-asc', 'dark', '#6D79F6',
                  NULL, 20, 0, 270, 0.82, 3, 1, 0, 14, 3, 400,
-                 48, 16, 0.85, 0.2, 0, 1)",
+                 48, 16, 0.85, 0.2, 0, NULL, 1)",
                 params![profile_id],
             ).ok();
             Settings {
@@ -58,6 +59,7 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
                 toolbar_opacity: 0.85,
                 select_overlay_opacity: 0.2,
                 reverse_search_enabled: 0,
+                home_title: None,
                 list_columns: 1,
             }
         }
@@ -96,18 +98,20 @@ pub fn save_settings(conn: &Connection, profile_id: &str, updates: serde_json::V
         .or_else(|| updates["list_columns"].as_i64())
         .unwrap_or(current.list_columns);
 
+    let home_title = updates["home_title"].as_str().map(|s| s.to_string()).or(current.home_title.clone());
+
     conn.execute(
         "UPDATE settings SET view_mode=?1, sort_by=?2, theme_mode=?3, accent_color=?4,
          bg_image=?5, bg_blur=?6, bg_opacity=?7, sidebar_width=?8, sidebar_opacity=?9,
          draw_count=?10, card_opacity=?11, card_blur=?12, sidebar_font=?13, random_interval=?14,
          thumbnail_size=?15, toolbar_height=?16, toolbar_blur=?17, toolbar_opacity=?18,
-         select_overlay_opacity=?19, reverse_search_enabled=?20, list_columns=?21
-         WHERE profile_id=?22",
+         select_overlay_opacity=?19, reverse_search_enabled=?20, home_title=?21, list_columns=?22
+         WHERE profile_id=?23",
         params![view_mode, sort_by, theme_mode, accent_color,
                 bg_image, bg_blur, bg_opacity, sidebar_width, sidebar_opacity,
                 draw_count, card_opacity, card_blur, sidebar_font, random_interval,
                 thumbnail_size, toolbar_height, toolbar_blur, toolbar_opacity,
-                select_overlay_opacity, reverse_search_enabled, list_columns,
+                select_overlay_opacity, reverse_search_enabled, home_title, list_columns,
                 profile_id],
     ).ok();
 }

@@ -262,6 +262,14 @@ fn init_profile_db_schema(conn: &Connection) -> rusqlite::Result<()> {
         println!("[DB] Profile DB migration V7 applied (list_columns)");
     }
 
+    if version < 8 {
+        conn.execute_batch(
+            "ALTER TABLE settings ADD COLUMN home_title TEXT;"
+        )?;
+        conn.execute("INSERT INTO _schema_version (version) VALUES (8)", [])?;
+        println!("[DB] Profile DB migration V8 applied (home_title)");
+    }
+
     Ok(())
 }
 

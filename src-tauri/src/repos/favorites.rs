@@ -162,3 +162,19 @@ pub fn count_favorites(conn: &Connection, profile_id: &str) -> i64 {
         |row| row.get(0),
     ).unwrap_or(0)
 }
+
+/// 通过 filename 和 profile_id 删除收藏（用于图片损坏/丢失时强制取消收藏）
+pub fn remove_by_filename(conn: &Connection, profile_id: &str, filename: &str, album_id: Option<i64>) {
+    conn.execute(
+        "DELETE FROM favorites WHERE profile_id=?1 AND image_id IN (SELECT id FROM images WHERE profile_id=?1 AND filename=?2 AND album_id IS ?3)",
+        params![profile_id, filename, album_id],
+    ).ok();
+}
+
+/// 通过 image_id 删除收藏（用于删除文件时同步取消收藏）
+pub fn remove_by_image_id(conn: &Connection, profile_id: &str, image_id: i64) {
+    conn.execute(
+        "DELETE FROM favorites WHERE profile_id=?1 AND image_id=?2",
+        params![profile_id, image_id],
+    ).ok();
+}
