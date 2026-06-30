@@ -79,6 +79,10 @@ cargo test
 
 ## 更新日志
 
+### 2026-06-30 — v1.8.2
+
+- 🐛 **修复列表列数设置在Profile切换时丢失** — `list_columns` 只在前端实现，未添加Rust后端持久化（models.rs / db.rs / repos/settings.rs），导致切换文件夹后数据丢失。遵循 core architecture principle：所有设置必须走后端持久化 + `_doLoad()` DOM同步。
+
 ### 2026-06-30 — v1.8.1
 
 - 🐛 **修复视图模式/排序在Profile切换时的状态渗透** — 切换图片文件夹后，工具栏的"网格/列表"按钮高亮状态和排序下拉框值会正确同步为新Profile的设置，不再残留上一Profile的状态。根因：`_doLoad()` 加载新设置后未将 `view_mode` 和 `sort_by` 回写到DOM控件。

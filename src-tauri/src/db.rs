@@ -254,6 +254,14 @@ fn init_profile_db_schema(conn: &Connection) -> rusqlite::Result<()> {
         println!("[DB] Profile DB migration V6 applied (reverse_search_enabled)");
     }
 
+    if version < 7 {
+        conn.execute_batch(
+            "ALTER TABLE settings ADD COLUMN list_columns INTEGER NOT NULL DEFAULT 1;"
+        )?;
+        conn.execute("INSERT INTO _schema_version (version) VALUES (7)", [])?;
+        println!("[DB] Profile DB migration V7 applied (list_columns)");
+    }
+
     Ok(())
 }
 
@@ -557,6 +565,7 @@ pub fn get_profile_conn(
             toolbar_height: i64, toolbar_blur: i64, toolbar_opacity: f64,
             select_overlay_opacity: f64,
             reverse_search_enabled: i64,
+            list_columns: i64,
         }
 
         let old = conn.query_row(
@@ -564,7 +573,7 @@ pub fn get_profile_conn(
                     bg_image, bg_blur, bg_opacity, sidebar_width, sidebar_opacity,
                     draw_count, card_opacity, card_blur, sidebar_font, random_interval,
                     thumbnail_size, toolbar_height, toolbar_blur, toolbar_opacity,
-                    select_overlay_opacity, reverse_search_enabled
+                    select_overlay_opacity, reverse_search_enabled, list_columns
              FROM settings WHERE profile_id != ?1 LIMIT 1",
             rusqlite::params![profile_id],
             |row| Ok(OldSettings {
@@ -577,6 +586,7 @@ pub fn get_profile_conn(
                 toolbar_height: row.get(15)?, toolbar_blur: row.get(16)?,
                 toolbar_opacity: row.get(17)?, select_overlay_opacity: row.get(18)?,
                 reverse_search_enabled: row.get(19)?,
+                list_columns: row.get(20)?,
             }),
         ).ok();
 
@@ -598,13 +608,13 @@ pub fn get_profile_conn(
                  bg_image, bg_blur, bg_opacity, sidebar_width, sidebar_opacity, draw_count,
                  card_opacity, card_blur, sidebar_font, random_interval, thumbnail_size,
                  toolbar_height, toolbar_blur, toolbar_opacity, select_overlay_opacity,
-                 reverse_search_enabled)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)",
+                 reverse_search_enabled, list_columns)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
                 rusqlite::params![profile_id, s.view_mode, s.sort_by, s.theme_mode, s.accent_color,
                         s.bg_image, s.bg_blur, s.bg_opacity, s.sidebar_width, s.sidebar_opacity,
                         s.draw_count, s.card_opacity, s.card_blur, s.sidebar_font, s.random_interval,
                         s.thumbnail_size, s.toolbar_height, s.toolbar_blur, s.toolbar_opacity,
-                        s.select_overlay_opacity, s.reverse_search_enabled],
+                        s.select_overlay_opacity, s.reverse_search_enabled, s.list_columns],
             ).map_err(|e| format!("Migration INSERT settings: {}", e))?;
         }
 

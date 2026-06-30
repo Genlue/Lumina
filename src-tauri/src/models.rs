@@ -79,6 +79,7 @@ pub struct Settings {
     pub toolbar_opacity: f64,
     pub select_overlay_opacity: f64,
     pub reverse_search_enabled: i64,  // 0=关, 1=开
+    pub list_columns: i64,  // 列表视图列数, 1-5
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
