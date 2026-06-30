@@ -17,6 +17,7 @@ const App = {
       var savedAccent = localStorage.getItem('pa_accent_color') || '#60CDFF';
       ST.applyAccent(savedAccent);
       _syncJsCheck();
+      Icons.init();
     } catch (e) { /* ignore */ }
 
     const statusEl = document.getElementById('startup-status');
@@ -174,7 +175,7 @@ const App = {
         if (!p) return;
         CM.show(e.clientX, e.clientY);
         const menu = document.getElementById('ctx-m');
-        menu.innerHTML = '<div data-action="delete" class="danger">🗑 删除此记录</div>';
+        menu.innerHTML = '<div data-action="delete" class="danger">' + Icons.icon('trash', 14) + ' 删除此记录</div>';
         menu.querySelector('[data-action="delete"]').onclick = async () => {
           CM.hide();
           const r = await Modal.show('删除记录',
@@ -510,10 +511,10 @@ const App = {
       const btn = document.getElementById('btn-multi-select');
       const appEl = document.getElementById('app');
       if (S.multiselect) {
-          btn.classList.add('active'); btn.textContent = '☑ 多选';
+          btn.classList.add('active'); btn.innerHTML = Icons.icon('square-check', 14) + ' 多选';
           if (appEl) appEl.classList.add('multiselect-mode');
       } else {
-          btn.classList.remove('active'); btn.textContent = '☐ 多选';
+          btn.classList.remove('active'); btn.innerHTML = Icons.icon('square-check', 14) + ' 多选';
           S.selected.clear(); R.uiSel();
           if (appEl) appEl.classList.remove('multiselect-mode');
       }
@@ -586,9 +587,9 @@ const App = {
       // Trash-specific context menu
       const te = img._trashEntry;
       menu.innerHTML = `
-        <div data-action="restore">↩ 还原到原位置</div>
+        <div data-action="restore">${Icons.icon('undo', 14)} 还原到原位置</div>
         <div class="ctx-sep"></div>
-        <div data-action="delete" class="danger">🗑 永久删除</div>
+        <div data-action="delete" class="danger">${Icons.icon('trash', 14)} 永久删除</div>
       `;
       menu.querySelector('[data-action="restore"]').onclick = () => {
         CM.hide();
@@ -610,13 +611,13 @@ const App = {
     const isFav = S.favoritesSet.has(img._key);
     const isRootImg = !img._folder;
     menu.innerHTML = `
-      <div data-action="locate">${isRootImg ? '📁 位于根目录' : '📁 打开相册位置'}</div>
+      <div data-action="locate">${Icons.icon('folder-open', 14)} ${isRootImg ? '位于根目录' : '打开相册位置'}</div>
       <div class="ctx-sep"></div>
-      <div data-action="fav">${isFav ? '★ 取消收藏' : '☆ 收藏'}</div>
+      <div data-action="fav">${isFav ? Icons.icon('star', 14) + ' 取消收藏' : Icons.icon('star', 14) + ' 收藏'}</div>
       <div data-action="rename">重命名</div>
       <div data-action="cover">设为封面</div>
       <div class="ctx-sep"></div>
-      <div data-action="explorer">📂 在资源管理器中打开</div>
+      <div data-action="explorer">${Icons.icon('external-link', 14)} 在资源管理器中打开</div>
       <div class="ctx-sep"></div>
       <div data-action="delete" class="danger">删除</div>
     `;
@@ -680,7 +681,7 @@ const App = {
     CM.show(e.clientX, e.clientY);
     const menu = document.getElementById('ctx-m');
     menu.innerHTML = `
-      <div data-action="explorer">📂 在资源管理器中打开</div>
+      <div data-action="explorer">${Icons.icon('external-link', 14)} 在资源管理器中打开</div>
       <div class="ctx-sep"></div>
       <div data-action="ra">重命名相册</div>
       <div data-action="da" class="danger">删除相册</div>
@@ -718,12 +719,12 @@ const App = {
     const allImgs = S.buildAllImgs();
     const menu = document.getElementById('ctx-m');
     menu.innerHTML = `
-      <div data-action="fav-all">☆ 批量收藏</div>
-      <div data-action="unfav-all">★ 批量取消收藏</div>
+      <div data-action="fav-all">${Icons.icon('star', 14)} 批量收藏</div>
+      <div data-action="unfav-all">${Icons.icon('star', 14)} 批量取消收藏</div>
       <div class="ctx-sep"></div>
-      <div data-action="move">📁 移动到文件夹</div>
+      <div data-action="move">${Icons.icon('folder-open', 14)} 移动到文件夹</div>
       <div class="ctx-sep"></div>
-      <div data-action="delete" class="danger">🗑 批量删除</div>
+      <div data-action="delete" class="danger">${Icons.icon('trash', 14)} 批量删除</div>
     `;
     CM.show(e.clientX, e.clientY);
 
@@ -834,7 +835,7 @@ const App = {
     S.multiselect = false;
     S.selected.clear();
     const btn = document.getElementById('btn-multi-select');
-    if (btn) { btn.classList.remove('active'); btn.textContent = '☐ 多选'; }
+    if (btn) { btn.classList.remove('active'); btn.innerHTML = Icons.icon('square-check', 14) + ' 多选'; }
     const appEl = document.getElementById('app');
     if (appEl) appEl.classList.remove('multiselect-mode');
     R.uiSel();
@@ -852,6 +853,9 @@ const App = {
     if (elSize) elSize.textContent = U.fmtSize(totalSize);
     if (elAlbums) elAlbums.textContent = S.albumFolders.length;
     if (elFavs) elFavs.textContent = S.favoritesSet.size;
+    // Decorative progress bar
+    const barFill = document.getElementById('storage-bar-fill');
+    if (barFill) barFill.style.width = '60%';
   },
 
   async deleteFromLb() {

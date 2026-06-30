@@ -652,68 +652,143 @@ img {
   margin-bottom: 4px;
 }
 
-/* Dashboard card */
+/* Dashboard card - redesigned asymmetric layout */
 .dashboard-card {
   grid-column: span 2;
-  grid-row: span 3;
-  padding: 0;
+  grid-row: span 2;
+  padding: 20px;
+  border-radius: 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto 1fr;
+  gap: 16px;
   overflow: hidden;
   cursor: default;
   background: rgba(var(--c-card-r,42),var(--c-card-g,42),var(--c-card-b,42),var(--card-opacity,1));
-  -webkit-backdrop-filter: blur(var(--card-blur,0px));
   backdrop-filter: blur(var(--card-blur,0px));
+  -webkit-backdrop-filter: blur(var(--card-blur,0px));
 }
 .dashboard-card:hover {
-  transform: none !important;
-  border-color: var(--c-border) !important;
-  box-shadow: none !important;
+  background: var(--c-card-hover);
+  border-color: var(--c-accent);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
-.dashboard-stats {
+.dashboard-storage {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--c-border);
+}
+.storage-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.storage-label {
+  font-size: 0.82em;
+  color: var(--c-text3);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.storage-percent {
+  font-size: 0.85em;
+  color: var(--c-text2);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.storage-bar {
+  height: 8px;
+  background: var(--c-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.storage-bar-fill {
+  height: 100%;
+  width: 60%;
+  background: linear-gradient(90deg, var(--c-accent), var(--c-accent2));
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+.storage-detail {
+  font-size: 0.78em;
+  color: var(--c-text3);
+}
+.storage-detail b {
+  color: var(--c-text2);
+  font-weight: var(--font-weight-medium);
+}
+
+.dashboard-cells {
+  grid-column: 1 / -1;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0;
-  height: 100%;
-  background: transparent;
+  flex: 1;
 }
-
-.stat-item {
+.dashboard-cell {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 6px;
   padding: 8px;
   position: relative;
-  border-bottom: 1px solid var(--c-border);
+}
+.dashboard-cell:first-child {
   border-right: 1px solid var(--c-border);
-  background: rgba(var(--c-card-r,42),var(--c-card-g,42),var(--c-card-b,42),var(--card-opacity,1));
 }
-/* 底部行（第3、4项）无下边框 */
-.stat-item:nth-child(n+3) { border-bottom: none; }
-/* 右列（第2、4项）无右边框 */
-.stat-item:nth-child(2n) { border-right: none; }
-
-.stat-label {
-  font-size: 0.95em;
-  color: var(--c-text2);
-  font-weight: var(--font-weight-medium);
-  letter-spacing: 0.03em;
+.dash-num {
+  font-family: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
+  font-size: 2.8em;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--c-text);
+  font-variant-numeric: tabular-nums;
+}
+.dash-label {
+  font-size: 0.82em;
+  color: var(--c-text3);
   text-transform: uppercase;
-  opacity: 0.8;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
-
-.stat-value {
-  font-size: 2.5em;
-  font-weight: var(--font-weight-bold);
-  line-height: 1.1;
+.dash-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
 }
-
-/* 彩色数字 */
-.stat-imgs .stat-value { color: var(--c-accent); }
-.stat-size .stat-value { color: var(--c-success); }
-.stat-albums .stat-value { color: var(--c-warning); }
-.stat-favs .stat-value { color: var(--c-danger); }
+.dash-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+}
+.dash-num-sm {
+  font-family: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
+  font-size: 1.3em;
+  font-weight: 600;
+  color: var(--c-text);
+  font-variant-numeric: tabular-nums;
+}
+.dash-label-sm {
+  font-size: 0.78em;
+  color: var(--c-text3);
+}
+.dash-divider {
+  height: 1px;
+  background: var(--c-border);
+  margin: 2px 16px;
+}
 
 /* Multi-select dimming */
 .multiselect-mode .image-card {
@@ -937,4 +1012,15 @@ img {
   margin-right: 4px;
 }
 
+/* SVG icon tweaks */
+.nav-item svg {
+  flex-shrink: 0;
+}
 
+.sidebar-btn svg {
+  flex-shrink: 0;
+}
+
+.toolbar-btn svg {
+  vertical-align: middle;
+}

@@ -26,7 +26,7 @@ const R = {
     // Back button when in a nested folder
     if (isNested) {
       html += `<div class="nav-item album-item album-back" data-action="back">
-        <span>⬆</span><span style="flex:1;">.. 返回上级</span>
+        <span>${Icons.icon('arrow-up', 14)}</span><span style="flex:1;">.. 返回上级</span>
       </div>`;
     }
 
@@ -37,7 +37,7 @@ const R = {
         const directImgs = S.albumImages[f] ?? [];
         const count = directImgs.length;
         return `<div class="nav-item album-item" data-album="${U.esc(f)}">
-          <span>📁</span>
+          <span>${Icons.icon('folder', 14)}</span>
           <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${U.esc(displayName)}</span>
           <span class="count">${count}</span>
         </div>`;
@@ -173,7 +173,7 @@ const R = {
     card.dataset.key = img._key;
 
     if (viewMode === 'list') {
-      card.innerHTML = `<div style="width:42px;height:42px;background:var(--c-card);border-radius:6px;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;"><img src="" data-src="${img._key}" loading="lazy" style="width:100%;height:100%;object-fit:cover;opacity:0;" onload="this.style.opacity='1'"></div><div style="flex:1;min-width:0;"><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${U.esc(img._displayName || img.name)}</div><div class="card-meta"><span>${img.size ? U.fmtSize(img.size) : '--'}</span><span>${img.lastModified ? U.fmtDate(img.lastModified) : '--'}</span>${img._folder ? '<span>📁 '+U.esc(img._folder)+'</span>' : ''}</div></div>`;
+      card.innerHTML = `<div style="width:42px;height:42px;background:var(--c-card);border-radius:6px;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;"><img src="" data-src="${img._key}" loading="lazy" style="width:100%;height:100%;object-fit:cover;opacity:0;" onload="this.style.opacity='1'"></div><div style="flex:1;min-width:0;"><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${U.esc(img._displayName || img.name)}</div><div class="card-meta"><span>${img.size ? U.fmtSize(img.size) : '--'}</span><span>${img.lastModified ? U.fmtDate(img.lastModified) : '--'}</span>${img._folder ? '<span>' + Icons.icon('folder', 12) + ' ' + U.esc(img._folder) + '</span>' : ''}</div></div>`;
     } else {
       card.innerHTML = `<img src="" data-src="${img._key}" loading="lazy" style="width:100%;height:100%;object-fit:cover;opacity:0;" onload="this.style.opacity='1'"><div class="card-name">${U.esc(img._displayName || img.name)}</div>`;
     }
@@ -234,10 +234,10 @@ const R = {
       const count = (S.albumImages[f] ?? []).length;
       const hasChildren = S.hasChildAlbums(f);
       return `<div class="album-card" data-album="${U.esc(f)}">
-        <div class="album-cover" data-folder="${U.esc(f)}">📁</div>
+        <div class="album-cover" data-folder="${U.esc(f)}">${Icons.icon('folder', 48)}</div>
         <div class="album-info">
           <div class="album-name">${U.esc(S.getDisplayName(f))}</div>
-          <div class="album-count">${count} 张${hasChildren ? ' · 📂 含子相册' : ''}</div>
+          <div class="album-count">${count} 张${hasChildren ? ' · ' + Icons.icon('folder-tree', 12) + ' 含子相册' : ''}</div>
         </div>
       </div>`;
     }).join('');
@@ -267,15 +267,15 @@ const R = {
   updateBreadcrumb() {
     const bc = document.getElementById('breadcrumb');
     if (!bc) return;
-    const labels = { all: '全部图片', albums: '相册列表', trash: '回收站', favorites: '⭐ 收藏' };
+    const labels = { all: '全部图片', albums: '相册列表', trash: '回收站', favorites: Icons.icon('star', 12) + ' 收藏' };
     if (labels[S.currentView]) {
-      bc.textContent = labels[S.currentView];
+      bc.innerHTML = labels[S.currentView];
       bc.style.cursor = 'default';
       bc.onclick = null;
     } else {
       const items = S.getBreadcrumbItems();
       bc.innerHTML = items.map((item, i) => {
-        const sep = i > 0 ? '<span style="margin:0 4px;color:var(--c-text3);">›</span>' : '';
+        const sep = i > 0 ? '<span style="margin:0 4px;color:var(--c-text3);">' + Icons.icon('chevron-right', 10) + '</span>' : '';
         const name = U.esc(item.name);
         if (i === items.length - 1) {
           return `${sep}<span style="color:var(--c-text);font-weight:600;">${name}</span>`;
@@ -345,6 +345,7 @@ const R = {
 
   updateCount() {
     const all = S.rootImages.length + Object.values(S.albumImages).reduce((s, a) => s + a.length, 0);
+    const elHome = document.getElementById('nav-home-count'); if (elHome) elHome.textContent = all || '';
     const elAll = document.getElementById('nav-all-count'); if (elAll) elAll.textContent = all || '';
     const elAlb = document.getElementById('nav-album-count'); if (elAlb) elAlb.textContent = S.albumFolders.length || '';
     this.updateFavCount();

@@ -56,7 +56,7 @@ const Lb = {
 
     // Star state
     const isFav = S.favoritesSet.has(img._key);
-    document.getElementById('lightbox-star').textContent = isFav ? '★' : '☆';
+    document.getElementById('lightbox-star').innerHTML = isFav ? '★' : Icons.icon('star', 14);
 
     document.getElementById('lightbox-zoom-level').textContent = Math.round(S.lbZoom * 100) + '%';
   },

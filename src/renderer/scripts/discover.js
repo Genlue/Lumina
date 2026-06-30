@@ -152,9 +152,9 @@ const D = {
         <img id="random-img" style="max-width:90%;max-height:70vh;object-fit:contain;border-radius:8px;cursor:pointer;" src="">
         <div id="random-info" style="margin-top:12px;color:var(--c-text2);font-size:0.85em;"></div>
         <div style="display:flex;gap:10px;margin-top:12px;">
-          <button class="toolbar-btn" id="random-prev">◀</button>
-          <button class="toolbar-btn" id="random-pause">⏸</button>
-          <button class="toolbar-btn" id="random-next">▶</button>
+          <button class="toolbar-btn" id="random-prev">${Icons.icon('chevron-left', 14)}</button>
+          <button class="toolbar-btn" id="random-pause">${Icons.icon('pause', 14)}</button>
+          <button class="toolbar-btn" id="random-next">${Icons.icon('chevron-right', 14)}</button>
         </div>
       </div>
     `;
@@ -183,7 +183,7 @@ const D = {
     });
     document.getElementById('random-pause')?.addEventListener('click', () => {
       S.randomPaused = !S.randomPaused;
-      document.getElementById('random-pause').textContent = S.randomPaused ? '▶' : '⏸';
+      document.getElementById('random-pause').innerHTML = S.randomPaused ? Icons.icon('chevron-right', 14) : Icons.icon('pause', 14);
     });
 
     // Click image to open lightbox synced with slideshow
