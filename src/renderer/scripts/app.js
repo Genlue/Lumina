@@ -113,6 +113,8 @@ const App = {
           await API.createFolder(S.profileId, name, S.currentView === 'albums' ? undefined : S.currentView);
           await API.scanAll(S.profileId);
           R.renderAlbumList();
+          const agWrap1 = document.getElementById('album-grid-wrap');
+          if (agWrap1) agWrap1.style.display = '';
           R.renderAlbumGrid();
           Toast.show('文件夹已创建', 'success');
         } catch (e) {
@@ -131,6 +133,8 @@ const App = {
           await API.createFolder(S.profileId, name, S.currentView === 'albums' ? undefined : S.currentView);
           await API.scanAll(S.profileId);
           R.renderAlbumList();
+          const agWrap2 = document.getElementById('album-grid-wrap');
+          if (agWrap2) agWrap2.style.display = '';
           R.renderAlbumGrid();
           R.updateCount();
           Toast.show('文件夹已创建', 'success');
@@ -408,6 +412,10 @@ const App = {
   },
 
   navPage(page) {
+    // 离开相册页面时清空滚动缓存
+    if (page !== 'album') {
+        for (const key in _scrollPos) delete _scrollPos[key];
+    }
     S.currentPage = page;
     document.querySelectorAll('.page-panel').forEach(p => p.classList.add('hidden'));
     document.getElementById('page-' + page)?.classList.remove('hidden');
@@ -498,13 +506,16 @@ const App = {
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     this._renderAlbumPageContent();
 
-    // 恢复目标视图的滚动位置（延迟确保DOM渲染）
-    setTimeout(() => {
-        const scrollEl2 = document.querySelector('#page-album .page-scroll');
-        if (scrollEl2 && _scrollPos[folder] !== undefined) {
-            scrollEl2.scrollTop = _scrollPos[folder];
+    // 恢复目标视图的滚动位置（retry机制等待DOM就绪）
+    const tryRestore = (f, retries) => {
+        const el = document.querySelector('#page-album .page-scroll');
+        if (el && _scrollPos[f] !== undefined && el.scrollHeight > 0) {
+            el.scrollTop = _scrollPos[f];
+        } else if (retries > 0) {
+            setTimeout(() => tryRestore(f, retries - 1), 80);
         }
-    }, 50);
+    };
+    setTimeout(() => tryRestore(folder, 10), 50);
   },
 
   /** Navigate up one level in the folder hierarchy */
@@ -898,17 +909,19 @@ const App = {
 
     menu.querySelector('[data-action="move"]').onclick = async () => {
         CM.hide();
-        const folderName = await Modal.prompt('移动到文件夹', '输入目标文件夹名称');
-        if (!folderName) return;
+        const selectedPath = await API.openFolder('选择目标文件夹');
+        if (!selectedPath) return;
+        const prefix = S.profileFolder.replace(/[/\\]$/, '') + '/';
+        const targetFolder = selectedPath.startsWith(prefix) ? selectedPath.slice(prefix.length) : selectedPath;
         let count = 0;
         for (const key of S.selected) {
             const img = allImgs.find(i => i._key === key);
-            if (img && img._folder !== folderName) {
+            if (img && img._folder !== targetFolder) {
                 try {
                     if (img._folder) {
-                        await API.moveBetween(S.profileId, img.name, img._folder, folderName);
+                        await API.moveBetween(S.profileId, img.name, img._folder, targetFolder);
                     } else {
-                        await API.moveToFolder(S.profileId, img.name, folderName);
+                        await API.moveToFolder(S.profileId, img.name, targetFolder);
                     }
                     count++;
                 } catch(e) {}
