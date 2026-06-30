@@ -102,7 +102,12 @@
         <div id="toolbar">
           <button id="btn-back" class="toolbar-btn" title="返回上级" style="display:none;">←</button>
           <span id="breadcrumb">全部图片</span>
-          <div id="search-wrap"><span class="search-icon">S</span><input id="search-input" type="text" placeholder="搜索图片..."></div>
+          <div id="search-wrap">
+            <span class="search-icon">S</span>
+            <input id="search-input" type="text" placeholder="搜索图片...">
+            <span class="search-icon search-neg-icon" style="opacity:0.5;display:none;">⊖</span>
+            <input id="search-neg" type="text" placeholder="排除..." style="display:none;">
+          </div>
           <div class="toolbar-btn-group"><button id="btn-view-grid" class="toolbar-btn active" title="网格">G</button><button id="btn-view-list" class="toolbar-btn" title="列表">L</button></div>
           <button id="btn-multi-select" class="toolbar-btn" title="多选">M</button>
           <select id="sort-select"><option value="name-asc">名称↑</option><option value="name-desc">名称↓</option><option value="date-desc">最新优先</option><option value="date-asc">最旧优先</option></select>
@@ -151,6 +156,7 @@
 <div class="settings-card"><h3>抽卡个数</h3><input type="range" id="set-draw-count" oninput="ST.applyDrawCount(parseInt(this.value))" min="1" max="10" value="3"><span id="draw-count-val">3</span></div>
 <div class="settings-card"><h3>播放间隔 (秒)</h3><input type="range" id="set-random-interval" oninput="ST.applyRandomInterval(parseInt(this.value))" min="1" max="30" value="3"><span id="random-interval-val">3</span></div>
 <div class="settings-card"><h3>多选遮罩浓度</h3><input type="range" id="set-overlay-opacity" oninput="ST.applyOverlayOpacity(Number(this.value)/100)" min="0" max="60" value="20"><span id="overlay-opacity-val">20%</span></div>
+<div class="settings-card"><h3>搜索栏</h3><button id="btn-toggle-reverse-search" onclick="ST.toggleReverseSearch()" style="padding:6px 16px;background:var(--c-accent-bg);color:var(--c-accent);border-radius:6px;font-size:0.85em;cursor:pointer;">启用逆搜索</button></div>
 <div class="settings-card"><h3>缓存管理</h3><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><span id="cache-size-label">计算中...</span><button id="btn-clear-cache" class="btn-primary" onclick="ST.clearCache()" style="padding:6px 16px;">清除缓存</button></div></div>
         </div>
       </section>

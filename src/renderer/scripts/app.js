@@ -520,6 +520,15 @@ const App = {
           await R.renderAlbumGrid();
       }
     }, DEBOUNCE));
+    document.getElementById('search-neg')?.addEventListener('input', U.debounce(async () => {
+        S._searchAlbumMatchType = {};
+        await R.renderGrid();
+        if (S.currentView === 'albums' || S.currentView === 'all'
+            || (S.currentView !== 'trash' && S.currentView !== 'favorites'
+                && S.hasChildAlbums(S.currentView))) {
+            await R.renderAlbumGrid();
+        }
+    }, DEBOUNCE));
     document.getElementById('sort-select')?.addEventListener('change', e => {
       App._settings.sort_by = e.target.value;
       API.saveSettings(S.profileId, { sort_by: e.target.value });
@@ -531,6 +540,11 @@ const App = {
 
     // Search right-click clear
     document.getElementById('search-input')?.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.target.value = '';
+        e.target.dispatchEvent(new Event('input'));
+    });
+    document.getElementById('search-neg')?.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         e.target.value = '';
         e.target.dispatchEvent(new Event('input'));

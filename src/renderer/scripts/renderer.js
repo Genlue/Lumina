@@ -98,15 +98,23 @@ const R = {
     }
 
     // Search
-    const search = document.getElementById('search-input')?.value?.toLowerCase() ?? '';
-    if (search) {
+    const search = (document.getElementById('search-input')?.value?.toLowerCase() ?? '').trim();
+    const exclude = (document.getElementById('search-neg')?.value?.toLowerCase() ?? '').trim();
+
+    if (search || exclude) {
         const isInAlbum = S.currentView !== 'all' && S.currentView !== 'albums'
             && S.currentView !== 'trash' && S.currentView !== 'favorites';
         const matchType = S._searchAlbumMatchType?.[S.currentView];
-        if (isInAlbum && matchType === 'name') {
-            // 相册名匹配 → 显示全部图片，不做图片名过滤
-        } else {
+        const isAlbumNameMatch = isInAlbum && matchType === 'name';
+
+        // 正搜索过滤（非相册名匹配模式下）
+        if (search && !isAlbumNameMatch) {
             imgs = imgs.filter(i => i.name.toLowerCase().includes(search));
+        }
+
+        // 逆搜索过滤：始终执行，包括相册名匹配模式
+        if (exclude) {
+            imgs = imgs.filter(i => !i.name.toLowerCase().includes(exclude));
         }
     }
 
@@ -182,16 +190,29 @@ const R = {
     let childFolders = S.getChildAlbums(currentPath);
 
     // Search filtering for albums
-    const search = document.getElementById('search-input')?.value?.toLowerCase() ?? '';
-    if (search) {
+    const search = (document.getElementById('search-input')?.value?.toLowerCase() ?? '').trim();
+    const exclude = (document.getElementById('search-neg')?.value?.toLowerCase() ?? '').trim();
+
+    if (search || exclude) {
         const matchType = {};
         const filtered = childFolders.filter(f => {
             const displayName = S.getDisplayName(f).toLowerCase();
-            const nameMatch = displayName.includes(search);
             const images = S.albumImages[f] ?? [];
-            const imgMatch = images.some(img => img.name.toLowerCase().includes(search));
-            if (nameMatch || imgMatch) {
-                matchType[f] = nameMatch ? 'name' : 'image-only';
+
+            // 正搜索
+            const nameMatch = !search || displayName.includes(search);
+            const imgMatch = !search || images.some(img => img.name.toLowerCase().includes(search));
+            const passesPositive = nameMatch || imgMatch;
+
+            // 逆搜索：排除包含排除词的文件夹或图片
+            if (exclude) {
+                const nameExcluded = displayName.includes(exclude);
+                const imgExcluded = images.some(img => img.name.toLowerCase().includes(exclude));
+                if (nameExcluded || imgExcluded) return false;
+            }
+
+            if (passesPositive) {
+                matchType[f] = (search && nameMatch) ? 'name' : (search && imgMatch) ? 'image-only' : 'name';
                 return true;
             }
             return false;

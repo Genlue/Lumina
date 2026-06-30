@@ -47,6 +47,26 @@ const ST = {
       this._highlightThemeBtns(s.theme_mode ?? 'dark');
       this._loadBgList();
 
+      // Sync reverse search UI state
+      const reverseSearchEnabled = App._settings?.reverse_search_enabled ?? false;
+      const wrap = document.getElementById('search-wrap');
+      const negInput = document.getElementById('search-neg');
+      const negIcon = document.querySelector('.search-neg-icon');
+      if (wrap && negInput && negIcon) {
+          if (reverseSearchEnabled) {
+              wrap.classList.add('dual');
+              negInput.style.display = '';
+              negIcon.style.display = '';
+          } else {
+              wrap.classList.remove('dual');
+              negInput.style.display = 'none';
+              negIcon.style.display = 'none';
+          }
+      }
+      // Update button text
+      const revBtn = document.getElementById('btn-toggle-reverse-search');
+      if (revBtn) revBtn.textContent = reverseSearchEnabled ? '关闭逆搜索' : '启用逆搜索';
+
       // Cache info
       API.getCacheInfo(S.profileId).then(info => {
         const label = document.getElementById('cache-size-label');
@@ -396,6 +416,36 @@ const ST = {
     this._setText('random-interval-val', val + 's');
     API.saveSettings(S.profileId, { random_interval: val });
     App._settings.random_interval = val;
+  },
+
+  // === Reverse Search ===
+
+  toggleReverseSearch() {
+    const enabled = !(App._settings?.reverse_search_enabled ?? false);
+    App._settings.reverse_search_enabled = enabled;
+    API.saveSettings(S.profileId, { reverse_search_enabled: enabled });
+
+    const wrap = document.getElementById('search-wrap');
+    const negInput = document.getElementById('search-neg');
+    const negIcon = document.querySelector('.search-neg-icon');
+    const revBtn = document.getElementById('btn-toggle-reverse-search');
+    if (!wrap || !negInput || !negIcon) return;
+
+    if (enabled) {
+        wrap.classList.add('dual');
+        negInput.style.display = '';
+        negIcon.style.display = '';
+        if (revBtn) revBtn.textContent = '关闭逆搜索';
+    } else {
+        wrap.classList.remove('dual');
+        negInput.style.display = 'none';
+        negIcon.style.display = 'none';
+        negInput.value = '';
+        if (revBtn) revBtn.textContent = '启用逆搜索';
+    }
+
+    // 触发重新搜索
+    document.getElementById('search-input')?.dispatchEvent(new Event('input'));
   },
 
   // === Helpers ===

@@ -325,6 +325,15 @@ img {
   opacity: 0.5;
 }
 
+/* 逆搜索栏默认隐藏 */
+#search-neg { display: none; }
+.search-neg-icon { display: none; margin-left: 4px; }
+
+/* 双栏模式：显示逆搜索栏，两栏等宽 */
+#search-wrap.dual #search-input { width: calc(50% - 12px); }
+#search-wrap.dual #search-neg { display: inline-block; width: calc(50% - 12px); }
+#search-wrap.dual .search-neg-icon { display: inline; }
+
 .toolbar-btn {
   padding: 6px 10px;
   border-radius: var(--radius-sm);
