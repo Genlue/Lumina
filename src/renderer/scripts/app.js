@@ -911,8 +911,10 @@ const App = {
         CM.hide();
         const selectedPath = await API.openFolder('选择目标文件夹');
         if (!selectedPath) return;
-        const prefix = S.profileFolder.replace(/[/\\]$/, '') + '/';
-        const targetFolder = selectedPath.startsWith(prefix) ? selectedPath.slice(prefix.length) : selectedPath;
+        const normProfile = S.profileFolder.replace(/\\/g, '/').replace(/\/$/, '');
+        const normSelected = selectedPath.replace(/\\/g, '/').replace(/\/$/, '');
+        const prefix = normProfile + '/';
+        const targetFolder = normSelected.startsWith(prefix) ? normSelected.slice(prefix.length) : normSelected;
         let count = 0;
         for (const key of S.selected) {
             const img = allImgs.find(i => i._key === key);
@@ -965,8 +967,10 @@ const App = {
   async _moveToFolder(img) {
     const selectedPath = await API.openFolder('选择目标文件夹');
     if (!selectedPath) return;
-    const prefix = S.profileFolder.replace(/[/\\]$/, '') + '/';
-    const targetFolder = selectedPath.startsWith(prefix) ? selectedPath.slice(prefix.length) : selectedPath;
+    const normProfile = S.profileFolder.replace(/\\/g, '/').replace(/\/$/, '');
+    const normSelected = selectedPath.replace(/\\/g, '/').replace(/\/$/, '');
+    const prefix = normProfile + '/';
+    const targetFolder = normSelected.startsWith(prefix) ? normSelected.slice(prefix.length) : normSelected;
     try {
         if (img._folder) {
             await API.moveBetween(S.profileId, img.name, img._folder, targetFolder);

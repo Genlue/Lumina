@@ -485,7 +485,7 @@ img {
   right: 0;
   padding: 6px 8px;
   background: linear-gradient(transparent, rgba(0,0,0,0.7));
-  color: var(--c-accent);
+  color: #fff;
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
   opacity: 0;
@@ -553,6 +553,7 @@ img {
   font-weight: var(--font-weight-semibold);
   margin-bottom: 2px;
   font-size: 1em;
+  color: var(--c-accent);
 }
 .album-card .album-count {
   font-size: 0.85em;
