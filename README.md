@@ -79,6 +79,11 @@ cargo test
 
 ## 更新日志
 
+### 2026-06-30 — v2.2.0
+
+- 🐛 **修复批量移动关键Bug** — 选择profile根目录时targetFolder变成完整绝对路径导致所有移动静默失败；empty catch块现记录错误并Toast提示失败数；selected集合快照移到await之前防止async gap期间被清空；防御性反斜杠检查兜底
+- 📜 **修复相册返回滚动位置恢复** — 从根级相册返回相册列表时，`navToParent` 现在正确内联恢复 `_scrollPos['albums']` 滚动位置（之前因 `tryRestore` 闭包作用域问题无法访问导致丢失）
+
 ### 2026-06-30 — v2.1.2
 
 - 🐛 **修复批量移动路径分隔符Bug** — Windows下 `\` 与 `/` 不匹配导致移动到错误位置或无效果

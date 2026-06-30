@@ -522,8 +522,19 @@ const App = {
   navToParent() {
     const segs = S.getBreadcrumbSegments();
     if (segs.length <= 1) {
+      const scrollEl = document.querySelector('#page-album .page-scroll');
+      if (scrollEl) _scrollPos[S.currentView] = scrollEl.scrollTop;
       S.currentView = 'albums';
       this.navPage('album');
+      const tryRestore = (f, retries) => {
+        const el = document.querySelector('#page-album .page-scroll');
+        if (el && _scrollPos[f] !== undefined && el.scrollHeight > 0) {
+          el.scrollTop = _scrollPos[f];
+        } else if (retries > 0) {
+          setTimeout(() => tryRestore(f, retries - 1), 80);
+        }
+      };
+      setTimeout(() => tryRestore('albums', 10), 50);
       return;
     }
     const parentPath = segs.slice(0, -1).join('/');
@@ -823,7 +834,7 @@ const App = {
         CM.show(e.clientX, e.clientY);
         menu.querySelector('[data-action="restore-all"]').onclick = async () => {
             CM.hide();
-            let count = 0;
+            let count = 0, failCount = 0;
             for (const key of S.selected) {
                 const img = S.buildAllImgs().find(i => i._key === key);
                 if (img && img._isTrash && img._trashEntry) {
@@ -831,7 +842,7 @@ const App = {
                     try {
                         await API.restore(S.profileId, te.trash_name, te.original_name, te.original_folder);
                         count++;
-                    } catch(e) {}
+                    } catch(e) { console.error('操作失败:', e); failCount++; }
                 }
             }
             if (count > 0) {
@@ -840,6 +851,7 @@ const App = {
                 R.renderAlbumList();
                 R.updateCount();
             }
+            if (failCount > 0) Toast.show(`${failCount} 个操作失败`, 'error');
             App._exitMultiSelect();
             Toast.show(`已还原 ${count} 张图片`, 'success');
         };
@@ -867,7 +879,7 @@ const App = {
 
     favAllBtn.onclick = async () => {
         CM.hide();
-        let count = 0;
+        let count = 0, failCount = 0;
         for (const key of S.selected) {
             if (S.favoritesSet.has(key)) continue;
             const img = allImgs.find(i => i._key === key);
@@ -876,19 +888,20 @@ const App = {
                     await API.toggleFav(S.profileId, img.name, img._folder || undefined);
                     S.favoritesSet.add(key);
                     count++;
-                } catch(e) {}
+                } catch(e) { console.error('操作失败:', e); failCount++; }
             }
         }
         await API.listFav(S.profileId);
         if (S.currentView === 'favorites') R.renderGrid();
         R.updateFavCount();
+        if (failCount > 0) Toast.show(`${failCount} 个操作失败`, 'error');
         App._exitMultiSelect();
         Toast.show(`已收藏 ${count} 张图片`, 'success');
     };
 
     unfavAllBtn.onclick = async () => {
         CM.hide();
-        let count = 0;
+        let count = 0, failCount = 0;
         for (const key of S.selected) {
             if (!S.favoritesSet.has(key)) continue;
             const img = allImgs.find(i => i._key === key);
@@ -897,26 +910,30 @@ const App = {
                     await API.toggleFav(S.profileId, img.name, img._folder || undefined);
                     S.favoritesSet.delete(key);
                     count++;
-                } catch(e) {}
+                } catch(e) { console.error('操作失败:', e); failCount++; }
             }
         }
         await API.listFav(S.profileId);
         if (S.currentView === 'favorites') R.renderGrid();
         R.updateFavCount();
+        if (failCount > 0) Toast.show(`${failCount} 个操作失败`, 'error');
         App._exitMultiSelect();
         Toast.show(`已取消收藏 ${count} 张图片`, 'success');
     };
 
     menu.querySelector('[data-action="move"]').onclick = async () => {
         CM.hide();
+        const selectedKeys = Array.from(S.selected);
         const selectedPath = await API.openFolder('选择目标文件夹');
         if (!selectedPath) return;
         const normProfile = S.profileFolder.replace(/\\/g, '/').replace(/\/$/, '');
         const normSelected = selectedPath.replace(/\\/g, '/').replace(/\/$/, '');
         const prefix = normProfile + '/';
-        const targetFolder = normSelected.startsWith(prefix) ? normSelected.slice(prefix.length) : normSelected;
-        let count = 0;
-        for (const key of S.selected) {
+        let targetFolder = normSelected.startsWith(prefix) ? normSelected.slice(prefix.length) : normSelected;
+        if (normSelected === normProfile) targetFolder = '';
+        if (targetFolder.includes('\\')) targetFolder = targetFolder.replace(/\\/g, '/');
+        let count = 0, failCount = 0;
+        for (const key of selectedKeys) {
             const img = allImgs.find(i => i._key === key);
             if (img && img._folder !== targetFolder) {
                 try {
@@ -926,7 +943,7 @@ const App = {
                         await API.moveToFolder(S.profileId, img.name, targetFolder);
                     }
                     count++;
-                } catch(e) {}
+                } catch(e) { console.error('操作失败:', e); failCount++; }
             }
         }
         if (count > 0) {
@@ -935,6 +952,7 @@ const App = {
             R.renderAlbumList();
             R.updateCount();
         }
+        if (failCount > 0) Toast.show(`${failCount} 个操作失败`, 'error');
         App._exitMultiSelect();
         Toast.show(`已移动 ${count} 张图片`, 'success');
     };
@@ -943,14 +961,14 @@ const App = {
         CM.hide();
         const r = await Modal.show('批量删除', `将 ${S.selected.size} 张图片移入回收站？`, [{ label: '取消' }, { label: '删除', danger: true }]);
         if (r.idx !== 1) return;
-        let count = 0;
+        let count = 0, failCount = 0;
         for (const key of S.selected) {
             const img = allImgs.find(i => i._key === key);
             if (img) {
                 try {
                     await API.moveToTrash(S.profileId, img.name, img._folder);
                     count++;
-                } catch(e) {}
+                } catch(e) { console.error('操作失败:', e); failCount++; }
             }
         }
         if (count > 0) {
@@ -959,6 +977,7 @@ const App = {
             R.renderAlbumList();
             R.updateCount();
         }
+        if (failCount > 0) Toast.show(`${failCount} 个操作失败`, 'error');
         App._exitMultiSelect();
         Toast.show(`已删除 ${count} 张图片`, 'success');
     };
@@ -970,7 +989,9 @@ const App = {
     const normProfile = S.profileFolder.replace(/\\/g, '/').replace(/\/$/, '');
     const normSelected = selectedPath.replace(/\\/g, '/').replace(/\/$/, '');
     const prefix = normProfile + '/';
-    const targetFolder = normSelected.startsWith(prefix) ? normSelected.slice(prefix.length) : normSelected;
+    let targetFolder = normSelected.startsWith(prefix) ? normSelected.slice(prefix.length) : normSelected;
+    if (normSelected === normProfile) targetFolder = '';
+    if (targetFolder.includes('\\')) targetFolder = targetFolder.replace(/\\/g, '/');
     try {
         if (img._folder) {
             await API.moveBetween(S.profileId, img.name, img._folder, targetFolder);
@@ -982,6 +1003,7 @@ const App = {
         R.updateCount();
         Toast.show('已移动', 'success');
     } catch (e) {
+        console.error('操作失败:', e);
         Toast.show('移动失败: ' + e.message, 'error');
     }
   },
