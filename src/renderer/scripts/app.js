@@ -278,6 +278,7 @@ const App = {
         ST.applyToolbarOpacity(App._settings.toolbar_opacity ?? 0.85);
         document.documentElement.style.setProperty('--overlay-opacity', String(App._settings.select_overlay_opacity ?? 0.2));
         ST.applyReverseSearch(App._settings.reverse_search_enabled ?? false);
+        ST.applyListColumns(App._settings.list_columns ?? 1);
       });
 
       // Restore bg settings AFTER DOM is visible

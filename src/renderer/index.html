@@ -65,7 +65,7 @@
       <div id="folder-info"><span></span></div>
       <div class="nav-section">
         <div class="nav-item active" data-page="home"><span data-icon="house" data-size="16"></span> 主页<span class="count" id="nav-home-count"></span></div>
-        <div class="nav-item" data-page="all"><span data-icon="images" data-size="16"></span> 全部<span class="count" id="nav-all-count"></span></div>
+        <div class="nav-item" data-page="all"><span data-icon="images" data-size="16"></span> 图片<span class="count" id="nav-all-count"></span></div>
         <div class="nav-item" data-page="album"><span data-icon="album" data-size="16"></span> 相册<span class="count" id="nav-album-count"></span></div>
         <div class="nav-item" data-page="favorites"><span data-icon="star" data-size="16"></span> 收藏<span class="count" id="nav-fav-count"></span></div>
         <div class="nav-item" data-page="discover"><span data-icon="compass" data-size="16"></span> 发现</div>
@@ -129,7 +129,6 @@
           <div class="toolbar-btn-group"><button id="btn-view-grid" class="toolbar-btn active" title="网格"><span data-icon="grid-2x2" data-size="14"></span></button><button id="btn-view-list" class="toolbar-btn" title="列表"><span data-icon="list" data-size="14"></span></button></div>
           <button id="btn-multi-select" class="toolbar-btn" title="多选"><span data-icon="square-check" data-size="14"></span> 多选</button>
           <select id="sort-select"><option value="name-asc">名称↑</option><option value="name-desc">名称↓</option><option value="date-desc">最新优先</option><option value="date-asc">最旧优先</option></select>
-          <span id="image-count"></span>
         </div>
         <div class="page-scroll">
           <div id="album-grid-wrap"><div id="album-grid"></div><div class="empty-wrap hidden" id="albums-empty"><div class="empty-text">尚无相册</div></div></div>
@@ -162,7 +161,7 @@
 <div class="settings-card"><h3>卡片模糊</h3><input type="range" id="set-card-blur" oninput="ST.applyCardBlur(parseInt(this.value))" min="0" max="30" value="0"><span id="card-blur-val">0px</span></div>
 
 <div class="settings-group-label">顶栏</div>
-<div class="settings-card"><h3>顶栏高度</h3><input type="range" id="set-toolbar-h" oninput="ST.applyToolbarHeight(parseInt(this.value))" min="36" max="80" value="48"><span id="toolbar-h-val">48px</span></div>
+<div class="settings-card"><h3>顶栏高度</h3><input type="range" id="set-toolbar-h" oninput="ST.applyToolbarHeight(parseInt(this.value))" min="56" max="80" value="48"><span id="toolbar-h-val">48px</span></div>
 <div class="settings-card"><h3>顶栏模糊</h3><input type="range" id="set-toolbar-blur" oninput="ST.applyToolbarBlur(parseInt(this.value))" min="0" max="50" value="16"><span id="toolbar-blur-val">16px</span></div>
 <div class="settings-card"><h3>顶栏透明度</h3><input type="range" id="set-toolbar-opacity" oninput="ST.applyToolbarOpacity(parseInt(this.value)/100)" min="0" max="100" value="85"><span id="toolbar-opacity-val">85%</span></div>
 
@@ -179,6 +178,7 @@
     </div>
     <button id="btn-save-home-text" class="btn-primary" style="margin-top:8px;padding:6px 16px;" onclick="ST.saveHomeTitle()">保存</button>
   </div>
+  <div class="settings-card"><h3>列表列数</h3><input type="range" id="set-list-cols" oninput="ST.applyListColumns(parseInt(this.value))" min="1" max="5" value="1"><span id="list-cols-val">1</span></div>
 <div class="settings-card"><h3>逆向搜索栏</h3><div style="display:flex;gap:8px;"><button id="btn-reverse-on" onclick="ST.toggleReverseSearch(true)" style="flex:1;padding:10px;border-radius:8px;background:var(--c-card);color:var(--c-text);border:2px solid transparent;cursor:pointer;font-size:14px;">开启</button><button id="btn-reverse-off" onclick="ST.toggleReverseSearch(false)" style="flex:1;padding:10px;border-radius:8px;background:var(--c-card);color:var(--c-text);border:2px solid transparent;cursor:pointer;font-size:14px;">关闭</button></div></div>
 <div class="settings-card"><h3>缓存管理</h3><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><span id="cache-size-label">计算中...</span><button id="btn-clear-cache" class="btn-primary" onclick="ST.clearCache()" style="padding:6px 16px;">清除缓存</button></div></div>
         </div>

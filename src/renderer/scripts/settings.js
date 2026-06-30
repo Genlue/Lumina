@@ -27,6 +27,7 @@ const ST = {
       this._setVal('set-toolbar-blur', s.toolbar_blur ?? 16);
       this._setVal('set-toolbar-opacity', Math.round((s.toolbar_opacity ?? 0.85) * 100));
       this._setVal('set-overlay-opacity', Math.round((s.select_overlay_opacity ?? 0.2) * 100));
+      this._setVal('set-list-cols', s.list_columns ?? 1);
 
       this._setText('bg-blur-val', (s.bg_blur ?? 20) + 'px');
       this._setText('bg-opacity-val', Math.round((s.bg_opacity ?? 0) * 100) + '%');
@@ -43,6 +44,7 @@ const ST = {
       this._setText('thumb-size-val', (s.thumbnail_size ?? 400) + 'px');
       this._setText('draw-count-val', s.draw_count ?? 3);
       this._setText('random-interval-val', (s.random_interval ?? 3) + 's');
+      this._setText('list-cols-val', s.list_columns ?? 1);
 
       this._highlightThemeBtns(s.theme_mode ?? 'dark');
       this._loadBgList();
@@ -341,6 +343,13 @@ const ST = {
     this._setText('toolbar-h-val', val + 'px');
     API.saveSettings(S.profileId, { toolbar_height: val });
     App._settings.toolbar_height = val;
+  },
+
+  applyListColumns(val) {
+    document.documentElement.style.setProperty('--list-columns', val);
+    App._settings.list_columns = val;
+    this._setText('list-cols-val', val);
+    API.saveSettings(S.profileId, { list_columns: val });
   },
 
   applyToolbarBlur(val) {

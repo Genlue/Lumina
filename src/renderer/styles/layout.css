@@ -413,11 +413,6 @@ img {
   font-size: var(--font-size-sm);
 }
 
-#image-count {
-  color: var(--c-text3);
-  font-size: var(--font-size-sm);
-}
-
 /* Context menu separator */
 .ctx-sep {
   height: 1px;
@@ -446,7 +441,7 @@ img {
   gap: 8px;
 }
 #image-grid.list-view {
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(var(--list-columns, 1), 1fr);
 }
 
 .image-card{z-index:1;position:relative;aspect-ratio:1;background:var(--c-card,#2a2a2a);border:2px solid transparent;border-radius:var(--radius-sm);overflow:hidden;cursor:pointer;transition:all 0.15s}

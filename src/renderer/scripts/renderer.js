@@ -129,8 +129,6 @@ const R = {
     imgs.sort(sorters[sortBy] || sorters['name-asc']);
     S.filteredImages = imgs;
 
-    document.getElementById('image-count').textContent = `${imgs.length} 张图片`;
-
     if (imgs.length === 0) {
       grid.innerHTML = '';
       empty.classList.remove('hidden');
@@ -267,7 +265,7 @@ const R = {
   updateBreadcrumb() {
     const bc = document.getElementById('breadcrumb');
     if (!bc) return;
-    const labels = { all: '全部图片', albums: '相册', trash: '回收站', favorites: '收藏' };
+    const labels = { all: '图片', albums: '相册', trash: '回收站', favorites: '收藏' };
     if (labels[S.currentView]) {
       bc.innerHTML = labels[S.currentView];
       bc.style.cursor = 'default';
