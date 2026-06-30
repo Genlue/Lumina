@@ -290,13 +290,8 @@ const App = {
       R.updateCount();
       this._updateDashboard();
 
-      // 加载主页标题
-      const homeTitle = App._settings?.home_title || '我的相册';
-      const homeSubtitle = App._settings?.home_subtitle || '浏览、整理、发现你的照片';
-      const homeH1 = document.querySelector('.home-topbar h1');
-      const homeP = document.querySelector('.home-topbar p');
-      if (homeH1) homeH1.textContent = homeTitle;
-      if (homeP) homeP.textContent = homeSubtitle;
+      const elHomeTitle = document.getElementById('home-title');
+      if (elHomeTitle) elHomeTitle.textContent = App._settings?.home_title || '我的相册';
 
       API.onFileChange(async payload => {
         if (payload.profileId === profileId) {

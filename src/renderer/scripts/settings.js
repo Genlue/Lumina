@@ -432,22 +432,15 @@ const ST = {
   // === Home Title ===
   renderHomeTitleSettings() {
     const title = App._settings?.home_title;
-    const subtitle = App._settings?.home_subtitle;
     const elTitle = document.getElementById('set-home-title');
-    const elSub = document.getElementById('set-home-subtitle');
     if (elTitle && title) elTitle.value = title;
-    if (elSub && subtitle) elSub.value = subtitle;
   },
   saveHomeTitle() {
     const title = document.getElementById('set-home-title')?.value?.trim() || '我的相册';
-    const subtitle = document.getElementById('set-home-subtitle')?.value?.trim() || '浏览、整理、发现你的照片';
     App._settings.home_title = title;
-    App._settings.home_subtitle = subtitle;
-    API.saveSettings(S.profileId, { home_title: title, home_subtitle: subtitle });
-    const h1 = document.querySelector('.home-topbar h1');
-    const p = document.querySelector('.home-topbar p');
-    if (h1) h1.textContent = title;
-    if (p) p.textContent = subtitle;
+    API.saveSettings(S.profileId, { home_title: title });
+    const el = document.getElementById('home-title');
+    if (el) el.textContent = title;
     Toast.show('主页标题已更新', 'success');
   },
 
