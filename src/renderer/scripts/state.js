@@ -13,6 +13,7 @@ const State = (() => {
   let _albumFolders = [];
   /** @type {Record<string, Array>} */
   let _albumImages = {};
+  let _bgImages = [];
   let _filteredImages = [];
 
   let _currentView = 'all';
@@ -50,6 +51,8 @@ const State = (() => {
     set albumFolders(v) { _albumFolders = v; },
     get albumImages() { return _albumImages; },
     set albumImages(v) { _albumImages = v; },
+    get bgImages() { return _bgImages; },
+    set bgImages(v) { _bgImages = v; },
     get filteredImages() { return _filteredImages; },
     set filteredImages(v) { _filteredImages = v; },
 

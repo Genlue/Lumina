@@ -219,7 +219,7 @@ const ST = {
     const grid = document.getElementById('bg-thumb-grid');
     if (!grid) return;
     const currentBg = App._settings.bg_image || '';
-    const bgImgs = S.albumImages[BG_DIR] ?? [];
+    const bgImgs = S.bgImages ?? [];
     grid.innerHTML = '';
 
     // "None" option

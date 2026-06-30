@@ -42,9 +42,14 @@ const API = {
     console.log('[scanAll] albumFolders:', JSON.stringify(result.albumFolders));
     console.log('[scanAll] albumImages keys:', Object.keys(result.albumImages || {}));
     if (profileId === S.profileId) {
-      S.rootImages = result.rootImages;
+      // 将 .album/backgrounds 从 albumImages 分离到独立的 bgImages，
+      // 避免背景图出现在图片网格中（buildAllImgs 遍历所有 albumImages 条目）
+      const albumImages = { ...result.albumImages };
+      S.bgImages = albumImages['.album/backgrounds'] ?? [];
+      delete albumImages['.album/backgrounds'];
+      S.albumImages = albumImages;
       S.albumFolders = result.albumFolders;
-      S.albumImages = result.albumImages;
+      S.rootImages = result.rootImages;
     }
     return result;
   },
