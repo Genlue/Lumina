@@ -290,6 +290,14 @@ const App = {
       R.updateCount();
       this._updateDashboard();
 
+      // 加载主页标题
+      const homeTitle = App._settings?.home_title || '我的相册';
+      const homeSubtitle = App._settings?.home_subtitle || '浏览、整理、发现你的照片';
+      const homeH1 = document.querySelector('.home-topbar h1');
+      const homeP = document.querySelector('.home-topbar p');
+      if (homeH1) homeH1.textContent = homeTitle;
+      if (homeP) homeP.textContent = homeSubtitle;
+
       API.onFileChange(async payload => {
         if (payload.profileId === profileId) {
           await API.scanAll(profileId);
@@ -853,9 +861,6 @@ const App = {
     if (elSize) elSize.textContent = U.fmtSize(totalSize);
     if (elAlbums) elAlbums.textContent = S.albumFolders.length;
     if (elFavs) elFavs.textContent = S.favoritesSet.size;
-    // Decorative progress bar
-    const barFill = document.getElementById('storage-bar-fill');
-    if (barFill) barFill.style.width = '60%';
   },
 
   async deleteFromLb() {

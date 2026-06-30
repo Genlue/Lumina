@@ -12,7 +12,7 @@
 
   <!-- Title bar -->
   <div id="title-bar">
-    <div id="title-drag" data-tauri-drag-region>Photo Album</div>
+    <div id="title-drag" data-tauri-drag-region><img src="assets/icons/icon-32.png" style="width:16px;height:16px;border-radius:4px;vertical-align:middle;margin-right:6px;">Photo Album</div>
     <div id="title-btns">
       <button id="btn-min" title="最小化"><span data-icon="minus" data-size="14"></span></button>
       <button id="btn-max" title="最大化"><span data-icon="maximize" data-size="14"></span></button>
@@ -84,31 +84,24 @@
         <div class="home-topbar"><h1>我的相册</h1><p>浏览、整理、发现你的照片</p></div>
         <div class="home-grid">
           <div class="home-card dashboard-card" style="cursor:default;">
-            <div class="dashboard-storage">
-              <div class="storage-header">
-                <span class="storage-label"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg> 占用空间</span>
-                <span class="storage-percent" id="storage-percent"></span>
-              </div>
-              <div class="storage-bar"><div class="storage-bar-fill" id="storage-bar-fill" style="width:60%"></div></div>
-              <div class="storage-detail">已用: <b id="stat-total-size">0 B</b></div>
+            <div class="dash-left">
+              <span class="dash-main-num" id="stat-total-imgs">0</span>
+              <span class="dash-main-label"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> 图片总数</span>
             </div>
-            <div class="dashboard-cells">
-              <div class="dashboard-cell" style="border-right:1px solid var(--c-border);">
-                <span class="dash-num" id="stat-total-imgs">0</span>
-                <span class="dash-label"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> 图片总数</span>
+            <div class="dash-right">
+              <div class="dash-right-row">
+                <span class="dash-right-label"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg> 占用空间</span>
+                <span class="dash-right-num" id="stat-total-size">0 B</span>
               </div>
-              <div class="dashboard-cell">
-                <div class="dash-rows">
-                  <div class="dash-row">
-                    <span class="dash-num-sm" id="stat-albums">0</span>
-                    <span class="dash-label-sm"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2" transform="rotate(0 12 10)"/><path d="M2 21h20"/><path d="M6 7h.01"/><path d="M10 7h.01"/></rect></svg> 相册</span>
-                  </div>
-                  <div class="dash-divider"></div>
-                  <div class="dash-row">
-                    <span class="dash-num-sm" id="stat-favs">0</span>
-                    <span class="dash-label-sm"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> 收藏</span>
-                  </div>
-                </div>
+              <div class="dash-divider"></div>
+              <div class="dash-right-row">
+                <span class="dash-right-label"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><path d="M2 21h20"/></svg> 相册数</span>
+                <span class="dash-right-num" id="stat-albums">0</span>
+              </div>
+              <div class="dash-divider"></div>
+              <div class="dash-right-row">
+                <span class="dash-right-label"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> 收藏数</span>
+                <span class="dash-right-num" id="stat-favs">0</span>
               </div>
             </div>
           </div>
@@ -177,6 +170,13 @@
 <div class="settings-card"><h3>抽卡个数</h3><input type="range" id="set-draw-count" oninput="ST.applyDrawCount(parseInt(this.value))" min="1" max="10" value="3"><span id="draw-count-val">3</span></div>
 <div class="settings-card"><h3>播放间隔 (秒)</h3><input type="range" id="set-random-interval" oninput="ST.applyRandomInterval(parseInt(this.value))" min="1" max="30" value="3"><span id="random-interval-val">3</span></div>
 <div class="settings-card"><h3>多选遮罩浓度</h3><input type="range" id="set-overlay-opacity" oninput="ST.applyOverlayOpacity(Number(this.value)/100)" min="0" max="60" value="20"><span id="overlay-opacity-val">20%</span></div>
+  <div class="settings-card" style="grid-column:1/-1;"><h3>主页标题</h3>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <input type="text" id="set-home-title" style="flex:1;padding:8px 12px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--radius-sm);color:var(--c-text);font-size:var(--font-size-base);" placeholder="我的相册">
+      <input type="text" id="set-home-subtitle" style="flex:1;padding:8px 12px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--radius-sm);color:var(--c-text);font-size:var(--font-size-base);" placeholder="浏览、整理、发现你的照片">
+    </div>
+    <button id="btn-save-home-text" class="btn-primary" style="margin-top:8px;padding:6px 16px;" onclick="ST.saveHomeTitle()">保存</button>
+  </div>
 <div class="settings-card"><h3>逆向搜索栏</h3><div style="display:flex;gap:8px;"><button id="btn-reverse-on" onclick="ST.toggleReverseSearch(true)" style="flex:1;padding:10px;border-radius:8px;background:var(--c-card);color:var(--c-text);border:2px solid transparent;cursor:pointer;font-size:14px;">开启</button><button id="btn-reverse-off" onclick="ST.toggleReverseSearch(false)" style="flex:1;padding:10px;border-radius:8px;background:var(--c-card);color:var(--c-text);border:2px solid transparent;cursor:pointer;font-size:14px;">关闭</button></div></div>
 <div class="settings-card"><h3>缓存管理</h3><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><span id="cache-size-label">计算中...</span><button id="btn-clear-cache" class="btn-primary" onclick="ST.clearCache()" style="padding:6px 16px;">清除缓存</button></div></div>
         </div>
