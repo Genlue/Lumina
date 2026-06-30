@@ -267,7 +267,7 @@ const R = {
   updateBreadcrumb() {
     const bc = document.getElementById('breadcrumb');
     if (!bc) return;
-    const labels = { all: '全部图片', albums: '相册列表', trash: '回收站', favorites: Icons.icon('star', 12) + ' 收藏' };
+    const labels = { all: '全部图片', albums: '相册', trash: '回收站', favorites: '收藏' };
     if (labels[S.currentView]) {
       bc.innerHTML = labels[S.currentView];
       bc.style.cursor = 'default';

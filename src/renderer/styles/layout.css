@@ -332,8 +332,12 @@ img {
 }
 
 #breadcrumb {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--c-accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 #search-wrap {
@@ -428,19 +432,6 @@ img {
 .bc-link:hover {
   text-decoration: underline;
   opacity: 0.8;
-}
-
-/* Album toolbar with sticky + frosted glass */
-#album-toolbar {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  padding: 10px 24px;
-  margin: 0;
-  background: rgba(var(--c-surface-r,45),var(--c-surface-g,45),var(--c-surface-b,45),var(--toolbar-opacity,0.85));
-  backdrop-filter: blur(var(--toolbar-blur,16px));
-  -webkit-backdrop-filter: blur(var(--toolbar-blur,16px));
-  border-bottom: 1px solid var(--c-border);
 }
 
 /* ============================
@@ -607,6 +598,8 @@ img {
   backdrop-filter: blur(var(--toolbar-blur,16px));
   -webkit-backdrop-filter: blur(var(--toolbar-blur,16px));
   border-bottom: 1px solid var(--c-border);
+  min-height: var(--toolbar-h, 48px);
+  align-items: center;
 }
 .discover-tab {
   padding: 8px 18px;
@@ -630,6 +623,14 @@ img {
   color: var(--c-accent);
   font-weight: var(--font-weight-semibold);
   border-color: var(--c-accent);
+}
+.discover-title {
+  font-weight: var(--font-weight-bold);
+  color: var(--c-accent);
+  font-size: var(--font-size-xl);
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-right: auto;
 }
 .discover-panel {
   flex: 1;
@@ -1009,6 +1010,9 @@ img {
 
 #btn-back {
   margin-right: 4px;
+}
+#btn-back svg {
+  stroke: var(--c-accent);
 }
 
 /* 统一图标-文字对齐 */

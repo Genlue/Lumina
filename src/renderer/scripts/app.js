@@ -354,7 +354,6 @@ const App = {
    * - 'all' / 'trash' / 'favorites' → image grid
    */
   _renderAlbumPageContent() {
-    const at = document.getElementById('album-toolbar');
     const ag = document.getElementById('album-grid-wrap');
     const ic = document.getElementById('image-container');
 
@@ -366,14 +365,12 @@ const App = {
 
     if (isRootAlbums) {
       // Root album grid view
-      if (at) at.style.display = '';
       if (ag) { ag.style.display = ''; ag.style.paddingBottom = '0'; }
       if (ic) ic.style.display = 'none';
       R.renderAlbumGrid();
       R.updateBreadcrumb();
       this._hideAlbumList();
     } else {
-      if (at) at.style.display = 'none';
       // Show album grid with sub-album cards IF the folder has children
       if (ag) {
         ag.style.display = hasSubAlbums ? '' : 'none';
