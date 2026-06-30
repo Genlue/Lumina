@@ -31,7 +31,13 @@ pub fn sync_images(conn: &Connection, profile_id: &str, album_id: Option<i64>, f
         }
     }
 
-    if !files.is_empty() {
+    if files.is_empty() {
+        // 空文件夹：无条件删除该album所有图片记录
+        conn.execute(
+            "DELETE FROM images WHERE profile_id = ?1 AND (album_id IS ?2 OR album_id = ?2)",
+            params![profile_id, album_id],
+        ).ok();
+    } else {
         let placeholders: Vec<String> = files.iter().map(|_| "?".to_string()).collect();
         let pl = placeholders.join(",");
         let mut params_vec: Vec<Box<dyn rusqlite::types::ToSql>> = vec![

@@ -44,6 +44,20 @@ fn sync_profile_to_db(
 
     repos::images::sync_images(p_conn, profile_id, None, &scan_result.root_images);
     repos::albums::ensure_albums_for_profile(p_conn, profile_id, &scan_result.album_folders);
+
+    // Clean up defunct albums: remove albums whose folders no longer exist on disk
+    let db_albums = repos::albums::list_albums(p_conn, profile_id);
+    for album in &db_albums {
+        if !scan_result.album_folders.contains(&album.folder_name) {
+            // Delete all images in this defunct album first
+            p_conn.execute(
+                "DELETE FROM images WHERE profile_id=?1 AND album_id=?2",
+                rusqlite::params![profile_id, album.id],
+            ).ok();
+            repos::albums::delete_album(p_conn, profile_id, &album.folder_name);
+        }
+    }
+
     let albums = repos::albums::list_albums(p_conn, profile_id);
     for album in &albums {
         let imgs = scan_result
@@ -467,6 +481,16 @@ pub fn files_move_to_folder(
     }
     fs::create_dir_all(&target_dir).map_err(|e| format!("Create dir: {}", e))?;
     fs::rename(&old_path, &new_path).map_err(|e| format!("Move error: {}", e))?;
+    // Update DB: move image record to new album
+    let (p_conn_arc, _) = get_profile_db(&app, &profile_id)?;
+    let p_conn = p_conn_arc.lock().map_err(|e| format!("Profile DB lock: {}", e))?;
+
+    let new_aid = repos::albums::get_album_by_folder(&p_conn, &profile_id, &target_folder).map(|a| a.id);
+
+    p_conn.execute(
+        "UPDATE images SET album_id = ?1 WHERE profile_id = ?2 AND album_id IS NULL AND filename = ?3",
+        rusqlite::params![new_aid, profile_id, filename],
+    ).ok();
     Ok(target_folder)
 }
 
@@ -488,6 +512,17 @@ pub fn files_move_between_folders(
     }
     fs::create_dir_all(&target_dir).map_err(|e| format!("Create dir: {}", e))?;
     fs::rename(&old_path, &new_path).map_err(|e| format!("Move error: {}", e))?;
+    // Update DB: move image record to new album
+    let (p_conn_arc, _) = get_profile_db(&app, &profile_id)?;
+    let p_conn = p_conn_arc.lock().map_err(|e| format!("Profile DB lock: {}", e))?;
+
+    let old_aid = repos::albums::get_album_by_folder(&p_conn, &profile_id, &from_folder).map(|a| a.id);
+    let new_aid = repos::albums::get_album_by_folder(&p_conn, &profile_id, &to_folder).map(|a| a.id);
+
+    p_conn.execute(
+        "UPDATE images SET album_id = ?1 WHERE profile_id = ?2 AND album_id IS ?3 AND filename = ?4",
+        rusqlite::params![new_aid, profile_id, old_aid, filename],
+    ).ok();
     Ok(to_folder)
 }
 
@@ -506,6 +541,16 @@ pub fn files_move_to_root(
         return Err(format!("File not found: {}", filename));
     }
     fs::rename(&old_path, &new_path).map_err(|e| format!("Move error: {}", e))?;
+    // Update DB: move image record to root (album_id = NULL)
+    let (p_conn_arc, _) = get_profile_db(&app, &profile_id)?;
+    let p_conn = p_conn_arc.lock().map_err(|e| format!("Profile DB lock: {}", e))?;
+
+    let old_aid = repos::albums::get_album_by_folder(&p_conn, &profile_id, &from_folder).map(|a| a.id);
+
+    p_conn.execute(
+        "UPDATE images SET album_id = NULL WHERE profile_id = ?1 AND album_id = ?2 AND filename = ?3",
+        rusqlite::params![profile_id, old_aid, filename],
+    ).ok();
     Ok(())
 }
 

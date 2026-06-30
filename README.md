@@ -79,10 +79,13 @@ cargo test
 
 ## 更新日志
 
-### 2026-06-30 — v2.2.0
+### 2026-06-30 — v2.2.1
 
-- 🐛 **修复批量移动关键Bug** — 选择profile根目录时targetFolder变成完整绝对路径导致所有移动静默失败；empty catch块现记录错误并Toast提示失败数；selected集合快照移到await之前防止async gap期间被清空；防御性反斜杠检查兜底
-- 📜 **修复相册返回滚动位置恢复** — 从根级相册返回相册列表时，`navToParent` 现在正确内联恢复 `_scrollPos['albums']` 滚动位置（之前因 `tryRestore` 闭包作用域问题无法访问导致丢失）
+- 🗃️ **【关键】修复数据库残留记录Bug** — `sync_images` 中 `if !files.is_empty()` 保护导致空文件夹的DELETE被跳过，旧 ImageRecord 残留在数据库。同一文件在DB中有多条不同 `album_id` 的记录，导致 `favorites_toggle` 等操作可能匹配到错误记录
+- 🔄 **移动操作立即同步DB** — `files_move_between_folders`、`files_move_to_folder`、`files_move_to_root` 在 `fs::rename` 后立即 `UPDATE images SET album_id`，消除 filesystem→DB 不一致窗口。使用 UPDATE 而非 DELETE+INSERT 保留 image.id，避免 favorites 孤子
+- 🧹 **自动清理失效相册** — `sync_profile_to_db` 中新增 defunct albums 清理：对比 `scan_result.album_folders` 与DB中的 albums，删除文件系统中已不存在的相册及其图片记录
+- 🎯 **批量操作使用 _key 直接解析** — 所有批量操作（收藏/取消/移动/删除/还原）直接从 `_key`（`folder/filename`）解析 `filename` 和 `folder`，不再依赖 `allImgs.find()` 的 `img.name`/`img._folder`，彻底消除跨文件夹时选错图片的漏洞
+- 🐛 **优先修复批量移动Bug** — 选择profile根目录时targetFolder变成完整绝对路径导致所有移动静默失败；empty catch块现记录错误并Toast提示失败数；selected集合快照移到await之前防止async gap期间被清空
 
 ### 2026-06-30 — v2.1.2
 

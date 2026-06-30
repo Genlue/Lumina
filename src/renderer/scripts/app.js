@@ -836,7 +836,9 @@ const App = {
             CM.hide();
             let count = 0, failCount = 0;
             for (const key of S.selected) {
-                const img = S.buildAllImgs().find(i => i._key === key);
+                const { filename, folder } = parseKey(key);
+                const allImgsLocal = S.buildAllImgs();
+                const img = allImgsLocal.find(i => i._key === key);
                 if (img && img._isTrash && img._trashEntry) {
                     const te = img._trashEntry;
                     try {
@@ -880,16 +882,14 @@ const App = {
     favAllBtn.onclick = async () => {
         CM.hide();
         let count = 0, failCount = 0;
-        for (const key of S.selected) {
+        for (const key of [...S.selected]) {
             if (S.favoritesSet.has(key)) continue;
-            const img = allImgs.find(i => i._key === key);
-            if (img) {
-                try {
-                    await API.toggleFav(S.profileId, img.name, img._folder || undefined);
-                    S.favoritesSet.add(key);
-                    count++;
-                } catch(e) { console.error('操作失败:', e); failCount++; }
-            }
+            const { filename, folder } = parseKey(key);
+            try {
+                await API.toggleFav(S.profileId, filename, folder || undefined);
+                S.favoritesSet.add(key);
+                count++;
+            } catch(e) { console.error('操作失败:', e); failCount++; }
         }
         await API.listFav(S.profileId);
         if (S.currentView === 'favorites') R.renderGrid();
@@ -902,16 +902,14 @@ const App = {
     unfavAllBtn.onclick = async () => {
         CM.hide();
         let count = 0, failCount = 0;
-        for (const key of S.selected) {
+        for (const key of [...S.selected]) {
             if (!S.favoritesSet.has(key)) continue;
-            const img = allImgs.find(i => i._key === key);
-            if (img) {
-                try {
-                    await API.toggleFav(S.profileId, img.name, img._folder || undefined);
-                    S.favoritesSet.delete(key);
-                    count++;
-                } catch(e) { console.error('操作失败:', e); failCount++; }
-            }
+            const { filename, folder } = parseKey(key);
+            try {
+                await API.toggleFav(S.profileId, filename, folder || undefined);
+                S.favoritesSet.delete(key);
+                count++;
+            } catch(e) { console.error('操作失败:', e); failCount++; }
         }
         await API.listFav(S.profileId);
         if (S.currentView === 'favorites') R.renderGrid();
@@ -934,14 +932,21 @@ const App = {
         if (targetFolder.includes('\\')) targetFolder = targetFolder.replace(/\\/g, '/');
         let count = 0, failCount = 0;
         for (const key of selectedKeys) {
-            const img = allImgs.find(i => i._key === key);
-            if (img && img._folder !== targetFolder) {
+            const { filename, folder } = parseKey(key);
+            if (folder !== null && folder !== targetFolder) {
                 try {
-                    if (img._folder) {
-                        await API.moveBetween(S.profileId, img.name, img._folder, targetFolder);
+                    if (targetFolder === '' && folder !== null) {
+                        await API.moveToRoot(S.profileId, filename, folder);
+                    } else if (folder !== null) {
+                        await API.moveBetween(S.profileId, filename, folder, targetFolder);
                     } else {
-                        await API.moveToFolder(S.profileId, img.name, targetFolder);
+                        await API.moveToFolder(S.profileId, filename, targetFolder);
                     }
+                    count++;
+                } catch(e) { console.error('操作失败:', e); failCount++; }
+            } else if (folder === null && targetFolder !== '') {
+                try {
+                    await API.moveToFolder(S.profileId, filename, targetFolder);
                     count++;
                 } catch(e) { console.error('操作失败:', e); failCount++; }
             }
@@ -963,13 +968,11 @@ const App = {
         if (r.idx !== 1) return;
         let count = 0, failCount = 0;
         for (const key of S.selected) {
-            const img = allImgs.find(i => i._key === key);
-            if (img) {
-                try {
-                    await API.moveToTrash(S.profileId, img.name, img._folder);
-                    count++;
-                } catch(e) { console.error('操作失败:', e); failCount++; }
-            }
+            const { filename, folder } = parseKey(key);
+            try {
+                await API.moveToTrash(S.profileId, filename, folder || undefined);
+                count++;
+            } catch(e) { console.error('操作失败:', e); failCount++; }
         }
         if (count > 0) {
             await API.scanAll(S.profileId);
@@ -1054,6 +1057,14 @@ const App = {
     } catch (e) { Toast.show('恢复失败: ' + e.message, 'error'); }
   },
 };
+
+/** Parse _key (folder/filename) into folder and filename */
+function parseKey(key) {
+    const i = key.lastIndexOf('/');
+    return i >= 0
+        ? { filename: key.substring(i + 1), folder: key.substring(0, i) }
+        : { filename: key, folder: null };
+}
 
 // ====== GLOBAL HELPERS ======
 
