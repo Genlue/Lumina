@@ -230,9 +230,9 @@ fn init_profile_db_schema(conn: &Connection) -> rusqlite::Result<()> {
 
     if version < 4 {
         conn.execute_batch(
-            "ALTER TABLE settings ADD COLUMN toolbar_height INTEGER NOT NULL DEFAULT 48;
+            "ALTER TABLE settings ADD COLUMN toolbar_height INTEGER NOT NULL DEFAULT 56;
              ALTER TABLE settings ADD COLUMN toolbar_blur INTEGER NOT NULL DEFAULT 16;
-             ALTER TABLE settings ADD COLUMN toolbar_opacity REAL NOT NULL DEFAULT 0.85;"
+             ALTER TABLE settings ADD COLUMN toolbar_opacity REAL NOT NULL DEFAULT 0.7;"
         )?;
         conn.execute("INSERT INTO _schema_version (version) VALUES (4)", [])?;
         println!("[DB] Profile DB migration V4 applied (toolbar settings)");
@@ -248,7 +248,7 @@ fn init_profile_db_schema(conn: &Connection) -> rusqlite::Result<()> {
 
     if version < 6 {
         conn.execute_batch(
-            "ALTER TABLE settings ADD COLUMN reverse_search_enabled INTEGER NOT NULL DEFAULT 0;"
+            "ALTER TABLE settings ADD COLUMN reverse_search_enabled INTEGER NOT NULL DEFAULT 1;"
         )?;
         conn.execute("INSERT INTO _schema_version (version) VALUES (6)", [])?;
         println!("[DB] Profile DB migration V6 applied (reverse_search_enabled)");
@@ -256,7 +256,7 @@ fn init_profile_db_schema(conn: &Connection) -> rusqlite::Result<()> {
 
     if version < 7 {
         conn.execute_batch(
-            "ALTER TABLE settings ADD COLUMN list_columns INTEGER NOT NULL DEFAULT 1;"
+            "ALTER TABLE settings ADD COLUMN list_columns INTEGER NOT NULL DEFAULT 3;"
         )?;
         conn.execute("INSERT INTO _schema_version (version) VALUES (7)", [])?;
         println!("[DB] Profile DB migration V7 applied (list_columns)");
@@ -274,11 +274,21 @@ fn init_profile_db_schema(conn: &Connection) -> rusqlite::Result<()> {
         conn.execute_batch(
             "ALTER TABLE settings ADD COLUMN accent_mode TEXT NOT NULL DEFAULT 'custom';
              ALTER TABLE settings ADD COLUMN accent_color_dark TEXT NOT NULL DEFAULT '#4A9EFF';
-             ALTER TABLE settings ADD COLUMN accent_color_light TEXT NOT NULL DEFAULT '#003D7A';
-             ALTER TABLE settings ADD COLUMN accent_recent_colors TEXT;"
+             ALTER TABLE settings ADD COLUMN accent_color_light TEXT NOT NULL DEFAULT '#003D7A';"
         )?;
         conn.execute("INSERT INTO _schema_version (version) VALUES (9)", [])?;
         println!("[DB] Profile DB migration V9 applied (accent modes)");
+    }
+
+    if version < 10 {
+        conn.execute_batch(
+            "UPDATE settings SET toolbar_height=56 WHERE toolbar_height=48;
+             UPDATE settings SET toolbar_opacity=0.7 WHERE toolbar_opacity=0.85;
+             UPDATE settings SET reverse_search_enabled=1 WHERE reverse_search_enabled=0;
+             UPDATE settings SET list_columns=3 WHERE list_columns=1;"
+        )?;
+        conn.execute("INSERT INTO _schema_version (version) VALUES (10)", [])?;
+        println!("[DB] Profile DB migration V10 applied (fix defaults)");
     }
 
     Ok(())

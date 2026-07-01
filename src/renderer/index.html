@@ -167,19 +167,18 @@
 
 <div class="settings-group-label">其他</div>
 <div class="settings-card"><h3>主题</h3><div style="display:flex;gap:8px;"><button id="btn-theme-dark" onclick="ST.applyTheme('dark')" class="theme-btn">深色</button><button id="btn-theme-light" onclick="ST.applyTheme('light')" class="theme-btn">浅色</button><button id="btn-theme-system" onclick="ST.applyTheme('system')" class="theme-btn">跟随系统</button></div></div>
-<div class="settings-card"><h3>强调色</h3>
+<div class="settings-card" id="accent-card"><h3>强调色</h3>
   <div style="display:flex;gap:8px;margin-bottom:8px;">
     <button id="btn-accent-custom" class="accent-mode-btn" onclick="ST.setAccentMode('custom')">自定义颜色</button>
     <button id="btn-accent-extract" class="accent-mode-btn" onclick="ST.setAccentMode('extract')">背景图提取</button>
   </div>
   <div id="accent-custom-panel">
-    <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;">
+    <div style="display:flex;gap:12px;align-items:center;">
       <span style="font-size:0.82em;color:var(--c-text3);">深色:</span>
       <div id="accent-swatch-dark" class="accent-swatch" style="background:#4A9EFF;" onclick="ST.openColorPicker('dark')" oncontextmenu="ST.openColorPicker('dark');event.preventDefault();"></div>
       <span style="font-size:0.82em;color:var(--c-text3);">浅色:</span>
       <div id="accent-swatch-light" class="accent-swatch" style="background:#003D7A;" onclick="ST.openColorPicker('light')" oncontextmenu="ST.openColorPicker('light');event.preventDefault();"></div>
     </div>
-    <div id="accent-recent-colors" style="display:flex;gap:6px;"></div>
   </div>
   <div id="accent-extract-panel" style="display:none;">
     <span style="font-size:0.82em;color:var(--c-text3);">切换背景图或主题时自动提取</span>
@@ -199,6 +198,7 @@
 <div class="settings-card"><h3>逆向搜索栏</h3><div style="display:flex;gap:8px;"><button id="btn-reverse-on" onclick="ST.toggleReverseSearch(true)" style="flex:1;padding:10px;border-radius:8px;background:var(--c-card);color:var(--c-text);border:2px solid transparent;cursor:pointer;font-size:14px;">开启</button><button id="btn-reverse-off" onclick="ST.toggleReverseSearch(false)" style="flex:1;padding:10px;border-radius:8px;background:var(--c-card);color:var(--c-text);border:2px solid transparent;cursor:pointer;font-size:14px;">关闭</button></div></div>
 <div class="settings-card"><h3>缓存管理</h3><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><span id="cache-size-label">计算中...</span><button id="btn-clear-cache" class="btn-primary" onclick="ST.clearCache()" style="padding:6px 16px;">清除缓存</button></div></div>
 <style>
+#accent-card { position: relative; }
 .accent-mode-btn { flex:1; padding:10px; border-radius:8px; background:var(--c-card); color:var(--c-text); border:2px solid transparent; cursor:pointer; font-size:14px; }
 .accent-mode-btn.active { border-color:var(--c-accent); }
 .accent-swatch { width:32px; height:32px; border-radius:50%; cursor:pointer; border:2px solid var(--c-border); transition:border-color 0.2s; }

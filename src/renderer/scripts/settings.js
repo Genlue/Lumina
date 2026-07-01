@@ -174,9 +174,6 @@ const ST = {
       this._applyAccentVisual(color);
     }
 
-    // Add to recent colors
-    this._addRecentColor(color);
-
     // Update swatches
     this._updateAccentSwatches();
   },
@@ -212,37 +209,35 @@ const ST = {
 
   /** Open color picker for a specific mode */
   openColorPicker(forMode) {
-    // Create overlay
-    const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:transparent;';
-    document.body.appendChild(overlay);
+    const card = document.getElementById('accent-card');
+    if (!card) return;
 
-    // Create color input
+    // Remove old picker if exists
+    const old = card.querySelector('.color-picker-input');
+    if (old) old.remove();
+
     const input = document.createElement('input');
     input.type = 'color';
-    const currentColor = forMode === 'dark'
+    input.value = forMode === 'dark'
       ? (App._settings.accent_color_dark || '#4A9EFF')
       : (App._settings.accent_color_light || '#003D7A');
-    input.value = currentColor;
-    input.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:300px;height:200px;border:none;padding:0;cursor:pointer;background:none;';
+    input.style.cssText = 'position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);width:60px;height:40px;border:none;padding:0;cursor:pointer;z-index:100;';
 
-    overlay.appendChild(input);
+    input.className = 'color-picker-input';
+    card.style.position = 'relative';
+    card.appendChild(input);
+    input.focus();
+    input.click(); // Open system color picker
 
-    // Handle color change
     const onChange = () => {
       this.applyAccent(input.value, forMode);
-      document.body.removeChild(overlay);
+      input.remove();
     };
-
-    input.addEventListener('input', () => {
-      this.applyAccent(input.value, forMode);
-    });
-
-    input.addEventListener('change', onChange);
-    overlay.addEventListener('click', onChange);
-
-    // Trigger native color picker
-    setTimeout(() => input.click(), 10);
+    const onBlur = () => {
+      setTimeout(() => { if (!card.contains(document.activeElement)) input.remove(); }, 200);
+    };
+    input.addEventListener('input', onChange);
+    input.addEventListener('blur', onBlur);
   },
 
   /** Set accent mode (custom/extract) */
@@ -270,47 +265,6 @@ const ST = {
     if (extractBtn) extractBtn.classList.toggle('active', mode === 'extract');
   },
 
-  /** Add a color to recent colors, max 6 */
-  _addRecentColor(color) {
-    let recent = [];
-    try {
-      recent = JSON.parse(App._settings.accent_recent_colors || '[]');
-    } catch (e) { recent = []; }
-
-    // Remove duplicate
-    const idx = recent.indexOf(color);
-    if (idx >= 0) recent.splice(idx, 1);
-
-    // Add to front
-    recent.unshift(color);
-
-    // Keep max 6
-    if (recent.length > 6) recent = recent.slice(0, 6);
-
-    App._settings.accent_recent_colors = JSON.stringify(recent);
-    API.saveSettings(S.profileId, { accent_recent_colors: JSON.stringify(recent) });
-    this._renderRecentColors(recent);
-  },
-
-  /** Render recent color swatches */
-  _renderRecentColors(recent) {
-    const container = document.getElementById('accent-recent-colors');
-    if (!container) return;
-    container.innerHTML = '';
-    if (!recent || recent.length === 0) return;
-    for (const color of recent) {
-      const swatch = document.createElement('div');
-      swatch.className = 'accent-swatch';
-      swatch.style.background = color;
-      swatch.title = color;
-      swatch.onclick = () => {
-        const effectiveTheme = this._getEffectiveTheme();
-        this.applyAccent(color, effectiveTheme);
-      };
-      container.appendChild(swatch);
-    }
-  },
-
   /** Update accent UI elements */
   _renderAccentUI() {
     const s = App._settings;
@@ -330,11 +284,6 @@ const ST = {
 
     // Update swatches
     this._updateAccentSwatches();
-
-    // Render recent colors
-    let recent = [];
-    try { recent = JSON.parse(s.accent_recent_colors || '[]'); } catch (e) { recent = []; }
-    this._renderRecentColors(recent);
   },
 
   _updateAccentSwatches() {

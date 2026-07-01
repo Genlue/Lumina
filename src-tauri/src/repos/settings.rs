@@ -10,7 +10,7 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
                 draw_count, card_opacity, card_blur, sidebar_font, random_interval,
                 thumbnail_size, toolbar_height, toolbar_blur, toolbar_opacity,
                 select_overlay_opacity, reverse_search_enabled, home_title, list_columns,
-                accent_mode, accent_color_dark, accent_color_light, accent_recent_colors
+                accent_mode, accent_color_dark, accent_color_light
          FROM settings WHERE profile_id = ?1",
         params![profile_id],
         |row| Ok(Settings {
@@ -27,13 +27,12 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
             toolbar_blur: row.get(17).unwrap_or(16),
             toolbar_opacity: row.get(18).unwrap_or(0.7),
             select_overlay_opacity: row.get(19).unwrap_or(0.2),
-            reverse_search_enabled: row.get(20).unwrap_or(0),
+            reverse_search_enabled: row.get(20).unwrap_or(1),
             home_title: row.get(21).ok().flatten(),
             list_columns: row.get(22).unwrap_or(3),
             accent_mode: row.get(23).unwrap_or_else(|_| "custom".to_string()),
             accent_color_dark: row.get(24).unwrap_or_else(|_| "#4A9EFF".to_string()),
             accent_color_light: row.get(25).unwrap_or_else(|_| "#003D7A".to_string()),
-            accent_recent_colors: row.get(26).ok().flatten(),
         }),
     ) {
         Ok(s) => s,
@@ -44,11 +43,11 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
                  card_opacity, card_blur, sidebar_font, random_interval, thumbnail_size,
                  toolbar_height, toolbar_blur, toolbar_opacity,
                  select_overlay_opacity, reverse_search_enabled, home_title, list_columns,
-                 accent_mode, accent_color_dark, accent_color_light, accent_recent_colors)
+                 accent_mode, accent_color_dark, accent_color_light)
                  VALUES (?1, 'grid', 'name-asc', 'dark', '#6D79F6',
                  NULL, 0, 1.0, 150, 0.7, 10, 0.7, 16, 20, 3, 400,
-                 56, 16, 0.7, 0.2, 0, NULL, 3,
-                 'custom', '#4A9EFF', '#003D7A', NULL)",
+                 56, 16, 0.7, 0.2, 1, NULL, 3,
+                 'custom', '#4A9EFF', '#003D7A')",
                 params![profile_id],
             ).ok();
             Settings {
@@ -65,13 +64,12 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
                 toolbar_blur: 16,
                 toolbar_opacity: 0.7,
                 select_overlay_opacity: 0.2,
-                reverse_search_enabled: 0,
+                reverse_search_enabled: 1,
                 home_title: None,
                 list_columns: 3,
                 accent_mode: "custom".to_string(),
                 accent_color_dark: "#4A9EFF".to_string(),
                 accent_color_light: "#003D7A".to_string(),
-                accent_recent_colors: None,
             }
         }
     }
@@ -114,7 +112,6 @@ pub fn save_settings(conn: &Connection, profile_id: &str, updates: serde_json::V
     let accent_mode = updates["accent_mode"].as_str().map(|s| s.to_string()).unwrap_or(current.accent_mode);
     let accent_color_dark = updates["accent_color_dark"].as_str().map(|s| s.to_string()).unwrap_or(current.accent_color_dark);
     let accent_color_light = updates["accent_color_light"].as_str().map(|s| s.to_string()).unwrap_or(current.accent_color_light);
-    let accent_recent_colors = updates["accent_recent_colors"].as_str().map(|s| s.to_string()).or(current.accent_recent_colors);
 
     conn.execute(
         "UPDATE settings SET view_mode=?1, sort_by=?2, theme_mode=?3, accent_color=?4,
@@ -122,14 +119,14 @@ pub fn save_settings(conn: &Connection, profile_id: &str, updates: serde_json::V
          draw_count=?10, card_opacity=?11, card_blur=?12, sidebar_font=?13, random_interval=?14,
          thumbnail_size=?15, toolbar_height=?16, toolbar_blur=?17, toolbar_opacity=?18,
          select_overlay_opacity=?19, reverse_search_enabled=?20, home_title=?21, list_columns=?22,
-         accent_mode=?23, accent_color_dark=?24, accent_color_light=?25, accent_recent_colors=?26
-         WHERE profile_id=?27",
+         accent_mode=?23, accent_color_dark=?24, accent_color_light=?25
+         WHERE profile_id=?26",
         params![view_mode, sort_by, theme_mode, accent_color,
                 bg_image, bg_blur, bg_opacity, sidebar_width, sidebar_opacity,
                 draw_count, card_opacity, card_blur, sidebar_font, random_interval,
                 thumbnail_size, toolbar_height, toolbar_blur, toolbar_opacity,
                 select_overlay_opacity, reverse_search_enabled, home_title, list_columns,
-                accent_mode, accent_color_dark, accent_color_light, accent_recent_colors,
+                accent_mode, accent_color_dark, accent_color_light,
                 profile_id],
     ).ok();
 }
