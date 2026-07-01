@@ -179,14 +179,6 @@
       <span style="font-size:0.82em;color:var(--c-text3);">浅色:</span>
       <div id="accent-swatch-light" class="accent-swatch" style="background:#003D7A;" onclick="ST.openColorPicker('light')" oncontextmenu="ST.openColorPicker('light');event.preventDefault();"></div>
     </div>
-    <div id="accent-presets-section" style="margin-top:12px;">
-      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
-        <span style="font-size:0.82em;color:var(--c-text3);flex-shrink:0;">预设</span>
-        <input id="preset-name-input" type="text" placeholder="保存当前色为..." style="flex:1;background:var(--c-surface);border:1px solid var(--c-border);border-radius:4px;padding:4px 8px;color:var(--c-text);font-size:0.82em;">
-        <button id="btn-save-preset" onclick="ST.savePreset(document.getElementById('preset-name-input').value);document.getElementById('preset-name-input').value=''" style="padding:4px 10px;background:var(--c-accent);color:#fff;border:none;border-radius:4px;font-size:0.82em;cursor:pointer;flex-shrink:0;">+ 保存</button>
-      </div>
-      <div id="accent-presets" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
-    </div>
   </div>
   <div id="accent-extract-panel" style="display:none;">
     <span style="font-size:0.82em;color:var(--c-text3);">切换背景图或主题时自动提取</span>

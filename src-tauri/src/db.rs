@@ -291,14 +291,6 @@ fn init_profile_db_schema(conn: &Connection) -> rusqlite::Result<()> {
         println!("[DB] Profile DB migration V10 applied (fix defaults)");
     }
 
-    if version < 11 {
-        conn.execute_batch(
-            "ALTER TABLE settings ADD COLUMN accent_presets TEXT;"
-        )?;
-        conn.execute("INSERT INTO _schema_version (version) VALUES (11)", [])?;
-        println!("[DB] Profile DB migration V11 applied (accent_presets)");
-    }
-
     Ok(())
 }
 
@@ -608,7 +600,6 @@ pub fn get_profile_conn(
             accent_mode: String,
             accent_color_dark: String,
             accent_color_light: String,
-            accent_presets: Option<String>,
         }
 
         let old = conn.query_row(
@@ -618,7 +609,7 @@ pub fn get_profile_conn(
                     thumbnail_size, toolbar_height, toolbar_blur, toolbar_opacity,
                     select_overlay_opacity, reverse_search_enabled, list_columns,
                     home_title, accent_mode, accent_color_dark,
-                    accent_color_light, accent_presets
+                    accent_color_light
              FROM settings WHERE profile_id != ?1 LIMIT 1",
             rusqlite::params![profile_id],
             |row| Ok(OldSettings {
@@ -636,7 +627,6 @@ pub fn get_profile_conn(
                 accent_mode: row.get(22).unwrap_or_else(|_| "custom".to_string()),
                 accent_color_dark: row.get(23).unwrap_or_else(|_| "#4A9EFF".to_string()),
                 accent_color_light: row.get(24).unwrap_or_else(|_| "#003D7A".to_string()),
-                accent_presets: row.get(25).ok().flatten(),
             }),
         ).ok();
 
@@ -659,15 +649,15 @@ pub fn get_profile_conn(
                  card_opacity, card_blur, sidebar_font, random_interval, thumbnail_size,
                  toolbar_height, toolbar_blur, toolbar_opacity, select_overlay_opacity,
                  reverse_search_enabled, list_columns, home_title, accent_mode,
-                 accent_color_dark, accent_color_light, accent_presets)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27)",
+                 accent_color_dark, accent_color_light)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26)",
                 rusqlite::params![profile_id, s.view_mode, s.sort_by, s.theme_mode, s.accent_color,
                         s.bg_image, s.bg_blur, s.bg_opacity, s.sidebar_width, s.sidebar_opacity,
                         s.draw_count, s.card_opacity, s.card_blur, s.sidebar_font, s.random_interval,
                         s.thumbnail_size, s.toolbar_height, s.toolbar_blur, s.toolbar_opacity,
                         s.select_overlay_opacity, s.reverse_search_enabled, s.list_columns,
                         s.home_title, s.accent_mode, s.accent_color_dark,
-                        s.accent_color_light, s.accent_presets],
+                        s.accent_color_light],
             ).map_err(|e| format!("Migration INSERT settings: {}", e))?;
         }
 

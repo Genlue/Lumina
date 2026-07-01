@@ -178,8 +178,6 @@ const ST = {
 
     // Update swatches
     this._updateAccentSwatches();
-    // Keep presets display in sync
-    this._renderPresets();
   },
 
   /** Apply the correct accent color for the current effective theme */
@@ -211,7 +209,7 @@ const ST = {
     return mode;
   },
 
-  /** Open color picker for a specific mode (fixed positioning) */
+  /** Open color picker for a specific mode (canvas-based, no native input) */
   openColorPicker(forMode) {
     this._closeColorPicker();
 
@@ -222,154 +220,245 @@ const ST = {
         ? (App._settings.accent_color_dark || '#4A9EFF')
         : (App._settings.accent_color_light || '#003D7A');
 
-    // 创建面板 (opacity:0 初始态)
+    const parsed = this._parseHex(originalColor);
+    const hsv = this._rgbToHsv(parsed.r, parsed.g, parsed.b);
+
+    // Panel DOM
     const panel = document.createElement('div');
     panel.className = 'color-picker-panel';
     panel.innerHTML = `
+      <div class="cpp-hue-bar"><div class="cpp-handle" style="left:${(hsv.h / 360 * 200)}px;top:8px;"></div></div>
+      <div class="cpp-sb-area">
+        <canvas class="cpp-sb-canvas" width="200" height="150"></canvas>
+        <div class="cpp-handle cpp-handle-sb" style="left:${hsv.s * 200}px;top:${(1 - hsv.v) * 150}px;"></div>
+      </div>
+      <div class="cpp-preview-row">
         <div class="cpp-preview" style="background:${originalColor};"></div>
-        <div class="cpp-value">${originalColor}</div>
-        <div class="cpp-actions">
-            <button class="cpp-confirm">确认</button>
-            <button class="cpp-cancel">取消</button>
-        </div>
+        <input class="cpp-hex-input" type="text" value="${originalColor}" maxlength="7">
+      </div>
+      <div class="cpp-actions">
+        <button class="cpp-confirm">确认</button>
+        <button class="cpp-cancel">取消</button>
+      </div>
     `;
     document.body.appendChild(panel);
 
-    // 计算 fixed 定位
+    // Position above swatch
     const swatchRect = swatch.getBoundingClientRect();
-    const panelWidth = 140; // min-width
+    const panelWidth = 220;
     let left = swatchRect.left + swatchRect.width / 2 - panelWidth / 2;
-    // 确保不超出左/右边界
-    const maxLeft = window.innerWidth - panelWidth - 8;
-    left = Math.max(8, Math.min(left, maxLeft));
-
-    // 先设 left 让面板渲染，再读取高度
+    left = Math.max(8, Math.min(left, window.innerWidth - panelWidth - 8));
     panel.style.left = left + 'px';
-    panel.style.top = '-1000px'; // 临时隐藏以获取尺寸
+    panel.style.top = '-1000px';
 
-    return new Promise(resolve => {
-        requestAnimationFrame(() => {
-            const panelHeight = panel.offsetHeight || 130;
-            let top = swatchRect.top - 8 - panelHeight;
-
-            // 视口边界：超出上方则翻转到下方
-            if (top < 8) {
-                top = swatchRect.bottom + 8;
-            }
-
-            panel.style.top = top + 'px';
-
-            // 开启动画
-            void panel.offsetWidth;
-            panel.classList.add('open');
-
-            // 创建隐藏 color input
-            const input = document.createElement('input');
-            input.type = 'color';
-            input.value = originalColor;
-            input.style.cssText = 'position:fixed;opacity:0;width:1px;height:1px;pointer-events:none;';
-            input.style.left = '-100px';
-            input.style.top = '-100px';
-            document.body.appendChild(input);
-
-            // 事件绑定
-            const onInput = () => {
-                const c = input.value;
-                panel.querySelector('.cpp-preview').style.background = c;
-                panel.querySelector('.cpp-value').textContent = c;
-                if (forMode === this._getEffectiveTheme()) {
-                    this._applyAccentVisual(c);
-                }
-            };
-            input.addEventListener('input', onInput);
-            input.addEventListener('change', onInput);
-
-            input.addEventListener('cancel', () => {
-                if (forMode === this._getEffectiveTheme()) {
-                    this._applyAccentVisual(originalColor);
-                }
-                this._closeColorPicker();
-            });
-
-            // 确认
-            panel.querySelector('.cpp-confirm').onclick = () => {
-                this.applyAccent(input.value, forMode);
-                this._closeColorPicker();
-            };
-
-            // 取消
-            panel.querySelector('.cpp-cancel').onclick = () => {
-                const currentOriginal = forMode === 'dark'
-                    ? (App._settings.accent_color_dark || '#4A9EFF')
-                    : (App._settings.accent_color_light || '#003D7A');
-                if (forMode === this._getEffectiveTheme()) {
-                    this._applyAccentVisual(currentOriginal);
-                }
-                this._closeColorPicker();
-            };
-
-            // ESC 关闭
-            const onKey = (e) => {
-                if (e.key === 'Escape') {
-                    const co = forMode === 'dark'
-                        ? (App._settings.accent_color_dark || '#4A9EFF')
-                        : (App._settings.accent_color_light || '#003D7A');
-                    if (forMode === this._getEffectiveTheme()) {
-                        this._applyAccentVisual(co);
-                    }
-                    this._closeColorPicker();
-                }
-            };
-            document.addEventListener('keydown', onKey);
-
-            // 滚动/窗口变化关闭
-            const onScrollResize = () => {
-                this._closeColorPicker();
-            };
-            window.addEventListener('scroll', onScrollResize, { capture: true, once: true });
-            window.addEventListener('resize', onScrollResize, { once: true });
-
-            // 面板外点击关闭
-            const onDocClick = (e) => {
-                if (!panel.contains(e.target) && !input.contains(e.target)) {
-                    this._closeColorPicker();
-                    document.removeEventListener('mousedown', onDocClick);
-                }
-            };
-            setTimeout(() => document.addEventListener('mousedown', onDocClick), 0);
-
-            // 保存引用
-            this._pickerPanel = panel;
-            this._pickerInput = input;
-            this._pickerForMode = forMode;
-            this._pickerKeyHandler = onKey;
-            this._pickerScrollHandler = onScrollResize;
-            this._pickerDocHandler = onDocClick;
-            this._pickerOpen = true;
-
-            // 触发原生拾色器
-            input.click();
-
-            resolve();
-        });
+    requestAnimationFrame(() => {
+      const panelHeight = panel.offsetHeight || 290;
+      let top = swatchRect.top - 8 - panelHeight;
+      if (top < 8) top = swatchRect.bottom + 8;
+      panel.style.top = top + 'px';
+      void panel.offsetWidth;
+      panel.classList.add('open');
     });
+
+    // State
+    this._pickerPanel = panel;
+    this._pickerForMode = forMode;
+    this._pickerHsv = hsv;
+    this._pickerOrig = originalColor;
+    this._pickerOpen = true;
+
+    this._renderPickerCanvas(panel);
+    this._updatePickerUI(panel);
+    this._bindPickerEvents(panel);
+  },
+
+  _renderPickerCanvas(panel) {
+    const canvas = panel.querySelector('.cpp-sb-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const w = 200, h = 150;
+    const hsv = this._pickerHsv;
+    const rgb = this._hsvToRgb(hsv.h, 1, 1);
+    const base = this._rgbToHex(rgb.r, rgb.g, rgb.b);
+
+    // White → pure hue gradient (top)
+    const g1 = ctx.createLinearGradient(0, 0, w, 0);
+    g1.addColorStop(0, '#ffffff');
+    g1.addColorStop(1, base);
+    ctx.fillStyle = g1;
+    ctx.fillRect(0, 0, w, h);
+
+    // Transparent → black gradient (bottom-up)
+    const g2 = ctx.createLinearGradient(0, 0, 0, h);
+    g2.addColorStop(0, 'rgba(0,0,0,0)');
+    g2.addColorStop(1, '#000000');
+    ctx.fillStyle = g2;
+    ctx.fillRect(0, 0, w, h);
+  },
+
+  _updatePickerUI(panel) {
+    const hsv = this._pickerHsv;
+    const rgb = this._hsvToRgb(hsv.h, hsv.s, hsv.v);
+    const hex = this._rgbToHex(rgb.r, rgb.g, rgb.b);
+
+    panel.querySelector('.cpp-preview').style.background = hex;
+    panel.querySelector('.cpp-hex-input').value = hex;
+
+    // Position handles
+    const hueHandle = panel.querySelector('.cpp-hue-bar .cpp-handle');
+    if (hueHandle) hueHandle.style.left = (hsv.h / 360 * 200) + 'px';
+
+    const sbHandle = panel.querySelector('.cpp-handle-sb');
+    if (sbHandle) {
+      sbHandle.style.left = (hsv.s * 200) + 'px';
+      sbHandle.style.top = ((1 - hsv.v) * 150) + 'px';
+    }
+
+    // Apply visual preview for current effective theme
+    if (this._pickerForMode === this._getEffectiveTheme()) {
+      this._applyAccentVisual(hex);
+    }
+  },
+
+  _updateHue(clientX, rect, panel) {
+    const x = Math.max(0, Math.min(200, clientX - rect.left));
+    this._pickerHsv.h = (x / 200) * 360;
+    this._renderPickerCanvas(panel);
+    this._updatePickerUI(panel);
+  },
+
+  _updateSb(clientX, clientY, rect, panel) {
+    const x = Math.max(0, Math.min(200, clientX - rect.left));
+    const y = Math.max(0, Math.min(150, clientY - rect.top));
+    this._pickerHsv.s = x / 200;
+    this._pickerHsv.v = 1 - y / 150;
+    this._updatePickerUI(panel);
+  },
+
+  _bindPickerEvents(panel) {
+    const forMode = this._pickerForMode;
+
+    // --- Hue bar drag ---
+    const hueBar = panel.querySelector('.cpp-hue-bar');
+    const startHueDrag = (startX, startY) => {
+      const rect = hueBar.getBoundingClientRect();
+      this._updateHue(startX, rect, panel);
+      const onMove = (e) => { this._updateHue(e.clientX, rect, panel); };
+      const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); document.removeEventListener('touchmove', onMoveT); document.removeEventListener('touchend', onUp); };
+      const onMoveT = (e) => { e.preventDefault(); const t = e.touches[0]; this._updateHue(t.clientX, rect, panel); };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+      document.addEventListener('touchmove', onMoveT, { passive: false });
+      document.addEventListener('touchend', onUp);
+    };
+    hueBar.addEventListener('mousedown', (e) => startHueDrag(e.clientX, e.clientY));
+    hueBar.addEventListener('touchstart', (e) => { e.preventDefault(); const t = e.touches[0]; startHueDrag(t.clientX, t.clientY); }, { passive: false });
+
+    // --- Saturation/Brightness area drag ---
+    const sbArea = panel.querySelector('.cpp-sb-area');
+    const startSbDrag = (startX, startY) => {
+      const rect = sbArea.getBoundingClientRect();
+      this._updateSb(startX, startY, rect, panel);
+      const onMove = (e) => { this._updateSb(e.clientX, e.clientY, rect, panel); };
+      const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); document.removeEventListener('touchmove', onMoveT); document.removeEventListener('touchend', onUp); };
+      const onMoveT = (e) => { e.preventDefault(); const t = e.touches[0]; this._updateSb(t.clientX, t.clientY, rect, panel); };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+      document.addEventListener('touchmove', onMoveT, { passive: false });
+      document.addEventListener('touchend', onUp);
+    };
+    sbArea.addEventListener('mousedown', (e) => startSbDrag(e.clientX, e.clientY));
+    sbArea.addEventListener('touchstart', (e) => { e.preventDefault(); const t = e.touches[0]; startSbDrag(t.clientX, t.clientY); }, { passive: false });
+
+    // --- Hex input ---
+    const hexInput = panel.querySelector('.cpp-hex-input');
+    hexInput.addEventListener('input', () => {
+      let val = hexInput.value.trim();
+      if (/^#[0-9a-fA-F]{6}$/.test(val)) {
+        const p = this._parseHex(val);
+        this._pickerHsv = this._rgbToHsv(p.r, p.g, p.b);
+        this._renderPickerCanvas(panel);
+        this._updatePickerUI(panel);
+      }
+    });
+
+    // --- Keyboard arrows on canvas ---
+    const canvas = panel.querySelector('.cpp-sb-canvas');
+    canvas.setAttribute('tabindex', '0');
+    canvas.addEventListener('keydown', (e) => {
+      const step = e.shiftKey ? 0.05 : 0.02;
+      const hsv = this._pickerHsv;
+      switch (e.key) {
+        case 'ArrowUp': hsv.v = Math.min(1, hsv.v + step); break;
+        case 'ArrowDown': hsv.v = Math.max(0, hsv.v - step); break;
+        case 'ArrowLeft': hsv.s = Math.max(0, hsv.s - step); break;
+        case 'ArrowRight': hsv.s = Math.min(1, hsv.s + step); break;
+        default: return;
+      }
+      e.preventDefault();
+      this._updatePickerUI(panel);
+      this._renderPickerCanvas(panel);
+    });
+
+    // --- Confirm ---
+    panel.querySelector('.cpp-confirm').onclick = () => {
+      const rgb = this._hsvToRgb(this._pickerHsv.h, this._pickerHsv.s, this._pickerHsv.v);
+      const hex = this._rgbToHex(rgb.r, rgb.g, rgb.b);
+      this.applyAccent(hex, forMode);
+      this._closeColorPicker();
+    };
+
+    // --- Cancel ---
+    panel.querySelector('.cpp-cancel').onclick = () => {
+      if (forMode === this._getEffectiveTheme()) {
+        this._applyAccentVisual(this._pickerOrig);
+      }
+      this._closeColorPicker();
+    };
+
+    // --- ESC ---
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        if (forMode === this._getEffectiveTheme()) {
+          this._applyAccentVisual(this._pickerOrig);
+        }
+        this._closeColorPicker();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    this._pickerKeyHandler = onKey;
+
+    // --- Scroll/window resize close ---
+    const onScrollResize = () => { this._closeColorPicker(); };
+    window.addEventListener('scroll', onScrollResize, { capture: true, once: true });
+    window.addEventListener('resize', onScrollResize, { once: true });
+    this._pickerScrollHandler = onScrollResize;
+
+    // --- Outside click close ---
+    const onDocClick = (e) => {
+      if (!panel.contains(e.target)) {
+        this._closeColorPicker();
+      }
+    };
+    setTimeout(() => document.addEventListener('mousedown', onDocClick), 0);
+    this._pickerDocHandler = onDocClick;
   },
 
   /** 关闭颜色选择器(清理DOM) */
   _closeColorPicker() {
     if (this._pickerPanel) {
-        this._pickerPanel.classList.remove('open');
-        // 等待动画结束后移除
-        setTimeout(() => {
-            if (this._pickerPanel) this._pickerPanel.remove();
-            this._pickerPanel = null;
-        }, 150);
+      this._pickerPanel.classList.remove('open');
+      setTimeout(() => {
+        if (this._pickerPanel) { this._pickerPanel.remove(); this._pickerPanel = null; }
+      }, 150);
     }
-    if (this._pickerInput) { this._pickerInput.remove(); this._pickerInput = null; }
     if (this._pickerKeyHandler) { document.removeEventListener('keydown', this._pickerKeyHandler); this._pickerKeyHandler = null; }
     if (this._pickerDocHandler) { document.removeEventListener('mousedown', this._pickerDocHandler); this._pickerDocHandler = null; }
+    if (this._pickerScrollHandler) { window.removeEventListener('scroll', this._pickerScrollHandler, { capture: true }); this._pickerScrollHandler = null; }
     this._pickerOpen = false;
     this._pickerForMode = null;
+    this._pickerHsv = null;
+    this._pickerOrig = null;
   },
 
   /** Set accent mode (custom/extract) */
@@ -384,7 +473,6 @@ const ST = {
     if (mode === 'custom') {
       if (panel) panel.style.display = '';
       if (extractPanel) extractPanel.style.display = 'none';
-      this._renderPresets();
     } else {
       if (panel) panel.style.display = 'none';
       if (extractPanel) extractPanel.style.display = '';
@@ -420,8 +508,6 @@ const ST = {
 
     // Update swatches
     this._updateAccentSwatches();
-    // Render presets
-    this._renderPresets();
   },
 
   _updateAccentSwatches() {
@@ -501,73 +587,39 @@ const ST = {
     return bestColor;
   },
 
-  // === Accent Presets ===
+  // === Color utilities ===
 
-  savePreset(name) {
-    if (!name || !name.trim()) { Toast.show('请输入预设名称', 'info'); return; }
-    const dark = App._settings.accent_color_dark || '#4A9EFF';
-    const light = App._settings.accent_color_light || '#003D7A';
-    const presets = this._getPresets();
-    const existing = presets.findIndex(p => p.name === name.trim());
-    if (existing >= 0) {
-      Modal.show('预设已存在', `覆盖「${name.trim()}」？`, [{ label: '取消' }, { label: '覆盖', primary: true }]).then(r => {
-        if (r.idx !== 1) return;
-        presets[existing] = { id: presets[existing].id, name: name.trim(), dark, light };
-        this._savePresets(presets);
-        Toast.show('预设已更新', 'success');
-      });
-      return;
+  _hsvToRgb(h, s, v) {
+    const c = v * s;
+    const hp = h / 60;
+    const x = c * (1 - Math.abs(hp % 2 - 1));
+    let r, g, b;
+    if (hp < 1) { r = c; g = x; b = 0; }
+    else if (hp < 2) { r = x; g = c; b = 0; }
+    else if (hp < 3) { r = 0; g = c; b = x; }
+    else if (hp < 4) { r = 0; g = x; b = c; }
+    else if (hp < 5) { r = x; g = 0; b = c; }
+    else { r = c; g = 0; b = x; }
+    const m = v - c;
+    return { r: Math.round((r + m) * 255), g: Math.round((g + m) * 255), b: Math.round((b + m) * 255) };
+  },
+  _rgbToHsv(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+    let h = 0;
+    if (d !== 0) {
+      if (mx === r) h = ((g - b) / d + (g < b ? 6 : 0)) * 60;
+      else if (mx === g) h = ((b - r) / d + 2) * 60;
+      else h = ((r - g) / d + 4) * 60;
     }
-    presets.push({ id: crypto.randomUUID(), name: name.trim(), dark, light });
-    this._savePresets(presets);
-    Toast.show('预设已保存', 'success');
+    return { h, s: mx === 0 ? 0 : d / mx, v: mx };
   },
-
-  applyPreset(id) {
-    const presets = this._getPresets();
-    const p = presets.find(p => p.id === id);
-    if (!p) return;
-    this.applyAccent(p.dark, 'dark');
-    this.applyAccent(p.light, 'light');
-    this.applyCurrentAccent();
-    Toast.show('已应用预设: ' + p.name, 'success');
+  _rgbToHex(r, g, b) {
+    return '#' + [r, g, b].map(c => Math.round(c).toString(16).padStart(2, '0')).join('');
   },
-
-  deletePreset(id) {
-    Modal.show('删除预设', '确定删除此预设？', [{ label: '取消' }, { label: '删除', danger: true }]).then(r => {
-      if (r.idx !== 1) return;
-      const presets = this._getPresets().filter(p => p.id !== id);
-      this._savePresets(presets);
-      Toast.show('预设已删除', 'info');
-    });
-  },
-
-  _getPresets() {
-    try { return JSON.parse(App._settings.accent_presets || '[]'); } catch(e) { return []; }
-  },
-
-  _savePresets(presets) {
-    const json = JSON.stringify(presets);
-    App._settings.accent_presets = json;
-    API.saveSettings(S.profileId, { accent_presets: json });
-    this._renderPresets();
-  },
-
-  _renderPresets() {
-    const container = document.getElementById('accent-presets');
-    if (!container) return;
-    const presets = this._getPresets();
-    if (presets.length === 0) { container.innerHTML = ''; return; }
-    container.innerHTML = '';
-    for (const p of presets) {
-      const el = document.createElement('div');
-      el.className = 'accent-preset-item';
-      el.innerHTML = '<div class="ap-colors"><span class="ap-dot" style="background:' + U.esc(p.dark) + '"></span><span class="ap-dot" style="background:' + U.esc(p.light) + '"></span></div><span class="ap-name">' + (U.escHtml ? U.escHtml(p.name) : p.name) + '</span>';
-      el.title = p.name + ' (右键删除)';
-      el.onclick = () => this.applyPreset(p.id);
-      el.oncontextmenu = (e) => { e.preventDefault(); this.deletePreset(p.id); };
-      container.appendChild(el);
-    }
+  _parseHex(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
   },
 
   // === System theme listener ===
