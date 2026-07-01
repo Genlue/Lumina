@@ -241,7 +241,7 @@ const ST = {
     input.value = originalColor;
     input.className = 'color-picker-input-hidden';
     // 放在面板附近,让原生picker弹出在正确位置
-    input.style.cssText = 'position:absolute;top:0;left:0;width:1px;height:1px;padding:0;border:none;opacity:0.01;pointer-events:none;';
+    input.style.cssText = 'position:absolute;bottom:0;right:0;width:1px;height:1px;padding:0;border:none;opacity:0.01;pointer-events:none;';
     card.appendChild(input);
 
     // 标记picker打开状态(防止其他逻辑中断预览)
@@ -253,7 +253,9 @@ const ST = {
         const c = input.value;
         panel.querySelector('.cpp-preview').style.background = c;
         panel.querySelector('.cpp-value').textContent = c;
-        this._applyAccentVisual(c);
+        if (forMode === this._getEffectiveTheme()) {
+            this._applyAccentVisual(c);
+        }
     };
     input.addEventListener('input', onInput);
 
@@ -262,8 +264,9 @@ const ST = {
 
     // 原生picker用Escape关闭: 等同于取消
     input.addEventListener('cancel', () => {
-        // 还原视觉
-        this._applyAccentVisual(originalColor);
+        if (forMode === this._getEffectiveTheme()) {
+            this._applyAccentVisual(originalColor);
+        }
         this._closeColorPicker();
     });
 
@@ -280,7 +283,9 @@ const ST = {
         const currentOriginal = forMode === 'dark'
             ? (App._settings.accent_color_dark || '#4A9EFF')
             : (App._settings.accent_color_light || '#003D7A');
-        this._applyAccentVisual(currentOriginal);
+        if (forMode === this._getEffectiveTheme()) {
+            this._applyAccentVisual(currentOriginal);
+        }
         // 如果确认过则不需要保存,视觉已还原
         this._pickerOpen = false;
         this._closeColorPicker();
@@ -292,7 +297,9 @@ const ST = {
             const currentOriginal = forMode === 'dark'
                 ? (App._settings.accent_color_dark || '#4A9EFF')
                 : (App._settings.accent_color_light || '#003D7A');
-            this._applyAccentVisual(currentOriginal);
+            if (forMode === this._getEffectiveTheme()) {
+                this._applyAccentVisual(currentOriginal);
+            }
             this._pickerOpen = false;
             this._closeColorPicker();
             document.removeEventListener('mousedown', onDocClick);
@@ -316,6 +323,7 @@ const ST = {
 
   /** Set accent mode (custom/extract) */
   setAccentMode(mode) {
+    this._closeColorPicker();
     App._settings.accent_mode = mode;
     API.saveSettings(S.profileId, { accent_mode: mode });
     this._highlightAccentBtns(mode);
@@ -371,10 +379,12 @@ const ST = {
 
   /** Extract accent colors from background image for both dark and light themes */
   extractAccent(forMode) {
+    if (App._settings?.accent_mode !== 'extract') return;
     const bgFile = App._settings.bg_image;
     if (!bgFile) { Toast.show('请先选择背景图片', 'info'); return; }
 
     API.extractColors(S.profileId, bgFile).then(result => {
+      if (App._settings?.accent_mode !== 'extract') return;
       if (!result || !result.palette || result.palette.length === 0 || result.palette[0] === '#000000') {
         Toast.show('未能提取有效颜色', 'info');
         return;
