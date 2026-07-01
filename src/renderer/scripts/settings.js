@@ -71,6 +71,8 @@ const ST = {
   // === Theme ===
 
   applyTheme(mode) {
+    // 如果颜色选择器打开则不执行主题切换(防止预览被打断)
+    if (this._pickerOpen) return;
     // Resolve system to actual mode
     let effectiveMode = mode;
     if (mode === 'system') {
@@ -209,35 +211,107 @@ const ST = {
 
   /** Open color picker for a specific mode */
   openColorPicker(forMode) {
+    // 清理旧的picker(如果有)
+    this._closeColorPicker();
+
     const card = document.getElementById('accent-card');
     if (!card) return;
 
-    // Remove old picker if exists
-    const old = card.querySelector('.color-picker-input');
-    if (old) old.remove();
+    // 保存原始颜色供取消时还原
+    const originalColor = forMode === 'dark'
+        ? (App._settings.accent_color_dark || '#4A9EFF')
+        : (App._settings.accent_color_light || '#003D7A');
 
+    // 创建浮动面板
+    const panel = document.createElement('div');
+    panel.className = 'color-picker-panel';
+    panel.innerHTML = `
+        <div class="cpp-preview" style="background:${originalColor};"></div>
+        <div class="cpp-value">${originalColor}</div>
+        <div class="cpp-actions">
+            <button class="cpp-confirm">确认</button>
+            <button class="cpp-cancel">取消</button>
+        </div>
+    `;
+    card.appendChild(panel);
+
+    // 创建隐藏的color input
     const input = document.createElement('input');
     input.type = 'color';
-    input.value = forMode === 'dark'
-      ? (App._settings.accent_color_dark || '#4A9EFF')
-      : (App._settings.accent_color_light || '#003D7A');
-    input.style.cssText = 'position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);width:60px;height:40px;border:none;padding:0;cursor:pointer;z-index:100;';
-
-    input.className = 'color-picker-input';
-    card.style.position = 'relative';
+    input.value = originalColor;
+    input.className = 'color-picker-input-hidden';
+    // 放在面板附近,让原生picker弹出在正确位置
+    input.style.cssText = 'position:absolute;top:0;left:0;width:1px;height:1px;padding:0;border:none;opacity:0.01;pointer-events:none;';
     card.appendChild(input);
-    input.focus();
-    input.click(); // Open system color picker
 
-    const onChange = () => {
-      this.applyAccent(input.value, forMode);
-      input.remove();
+    // 标记picker打开状态(防止其他逻辑中断预览)
+    this._pickerOpen = true;
+    this._pickerForMode = forMode;
+
+    // 实时预览: 拖拽选色时只改视觉,不保存
+    const onInput = () => {
+        const c = input.value;
+        panel.querySelector('.cpp-preview').style.background = c;
+        panel.querySelector('.cpp-value').textContent = c;
+        this._applyAccentVisual(c);
     };
-    const onBlur = () => {
-      setTimeout(() => { if (!card.contains(document.activeElement)) input.remove(); }, 200);
+    input.addEventListener('input', onInput);
+
+    // 原生picker用Enter/点击关闭时: 同步预览但不保存
+    input.addEventListener('change', onInput);
+
+    // 原生picker用Escape关闭: 等同于取消
+    input.addEventListener('cancel', () => {
+        // 还原视觉
+        this._applyAccentVisual(originalColor);
+        this._closeColorPicker();
+    });
+
+    // 确认按钮
+    panel.querySelector('.cpp-confirm').onclick = () => {
+        this.applyAccent(input.value, forMode);
+        this._pickerOpen = false;
+        this._closeColorPicker();
     };
-    input.addEventListener('input', onChange);
-    input.addEventListener('blur', onBlur);
+
+    // 取消按钮
+    panel.querySelector('.cpp-cancel').onclick = () => {
+        // 从settings重新读取原始值(可能在面板打开期间被extractAccent修改)
+        const currentOriginal = forMode === 'dark'
+            ? (App._settings.accent_color_dark || '#4A9EFF')
+            : (App._settings.accent_color_light || '#003D7A');
+        this._applyAccentVisual(currentOriginal);
+        // 如果确认过则不需要保存,视觉已还原
+        this._pickerOpen = false;
+        this._closeColorPicker();
+    };
+
+    // 面板外点击关闭(等同于取消)
+    const onDocClick = (e) => {
+        if (!panel.contains(e.target) && !input.contains(e.target)) {
+            const currentOriginal = forMode === 'dark'
+                ? (App._settings.accent_color_dark || '#4A9EFF')
+                : (App._settings.accent_color_light || '#003D7A');
+            this._applyAccentVisual(currentOriginal);
+            this._pickerOpen = false;
+            this._closeColorPicker();
+            document.removeEventListener('mousedown', onDocClick);
+        }
+    };
+    // 延迟绑定,避免触发当前点击
+    setTimeout(() => document.addEventListener('mousedown', onDocClick), 0);
+
+    // 同步打开原生拾色器
+    input.click();
+  },
+
+  /** 关闭颜色选择器(清理DOM) */
+  _closeColorPicker() {
+    this._pickerOpen = false;
+    const panel = document.querySelector('.color-picker-panel');
+    if (panel) panel.remove();
+    const input = document.querySelector('.color-picker-input-hidden');
+    if (input) input.remove();
   },
 
   /** Set accent mode (custom/extract) */
@@ -267,6 +341,8 @@ const ST = {
 
   /** Update accent UI elements */
   _renderAccentUI() {
+    // 切换模式时关闭可能残留的picker
+    this._closeColorPicker();
     const s = App._settings;
     // Sync accent mode buttons
     this._highlightAccentBtns(s.accent_mode || 'custom');
