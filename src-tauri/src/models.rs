@@ -84,6 +84,7 @@ pub struct Settings {
     pub accent_mode: String,  // 'custom' | 'extract'
     pub accent_color_dark: String,
     pub accent_color_light: String,
+    pub accent_presets: Option<String>,  // JSON 数组: [{"id":"uuid","name":"...","dark":"#...","light":"#..."}]
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

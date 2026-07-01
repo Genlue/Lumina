@@ -178,6 +178,8 @@ const ST = {
 
     // Update swatches
     this._updateAccentSwatches();
+    // Keep presets display in sync
+    this._renderPresets();
   },
 
   /** Apply the correct accent color for the current effective theme */
@@ -209,20 +211,18 @@ const ST = {
     return mode;
   },
 
-  /** Open color picker for a specific mode */
+  /** Open color picker for a specific mode (fixed positioning) */
   openColorPicker(forMode) {
-    // 清理旧的picker(如果有)
     this._closeColorPicker();
 
-    const card = document.getElementById('accent-card');
-    if (!card) return;
+    const swatch = document.getElementById('accent-swatch-' + forMode);
+    if (!swatch) return;
 
-    // 保存原始颜色供取消时还原
     const originalColor = forMode === 'dark'
         ? (App._settings.accent_color_dark || '#4A9EFF')
         : (App._settings.accent_color_light || '#003D7A');
 
-    // 创建浮动面板
+    // 创建面板 (opacity:0 初始态)
     const panel = document.createElement('div');
     panel.className = 'color-picker-panel';
     panel.innerHTML = `
@@ -233,92 +233,143 @@ const ST = {
             <button class="cpp-cancel">取消</button>
         </div>
     `;
-    card.appendChild(panel);
+    document.body.appendChild(panel);
 
-    // 创建隐藏的color input
-    const input = document.createElement('input');
-    input.type = 'color';
-    input.value = originalColor;
-    input.className = 'color-picker-input-hidden';
-    // 放在面板附近,让原生picker弹出在正确位置
-    input.style.cssText = 'position:absolute;bottom:0;right:0;width:1px;height:1px;padding:0;border:none;opacity:0.01;pointer-events:none;';
-    card.appendChild(input);
+    // 计算 fixed 定位
+    const swatchRect = swatch.getBoundingClientRect();
+    const panelWidth = 140; // min-width
+    let left = swatchRect.left + swatchRect.width / 2 - panelWidth / 2;
+    // 确保不超出左/右边界
+    const maxLeft = window.innerWidth - panelWidth - 8;
+    left = Math.max(8, Math.min(left, maxLeft));
 
-    // 标记picker打开状态(防止其他逻辑中断预览)
-    this._pickerOpen = true;
-    this._pickerForMode = forMode;
+    // 先设 left 让面板渲染，再读取高度
+    panel.style.left = left + 'px';
+    panel.style.top = '-1000px'; // 临时隐藏以获取尺寸
 
-    // 实时预览: 拖拽选色时只改视觉,不保存
-    const onInput = () => {
-        const c = input.value;
-        panel.querySelector('.cpp-preview').style.background = c;
-        panel.querySelector('.cpp-value').textContent = c;
-        if (forMode === this._getEffectiveTheme()) {
-            this._applyAccentVisual(c);
-        }
-    };
-    input.addEventListener('input', onInput);
+    return new Promise(resolve => {
+        requestAnimationFrame(() => {
+            const panelHeight = panel.offsetHeight || 130;
+            let top = swatchRect.top - 8 - panelHeight;
 
-    // 原生picker用Enter/点击关闭时: 同步预览但不保存
-    input.addEventListener('change', onInput);
-
-    // 原生picker用Escape关闭: 等同于取消
-    input.addEventListener('cancel', () => {
-        if (forMode === this._getEffectiveTheme()) {
-            this._applyAccentVisual(originalColor);
-        }
-        this._closeColorPicker();
-    });
-
-    // 确认按钮
-    panel.querySelector('.cpp-confirm').onclick = () => {
-        this.applyAccent(input.value, forMode);
-        this._pickerOpen = false;
-        this._closeColorPicker();
-    };
-
-    // 取消按钮
-    panel.querySelector('.cpp-cancel').onclick = () => {
-        // 从settings重新读取原始值(可能在面板打开期间被extractAccent修改)
-        const currentOriginal = forMode === 'dark'
-            ? (App._settings.accent_color_dark || '#4A9EFF')
-            : (App._settings.accent_color_light || '#003D7A');
-        if (forMode === this._getEffectiveTheme()) {
-            this._applyAccentVisual(currentOriginal);
-        }
-        // 如果确认过则不需要保存,视觉已还原
-        this._pickerOpen = false;
-        this._closeColorPicker();
-    };
-
-    // 面板外点击关闭(等同于取消)
-    const onDocClick = (e) => {
-        if (!panel.contains(e.target) && !input.contains(e.target)) {
-            const currentOriginal = forMode === 'dark'
-                ? (App._settings.accent_color_dark || '#4A9EFF')
-                : (App._settings.accent_color_light || '#003D7A');
-            if (forMode === this._getEffectiveTheme()) {
-                this._applyAccentVisual(currentOriginal);
+            // 视口边界：超出上方则翻转到下方
+            if (top < 8) {
+                top = swatchRect.bottom + 8;
             }
-            this._pickerOpen = false;
-            this._closeColorPicker();
-            document.removeEventListener('mousedown', onDocClick);
-        }
-    };
-    // 延迟绑定,避免触发当前点击
-    setTimeout(() => document.addEventListener('mousedown', onDocClick), 0);
 
-    // 同步打开原生拾色器
-    input.click();
+            panel.style.top = top + 'px';
+
+            // 开启动画
+            void panel.offsetWidth;
+            panel.classList.add('open');
+
+            // 创建隐藏 color input
+            const input = document.createElement('input');
+            input.type = 'color';
+            input.value = originalColor;
+            input.style.cssText = 'position:fixed;opacity:0;width:1px;height:1px;pointer-events:none;';
+            input.style.left = '-100px';
+            input.style.top = '-100px';
+            document.body.appendChild(input);
+
+            // 事件绑定
+            const onInput = () => {
+                const c = input.value;
+                panel.querySelector('.cpp-preview').style.background = c;
+                panel.querySelector('.cpp-value').textContent = c;
+                if (forMode === this._getEffectiveTheme()) {
+                    this._applyAccentVisual(c);
+                }
+            };
+            input.addEventListener('input', onInput);
+            input.addEventListener('change', onInput);
+
+            input.addEventListener('cancel', () => {
+                if (forMode === this._getEffectiveTheme()) {
+                    this._applyAccentVisual(originalColor);
+                }
+                this._closeColorPicker();
+            });
+
+            // 确认
+            panel.querySelector('.cpp-confirm').onclick = () => {
+                this.applyAccent(input.value, forMode);
+                this._closeColorPicker();
+            };
+
+            // 取消
+            panel.querySelector('.cpp-cancel').onclick = () => {
+                const currentOriginal = forMode === 'dark'
+                    ? (App._settings.accent_color_dark || '#4A9EFF')
+                    : (App._settings.accent_color_light || '#003D7A');
+                if (forMode === this._getEffectiveTheme()) {
+                    this._applyAccentVisual(currentOriginal);
+                }
+                this._closeColorPicker();
+            };
+
+            // ESC 关闭
+            const onKey = (e) => {
+                if (e.key === 'Escape') {
+                    const co = forMode === 'dark'
+                        ? (App._settings.accent_color_dark || '#4A9EFF')
+                        : (App._settings.accent_color_light || '#003D7A');
+                    if (forMode === this._getEffectiveTheme()) {
+                        this._applyAccentVisual(co);
+                    }
+                    this._closeColorPicker();
+                }
+            };
+            document.addEventListener('keydown', onKey);
+
+            // 滚动/窗口变化关闭
+            const onScrollResize = () => {
+                this._closeColorPicker();
+            };
+            window.addEventListener('scroll', onScrollResize, { capture: true, once: true });
+            window.addEventListener('resize', onScrollResize, { once: true });
+
+            // 面板外点击关闭
+            const onDocClick = (e) => {
+                if (!panel.contains(e.target) && !input.contains(e.target)) {
+                    this._closeColorPicker();
+                    document.removeEventListener('mousedown', onDocClick);
+                }
+            };
+            setTimeout(() => document.addEventListener('mousedown', onDocClick), 0);
+
+            // 保存引用
+            this._pickerPanel = panel;
+            this._pickerInput = input;
+            this._pickerForMode = forMode;
+            this._pickerKeyHandler = onKey;
+            this._pickerScrollHandler = onScrollResize;
+            this._pickerDocHandler = onDocClick;
+            this._pickerOpen = true;
+
+            // 触发原生拾色器
+            input.click();
+
+            resolve();
+        });
+    });
   },
 
   /** 关闭颜色选择器(清理DOM) */
   _closeColorPicker() {
+    if (this._pickerPanel) {
+        this._pickerPanel.classList.remove('open');
+        // 等待动画结束后移除
+        setTimeout(() => {
+            if (this._pickerPanel) this._pickerPanel.remove();
+            this._pickerPanel = null;
+        }, 150);
+    }
+    if (this._pickerInput) { this._pickerInput.remove(); this._pickerInput = null; }
+    if (this._pickerKeyHandler) { document.removeEventListener('keydown', this._pickerKeyHandler); this._pickerKeyHandler = null; }
+    if (this._pickerDocHandler) { document.removeEventListener('mousedown', this._pickerDocHandler); this._pickerDocHandler = null; }
     this._pickerOpen = false;
-    const panel = document.querySelector('.color-picker-panel');
-    if (panel) panel.remove();
-    const input = document.querySelector('.color-picker-input-hidden');
-    if (input) input.remove();
+    this._pickerForMode = null;
   },
 
   /** Set accent mode (custom/extract) */
@@ -333,6 +384,7 @@ const ST = {
     if (mode === 'custom') {
       if (panel) panel.style.display = '';
       if (extractPanel) extractPanel.style.display = 'none';
+      this._renderPresets();
     } else {
       if (panel) panel.style.display = 'none';
       if (extractPanel) extractPanel.style.display = '';
@@ -368,6 +420,8 @@ const ST = {
 
     // Update swatches
     this._updateAccentSwatches();
+    // Render presets
+    this._renderPresets();
   },
 
   _updateAccentSwatches() {
@@ -445,6 +499,75 @@ const ST = {
     }
 
     return bestColor;
+  },
+
+  // === Accent Presets ===
+
+  savePreset(name) {
+    if (!name || !name.trim()) { Toast.show('请输入预设名称', 'info'); return; }
+    const dark = App._settings.accent_color_dark || '#4A9EFF';
+    const light = App._settings.accent_color_light || '#003D7A';
+    const presets = this._getPresets();
+    const existing = presets.findIndex(p => p.name === name.trim());
+    if (existing >= 0) {
+      Modal.show('预设已存在', `覆盖「${name.trim()}」？`, [{ label: '取消' }, { label: '覆盖', primary: true }]).then(r => {
+        if (r.idx !== 1) return;
+        presets[existing] = { id: presets[existing].id, name: name.trim(), dark, light };
+        this._savePresets(presets);
+        Toast.show('预设已更新', 'success');
+      });
+      return;
+    }
+    presets.push({ id: crypto.randomUUID(), name: name.trim(), dark, light });
+    this._savePresets(presets);
+    Toast.show('预设已保存', 'success');
+  },
+
+  applyPreset(id) {
+    const presets = this._getPresets();
+    const p = presets.find(p => p.id === id);
+    if (!p) return;
+    this.applyAccent(p.dark, 'dark');
+    this.applyAccent(p.light, 'light');
+    this.applyCurrentAccent();
+    Toast.show('已应用预设: ' + p.name, 'success');
+  },
+
+  deletePreset(id) {
+    Modal.show('删除预设', '确定删除此预设？', [{ label: '取消' }, { label: '删除', danger: true }]).then(r => {
+      if (r.idx !== 1) return;
+      const presets = this._getPresets().filter(p => p.id !== id);
+      this._savePresets(presets);
+      Toast.show('预设已删除', 'info');
+    });
+  },
+
+  _getPresets() {
+    try { return JSON.parse(App._settings.accent_presets || '[]'); } catch(e) { return []; }
+  },
+
+  _savePresets(presets) {
+    const json = JSON.stringify(presets);
+    App._settings.accent_presets = json;
+    API.saveSettings(S.profileId, { accent_presets: json });
+    this._renderPresets();
+  },
+
+  _renderPresets() {
+    const container = document.getElementById('accent-presets');
+    if (!container) return;
+    const presets = this._getPresets();
+    if (presets.length === 0) { container.innerHTML = ''; return; }
+    container.innerHTML = '';
+    for (const p of presets) {
+      const el = document.createElement('div');
+      el.className = 'accent-preset-item';
+      el.innerHTML = '<div class="ap-colors"><span class="ap-dot" style="background:' + U.esc(p.dark) + '"></span><span class="ap-dot" style="background:' + U.esc(p.light) + '"></span></div><span class="ap-name">' + (U.escHtml ? U.escHtml(p.name) : p.name) + '</span>';
+      el.title = p.name + ' (右键删除)';
+      el.onclick = () => this.applyPreset(p.id);
+      el.oncontextmenu = (e) => { e.preventDefault(); this.deletePreset(p.id); };
+      container.appendChild(el);
+    }
   },
 
   // === System theme listener ===
