@@ -15,10 +15,13 @@ const App = {
     // Startup: use last saved theme, fallback to system preference
     try {
       var savedTheme = localStorage.getItem('pa_theme_mode');
-      if (!savedTheme) savedTheme = window.matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark';
+      if (!savedTheme) savedTheme = 'system';
       ST.applyTheme(savedTheme);
-      var savedAccent = localStorage.getItem('pa_accent_color') || '#60CDFF';
-      ST.applyAccent(savedAccent);
+      var savedAccentDark = localStorage.getItem('pa_accent_color_dark') || '#4A9EFF';
+      var savedAccentLight = localStorage.getItem('pa_accent_color_light') || '#003D7A';
+      ST.applyAccent(savedAccentDark, 'dark');
+      ST.applyAccent(savedAccentLight, 'light');
+      ST.applyCurrentAccent();
       _syncJsCheck();
       Icons.init();
     } catch (e) { /* ignore */ }
@@ -311,8 +314,11 @@ const App = {
       }
 
       // Theme (from profile DB settings)
-      ST.applyTheme(App._settings.theme_mode ?? 'dark');
-      ST.applyAccent(App._settings.accent_color ?? '#60CDFF');
+      ST.applyTheme(App._settings.theme_mode ?? 'system');
+      // Apply accent - store both modes, then apply current visual
+      ST.applyAccent(App._settings.accent_color_dark ?? '#4A9EFF', 'dark');
+      ST.applyAccent(App._settings.accent_color_light ?? '#003D7A', 'light');
+      ST.applyCurrentAccent();
 
       document.getElementById('startup').classList.add('hidden');
       document.getElementById('app').classList.remove('hidden');
@@ -324,18 +330,18 @@ const App = {
 
       // Apply layout settings in rAF — ensures browser has performed layout after un-hiding
       requestAnimationFrame(() => {
-        ST.applySidebarWidth(App._settings.sidebar_width ?? 270);
-        ST.applySidebarOpacity(App._settings.sidebar_opacity ?? 0.85);
-        ST.applySidebarFont(App._settings.sidebar_font ?? 14);
+        ST.applySidebarWidth(App._settings.sidebar_width ?? 150);
+        ST.applySidebarOpacity(App._settings.sidebar_opacity ?? 0.7);
+        ST.applySidebarFont(App._settings.sidebar_font ?? 20);
         ST.applySidebarBlur(App._settings.sidebar_blur ?? 16);
-        ST.applyCardOpacity(App._settings.card_opacity ?? 1);
-        ST.applyCardBlur(App._settings.card_blur ?? 0);
-        ST.applyToolbarHeight(App._settings.toolbar_height ?? 48);
+        ST.applyCardOpacity(App._settings.card_opacity ?? 0.7);
+        ST.applyCardBlur(App._settings.card_blur ?? 16);
+        ST.applyToolbarHeight(App._settings.toolbar_height ?? 56);
         ST.applyToolbarBlur(App._settings.toolbar_blur ?? 16);
-        ST.applyToolbarOpacity(App._settings.toolbar_opacity ?? 0.85);
+        ST.applyToolbarOpacity(App._settings.toolbar_opacity ?? 0.7);
         document.documentElement.style.setProperty('--overlay-opacity', String(App._settings.select_overlay_opacity ?? 0.2));
         ST.applyReverseSearch(App._settings.reverse_search_enabled ?? false);
-        ST.applyListColumns(App._settings.list_columns ?? 1);
+        ST.applyListColumns(App._settings.list_columns ?? 3);
 
         // Sync view mode toolbar buttons
         const currViewMode = App._settings.view_mode ?? 'grid';
@@ -365,8 +371,16 @@ const App = {
       });
 
       // Restore bg settings AFTER DOM is visible
-      ST.applyBlur(App._settings.bg_blur ?? 20);
-      ST.applyOpacity(App._settings.bg_opacity ?? 0);
+      ST.applyBlur(App._settings.bg_blur ?? 0);
+      ST.applyOpacity(App._settings.bg_opacity ?? 1.0);
+
+      // Initialize system theme listener
+      ST.initSystemThemeListener();
+
+      // Auto-extract accent if in extract mode
+      if (App._settings?.accent_mode === 'extract' && App._settings?.bg_image) {
+        ST.extractAccent();
+      }
 
       this.navPage('home');
       this._showAlbumList();

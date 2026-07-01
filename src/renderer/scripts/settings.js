@@ -11,40 +11,39 @@ const ST = {
       const s = App._settings;
       if (!s) return;
       this._setVal('set-theme', null); // Button-based, handled separately
-      this._setVal('set-accent', s.accent_color ?? '#60CDFF');
-      this._setVal('set-bg-blur', s.bg_blur ?? 20);
-      this._setVal('set-bg-opacity', Math.round((s.bg_opacity ?? 0) * 100));
+      this._setVal('set-bg-blur', s.bg_blur ?? 0);
+      this._setVal('set-bg-opacity', Math.round((s.bg_opacity ?? 1.0) * 100));
       this._setVal('set-thumb-size', s.thumbnail_size ?? 400);
-      this._setVal('set-draw-count', s.draw_count ?? 3);
+      this._setVal('set-draw-count', s.draw_count ?? 10);
       this._setVal('set-random-interval', s.random_interval ?? 3);
-      this._setVal('set-sidebar-w', s.sidebar_width ?? 270);
-      this._setVal('set-sidebar-opacity', Math.round((s.sidebar_opacity ?? 0.85) * 100));
-      this._setVal('set-sidebar-font', s.sidebar_font ?? 14);
+      this._setVal('set-sidebar-w', s.sidebar_width ?? 150);
+      this._setVal('set-sidebar-opacity', Math.round((s.sidebar_opacity ?? 0.7) * 100));
+      this._setVal('set-sidebar-font', s.sidebar_font ?? 20);
       this._setVal('set-sidebar-blur', s.sidebar_blur ?? 16);
-      this._setVal('set-card-opacity', Math.round((s.card_opacity ?? 1) * 100));
-      this._setVal('set-card-blur', s.card_blur ?? 0);
-      this._setVal('set-toolbar-h', s.toolbar_height ?? 48);
+      this._setVal('set-card-opacity', Math.round((s.card_opacity ?? 0.7) * 100));
+      this._setVal('set-card-blur', s.card_blur ?? 16);
+      this._setVal('set-toolbar-h', s.toolbar_height ?? 56);
       this._setVal('set-toolbar-blur', s.toolbar_blur ?? 16);
-      this._setVal('set-toolbar-opacity', Math.round((s.toolbar_opacity ?? 0.85) * 100));
+      this._setVal('set-toolbar-opacity', Math.round((s.toolbar_opacity ?? 0.7) * 100));
       this._setVal('set-overlay-opacity', Math.round((s.select_overlay_opacity ?? 0.2) * 100));
-      this._setVal('set-list-cols', s.list_columns ?? 1);
+      this._setVal('set-list-cols', s.list_columns ?? 3);
 
-      this._setText('bg-blur-val', (s.bg_blur ?? 20) + 'px');
-      this._setText('bg-opacity-val', Math.round((s.bg_opacity ?? 0) * 100) + '%');
-      this._setText('sidebar-w-val', (s.sidebar_width ?? 270) + 'px');
-      this._setText('sidebar-opacity-val', Math.round((s.sidebar_opacity ?? 0.85) * 100) + '%');
-      this._setText('sidebar-font-val', (s.sidebar_font ?? 14) + 'px');
+      this._setText('bg-blur-val', (s.bg_blur ?? 0) + 'px');
+      this._setText('bg-opacity-val', Math.round((s.bg_opacity ?? 1.0) * 100) + '%');
+      this._setText('sidebar-w-val', (s.sidebar_width ?? 150) + 'px');
+      this._setText('sidebar-opacity-val', Math.round((s.sidebar_opacity ?? 0.7) * 100) + '%');
+      this._setText('sidebar-font-val', (s.sidebar_font ?? 20) + 'px');
       this._setText('sidebar-blur-val', (s.sidebar_blur ?? 16) + 'px');
-      this._setText('card-opacity-val', Math.round((s.card_opacity ?? 1) * 100) + '%');
-      this._setText('card-blur-val', (s.card_blur ?? 0) + 'px');
-      this._setText('toolbar-h-val', (s.toolbar_height ?? 48) + 'px');
+      this._setText('card-opacity-val', Math.round((s.card_opacity ?? 0.7) * 100) + '%');
+      this._setText('card-blur-val', (s.card_blur ?? 16) + 'px');
+      this._setText('toolbar-h-val', (s.toolbar_height ?? 56) + 'px');
       this._setText('toolbar-blur-val', (s.toolbar_blur ?? 16) + 'px');
-      this._setText('toolbar-opacity-val', Math.round((s.toolbar_opacity ?? 0.85) * 100) + '%');
+      this._setText('toolbar-opacity-val', Math.round((s.toolbar_opacity ?? 0.7) * 100) + '%');
       this._setText('overlay-opacity-val', Math.round((s.select_overlay_opacity ?? 0.2) * 100) + '%');
       this._setText('thumb-size-val', (s.thumbnail_size ?? 400) + 'px');
-      this._setText('draw-count-val', s.draw_count ?? 3);
+      this._setText('draw-count-val', s.draw_count ?? 10);
       this._setText('random-interval-val', (s.random_interval ?? 3) + 's');
-      this._setText('list-cols-val', s.list_columns ?? 1);
+      this._setText('list-cols-val', s.list_columns ?? 3);
 
       this._highlightThemeBtns(s.theme_mode ?? 'dark');
       this._loadBgList();
@@ -54,6 +53,9 @@ const ST = {
 
       // 加载主页标题设置
       this.renderHomeTitleSettings();
+
+      // 加载强调色设置
+      this._renderAccentUI();
 
       // Cache info
       API.getCacheInfo(S.profileId).then(info => {
@@ -69,7 +71,13 @@ const ST = {
   // === Theme ===
 
   applyTheme(mode) {
-    const theme = THEMES[mode] ?? THEMES.dark;
+    // Resolve system to actual mode
+    let effectiveMode = mode;
+    if (mode === 'system') {
+      effectiveMode = window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light';
+    }
+
+    const theme = THEMES[effectiveMode] ?? THEMES.dark;
     const root = document.documentElement;
     const set = (k, v) => root.style.setProperty(k, v);
     set('--c-bg', theme.bg);
@@ -97,13 +105,23 @@ const ST = {
     // Sync js-check badge colors
     if (typeof _syncJsCheck === 'function') _syncJsCheck();
     this._highlightThemeBtns(mode);
+
+    // Apply correct accent based on resulting effective mode
+    this.applyCurrentAccent();
+
+    // If accent_mode is 'extract', auto-extract on theme switch
+    if (App._settings?.accent_mode === 'extract') {
+      this.extractAccent();
+    }
   },
 
   _highlightThemeBtns(mode) {
     const d = document.getElementById('btn-theme-dark');
     const l = document.getElementById('btn-theme-light');
+    const s = document.getElementById('btn-theme-system');
     if (d) d.style.borderColor = mode === 'dark' ? 'var(--c-accent)' : 'transparent';
     if (l) l.style.borderColor = mode === 'light' ? 'var(--c-accent)' : 'transparent';
+    if (s) s.style.borderColor = mode === 'system' ? 'var(--c-accent)' : 'transparent';
   },
 
   _highlightReverseBtns(enabled) {
@@ -133,18 +151,201 @@ const ST = {
 
   // === Accent ===
 
-  applyAccent(color) {
+  /** Apply accent color visually and optionally save to a specific mode */
+  applyAccent(color, forMode) {
+    if (forMode) {
+      // Save to mode-specific storage
+      if (forMode === 'dark') {
+        App._settings.accent_color_dark = color;
+        API.saveSettings(S.profileId, { accent_color_dark: color });
+        try { localStorage.setItem('pa_accent_color_dark', color); } catch (e) { /* ignore */ }
+      } else {
+        App._settings.accent_color_light = color;
+        API.saveSettings(S.profileId, { accent_color_light: color });
+        try { localStorage.setItem('pa_accent_color_light', color); } catch (e) { /* ignore */ }
+      }
+      // Only apply visually if this mode matches current effective theme
+      const effectiveTheme = this._getEffectiveTheme();
+      if (forMode === effectiveTheme) {
+        this._applyAccentVisual(color);
+      }
+    } else {
+      // Direct visual apply
+      this._applyAccentVisual(color);
+    }
+
+    // Add to recent colors
+    this._addRecentColor(color);
+
+    // Update swatches
+    this._updateAccentSwatches();
+  },
+
+  /** Apply the correct accent color for the current effective theme */
+  applyCurrentAccent() {
+    const effectiveTheme = this._getEffectiveTheme();
+    const color = effectiveTheme === 'dark'
+      ? (App._settings.accent_color_dark || '#4A9EFF')
+      : (App._settings.accent_color_light || '#003D7A');
+    this._applyAccentVisual(color);
+  },
+
+  /** Internal: apply accent CSS vars without saving */
+  _applyAccentVisual(color) {
     const root = document.documentElement;
     root.style.setProperty('--c-accent', color);
     const darken = (h, a) => { const n = parseInt(h.slice(1), 16); const r = Math.max(0, ((n>>16)&255) - a); const g = Math.max(0, ((n>>8)&255) - a); const b = Math.max(0, (n&255) - a); return `rgb(${r},${g},${b})`; };
     root.style.setProperty('--c-accent2', darken(color, 30));
-    root.style.setProperty('--c-accent-bg', `rgba(${parseInt(color.slice(1,3),16)},${parseInt(color.slice(3,5),16)},${parseInt(color.slice(5,7),16)},0.12)`);
-    API.saveSettings(S.profileId, { accent_color: color });
-    App._settings.accent_color = color;
-    try { localStorage.setItem('pa_accent_color', color); } catch (e) { /* ignore */ }
+    const parseHex = (h) => [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
+    const [r, g, b] = parseHex(color);
+    root.style.setProperty('--c-accent-bg', `rgba(${r},${g},${b},0.12)`);
   },
 
-  extractAccent() {
+  /** Get effective dark/light mode, resolving 'system' */
+  _getEffectiveTheme() {
+    const mode = App._settings?.theme_mode || 'dark';
+    if (mode === 'system') {
+      return window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light';
+    }
+    return mode;
+  },
+
+  /** Open color picker for a specific mode */
+  openColorPicker(forMode) {
+    // Create overlay
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:transparent;';
+    document.body.appendChild(overlay);
+
+    // Create color input
+    const input = document.createElement('input');
+    input.type = 'color';
+    const currentColor = forMode === 'dark'
+      ? (App._settings.accent_color_dark || '#4A9EFF')
+      : (App._settings.accent_color_light || '#003D7A');
+    input.value = currentColor;
+    input.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:300px;height:200px;border:none;padding:0;cursor:pointer;background:none;';
+
+    overlay.appendChild(input);
+
+    // Handle color change
+    const onChange = () => {
+      this.applyAccent(input.value, forMode);
+      document.body.removeChild(overlay);
+    };
+
+    input.addEventListener('input', () => {
+      this.applyAccent(input.value, forMode);
+    });
+
+    input.addEventListener('change', onChange);
+    overlay.addEventListener('click', onChange);
+
+    // Trigger native color picker
+    setTimeout(() => input.click(), 10);
+  },
+
+  /** Set accent mode (custom/extract) */
+  setAccentMode(mode) {
+    App._settings.accent_mode = mode;
+    API.saveSettings(S.profileId, { accent_mode: mode });
+    this._highlightAccentBtns(mode);
+
+    const panel = document.getElementById('accent-custom-panel');
+    const extractPanel = document.getElementById('accent-extract-panel');
+    if (mode === 'custom') {
+      if (panel) panel.style.display = '';
+      if (extractPanel) extractPanel.style.display = 'none';
+    } else {
+      if (panel) panel.style.display = 'none';
+      if (extractPanel) extractPanel.style.display = '';
+      this.extractAccent();
+    }
+  },
+
+  _highlightAccentBtns(mode) {
+    const customBtn = document.getElementById('btn-accent-custom');
+    const extractBtn = document.getElementById('btn-accent-extract');
+    if (customBtn) customBtn.classList.toggle('active', mode === 'custom');
+    if (extractBtn) extractBtn.classList.toggle('active', mode === 'extract');
+  },
+
+  /** Add a color to recent colors, max 6 */
+  _addRecentColor(color) {
+    let recent = [];
+    try {
+      recent = JSON.parse(App._settings.accent_recent_colors || '[]');
+    } catch (e) { recent = []; }
+
+    // Remove duplicate
+    const idx = recent.indexOf(color);
+    if (idx >= 0) recent.splice(idx, 1);
+
+    // Add to front
+    recent.unshift(color);
+
+    // Keep max 6
+    if (recent.length > 6) recent = recent.slice(0, 6);
+
+    App._settings.accent_recent_colors = JSON.stringify(recent);
+    API.saveSettings(S.profileId, { accent_recent_colors: JSON.stringify(recent) });
+    this._renderRecentColors(recent);
+  },
+
+  /** Render recent color swatches */
+  _renderRecentColors(recent) {
+    const container = document.getElementById('accent-recent-colors');
+    if (!container) return;
+    container.innerHTML = '';
+    if (!recent || recent.length === 0) return;
+    for (const color of recent) {
+      const swatch = document.createElement('div');
+      swatch.className = 'accent-swatch';
+      swatch.style.background = color;
+      swatch.title = color;
+      swatch.onclick = () => {
+        const effectiveTheme = this._getEffectiveTheme();
+        this.applyAccent(color, effectiveTheme);
+      };
+      container.appendChild(swatch);
+    }
+  },
+
+  /** Update accent UI elements */
+  _renderAccentUI() {
+    const s = App._settings;
+    // Sync accent mode buttons
+    this._highlightAccentBtns(s.accent_mode || 'custom');
+
+    // Show/hide panels
+    const panel = document.getElementById('accent-custom-panel');
+    const extractPanel = document.getElementById('accent-extract-panel');
+    if (s.accent_mode === 'extract') {
+      if (panel) panel.style.display = 'none';
+      if (extractPanel) extractPanel.style.display = '';
+    } else {
+      if (panel) panel.style.display = '';
+      if (extractPanel) extractPanel.style.display = 'none';
+    }
+
+    // Update swatches
+    this._updateAccentSwatches();
+
+    // Render recent colors
+    let recent = [];
+    try { recent = JSON.parse(s.accent_recent_colors || '[]'); } catch (e) { recent = []; }
+    this._renderRecentColors(recent);
+  },
+
+  _updateAccentSwatches() {
+    const darkSwatch = document.getElementById('accent-swatch-dark');
+    const lightSwatch = document.getElementById('accent-swatch-light');
+    if (darkSwatch) darkSwatch.style.background = App._settings.accent_color_dark || '#4A9EFF';
+    if (lightSwatch) lightSwatch.style.background = App._settings.accent_color_light || '#003D7A';
+  },
+
+  /** Extract accent colors from background image for both dark and light themes */
+  extractAccent(forMode) {
     const bgFile = App._settings.bg_image;
     if (!bgFile) { Toast.show('请先选择背景图片', 'info'); return; }
 
@@ -154,41 +355,105 @@ const ST = {
         return;
       }
 
-      // WCAG contrast check against current theme background (same logic as theme-extractor.js)
       const palette = result.palette;
-      const isDark = (App._settings?.theme_mode ?? 'dark') === 'dark';
-      const bgHex = isDark ? '#1c1c1c' : '#f3f3f3';
-      const bgRgb = hexToRgb(bgHex);
-      const MIN_CONTRAST = 5.0;
 
-      let bestColor = null;
-      for (const hex of palette) {
-        const rgb = hexToRgb(hex);
-        if (contrastRatio(rgb.r, rgb.g, rgb.b, bgRgb.r, bgRgb.g, bgRgb.b) >= MIN_CONTRAST) {
-          bestColor = hex;
-          break;
-        }
+      // Extract for dark background (#1c1c1c)
+      const darkColor = this._pickBestColor(palette, true);
+      // Extract for light background (#f3f3f3)
+      const lightColor = this._pickBestColor(palette, false);
+
+      if (forMode === 'dark' || !forMode) {
+        this.applyAccent(darkColor, 'dark');
+      }
+      if (forMode === 'light' || !forMode) {
+        this.applyAccent(lightColor, 'light');
       }
 
-      // If none pass, HSL-adapt the top candidate
-      if (!bestColor) {
-        const top = hexToRgb(palette[0]);
-        const hsl = rgbToHsl(top.r, top.g, top.b);
-        hsl.s = Math.min(1, hsl.s + 0.15);
-        if (isDark) {
-          hsl.l = Math.max(0.55, hsl.l);
-        } else {
-          hsl.l = Math.min(0.40, hsl.l);
-        }
-        const adapted = hslToRgb(hsl.h, hsl.s, hsl.l);
-        bestColor = rgbToHex(adapted.r, adapted.g, adapted.b);
+      // Apply current visual
+      if (!forMode) {
+        this.applyCurrentAccent();
       }
 
-      this.applyAccent(bestColor);
-      this._setVal('set-accent', bestColor);
-      Toast.show('强调色已提取: ' + bestColor, 'success');
+      Toast.show('强调色已提取', 'success');
     }).catch(e => {
       Toast.show('提取失败: ' + (e.message || e), 'error');
+    });
+  },
+
+  /** Pick the best color from a palette for a given background (dark/light) */
+  _pickBestColor(palette, isDark) {
+    const bgHex = isDark ? '#1c1c1c' : '#f3f3f3';
+    const bgRgb = hexToRgb(bgHex);
+    const MIN_CONTRAST = 5.0;
+
+    let bestColor = null;
+    for (const hex of palette) {
+      const rgb = hexToRgb(hex);
+      if (contrastRatio(rgb.r, rgb.g, rgb.b, bgRgb.r, bgRgb.g, bgRgb.b) >= MIN_CONTRAST) {
+        bestColor = hex;
+        break;
+      }
+    }
+
+    // If none pass, HSL-adapt the top candidate
+    if (!bestColor) {
+      const top = hexToRgb(palette[0]);
+      const hsl = rgbToHsl(top.r, top.g, top.b);
+      hsl.s = Math.min(1, hsl.s + 0.15);
+      if (isDark) {
+        hsl.l = Math.max(0.55, hsl.l);
+      } else {
+        hsl.l = Math.min(0.40, hsl.l);
+      }
+      const adapted = hslToRgb(hsl.h, hsl.s, hsl.l);
+      bestColor = rgbToHex(adapted.r, adapted.g, adapted.b);
+    }
+
+    return bestColor;
+  },
+
+  // === System theme listener ===
+
+  initSystemThemeListener() {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    mediaQuery.addEventListener('change', (e) => {
+      if (App._settings?.theme_mode === 'system') {
+        const mode = e.matches ? 'dark' : 'light';
+        const theme = THEMES[mode];
+        if (!theme) return;
+
+        // Apply theme visually
+        const root = document.documentElement;
+        const set = (k, v) => root.style.setProperty(k, v);
+        set('--c-bg', theme.bg);
+        set('--c-surface', theme.surface);
+        set('--c-surface2', theme.surface2);
+        set('--c-card', theme.card);
+        set('--c-card-hover', theme.cardHover);
+        set('--c-border', theme.border);
+        set('--c-border-light', theme.borderL);
+        set('--c-text', theme.text);
+        set('--c-text2', theme.text2);
+        set('--c-text3', theme.text3);
+        document.body.style.background = theme.bg;
+        document.body.style.color = theme.text;
+
+        const h2r = (hex) => { const n = parseInt(hex.slice(1), 16); return `${(n>>16)&255},${(n>>8)&255},${n&255}`; };
+        const srgb = h2r(theme.surface).split(',');
+        set('--c-surface-r', srgb[0]); set('--c-surface-g', srgb[1]); set('--c-surface-b', srgb[2]);
+        const crgb = h2r(theme.card || '#2a2a2a').split(',');
+        set('--c-card-r', crgb[0]); set('--c-card-g', crgb[1]); set('--c-card-b', crgb[2]);
+
+        if (typeof _syncJsCheck === 'function') _syncJsCheck();
+
+        // Apply correct accent
+        this.applyCurrentAccent();
+
+        // If accent_mode is extract, auto-extract
+        if (App._settings?.accent_mode === 'extract') {
+          this.extractAccent();
+        }
+      }
     });
   },
 
@@ -205,8 +470,7 @@ const ST = {
     }
     if (!bgLayer || !S.profileId) return;
 
-    // Update state synchronously to avoid race: user may click "extract accent"
-    // before the async thumbnail load completes.
+    // Update state synchronously to avoid race
     App._settings.bg_image = filename;
     this._loadBgList();
 
@@ -216,11 +480,15 @@ const ST = {
         bgLayer.style.backgroundImage = `url(${thumb.dataUrl})`;
         bgLayer.style.backgroundSize = 'cover';
         bgLayer.style.backgroundPosition = 'center';
-        // Use saved opacity, NEVER read from DOM (DOM may have stale profile's value)
         const savedOp = (App._settings.bg_opacity != null && App._settings.bg_opacity > 0) ? App._settings.bg_opacity : 0.5;
         bgLayer.style.opacity = String(savedOp);
         await API.saveSettings(S.profileId, { bg_image: filename, bg_opacity: savedOp });
         App._settings.bg_opacity = savedOp;
+
+        // If accent_mode is 'extract', auto-extract
+        if (App._settings?.accent_mode === 'extract') {
+          this.extractAccent();
+        }
       }
     } catch (e) {
       Toast.show('背景图加载失败', 'error');
@@ -459,7 +727,7 @@ const ST = {
     App._settings.reverse_search_enabled = enabled;
     API.saveSettings(S.profileId, { reverse_search_enabled: enabled });
     this.applyReverseSearch(enabled);
-    // 触发重新搜索
+    // Trigger re-search
     document.getElementById('search-input')?.dispatchEvent(new Event('input'));
   },
 

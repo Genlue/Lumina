@@ -175,14 +175,14 @@ fn init_profile_db_schema(conn: &Connection) -> rusqlite::Result<()> {
                 theme_mode      TEXT NOT NULL DEFAULT 'dark',
                 accent_color    TEXT NOT NULL DEFAULT '#6D79F6',
                 bg_image        TEXT,
-                bg_blur         INTEGER NOT NULL DEFAULT 20,
-                bg_opacity      REAL NOT NULL DEFAULT 0,
-                sidebar_width   INTEGER NOT NULL DEFAULT 270,
-                sidebar_opacity REAL NOT NULL DEFAULT 0.82,
-                draw_count      INTEGER NOT NULL DEFAULT 3,
-                card_opacity    REAL NOT NULL DEFAULT 1,
-                card_blur       INTEGER NOT NULL DEFAULT 0,
-                sidebar_font    INTEGER NOT NULL DEFAULT 14,
+                bg_blur         INTEGER NOT NULL DEFAULT 0,
+                bg_opacity      REAL NOT NULL DEFAULT 1.0,
+                sidebar_width   INTEGER NOT NULL DEFAULT 150,
+                sidebar_opacity REAL NOT NULL DEFAULT 0.7,
+                draw_count      INTEGER NOT NULL DEFAULT 10,
+                card_opacity    REAL NOT NULL DEFAULT 0.7,
+                card_blur       INTEGER NOT NULL DEFAULT 16,
+                sidebar_font    INTEGER NOT NULL DEFAULT 20,
                 random_interval INTEGER NOT NULL DEFAULT 3,
                 thumbnail_size  INTEGER NOT NULL DEFAULT 400
             );
@@ -268,6 +268,17 @@ fn init_profile_db_schema(conn: &Connection) -> rusqlite::Result<()> {
         )?;
         conn.execute("INSERT INTO _schema_version (version) VALUES (8)", [])?;
         println!("[DB] Profile DB migration V8 applied (home_title)");
+    }
+
+    if version < 9 {
+        conn.execute_batch(
+            "ALTER TABLE settings ADD COLUMN accent_mode TEXT NOT NULL DEFAULT 'custom';
+             ALTER TABLE settings ADD COLUMN accent_color_dark TEXT NOT NULL DEFAULT '#4A9EFF';
+             ALTER TABLE settings ADD COLUMN accent_color_light TEXT NOT NULL DEFAULT '#003D7A';
+             ALTER TABLE settings ADD COLUMN accent_recent_colors TEXT;"
+        )?;
+        conn.execute("INSERT INTO _schema_version (version) VALUES (9)", [])?;
+        println!("[DB] Profile DB migration V9 applied (accent modes)");
     }
 
     Ok(())

@@ -81,6 +81,10 @@ pub struct Settings {
     pub reverse_search_enabled: i64,  // 0=关, 1=开
     pub home_title: Option<String>,  // 主页自定义标题
     pub list_columns: i64,  // 列表视图列数, 1-5
+    pub accent_mode: String,  // 'custom' | 'extract'
+    pub accent_color_dark: String,
+    pub accent_color_light: String,
+    pub accent_recent_colors: Option<String>,  // JSON array of recent hex colors
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
