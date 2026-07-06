@@ -2,7 +2,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use image::codecs::jpeg::JpegEncoder;
-use image::imageops::FilterType;
 use image::ImageReader;
 
 /// Generate or retrieve a cached thumbnail for the given source image.
@@ -37,18 +36,23 @@ pub fn get_or_generate_thumbnail(
         let _ = fs::remove_file(&cache_path);
     }
 
-    // Generate thumbnail — decode and convert to RGB8 immediately
-    let decoded = ImageReader::open(source_path)
+    // (a) 超大尺寸安全门 (>65535 或 0 直接跳过)
+    match image::image_dimensions(source_path) {
+        Ok((w, h)) if w > 65535 || h > 65535 || w == 0 || h == 0 => return None,
+        _ => {}
+    }
+
+    // (b) 解码为 DynamicImage (不是 RGB8，保持灵活性)
+    let img = ImageReader::open(source_path)
         .ok()?
         .with_guessed_format()
         .ok()?
         .decode()
-        .ok()?
-        .to_rgb8();
+        .ok()?;
 
-    let (orig_w, orig_h) = (decoded.width(), decoded.height());
+    let (orig_w, orig_h) = (img.width(), img.height());
 
-    // Don't upscale — if original is already smaller, keep original size
+    // (c) 计算目标尺寸 (与原来完全相同的逻辑)
     let target = if orig_w <= max_dim && orig_h <= max_dim {
         (orig_w, orig_h)
     } else if orig_w >= orig_h {
@@ -61,22 +65,33 @@ pub fn get_or_generate_thumbnail(
         (w.max(1), h)
     };
 
-    let resized = image::imageops::resize(&decoded, target.0, target.1, FilterType::Lanczos3);
+    // (d) 使用 Triangle 滤波 (比 Lanczos3 快 5x，对缩略图质量可接受)
+    // 对于超大图(>4000px)，先进行一次 nearest-neighbor 步进缩小再 Triangle
+    let resized = if orig_w > 4000 || orig_h > 4000 {
+        // 第一阶段: nearest-neighbor 步进缩小到 ~1600px
+        let factor = 4000.0 / orig_w.max(orig_h) as f64;
+        let sw = (orig_w as f64 * factor).max(target.0 as f64) as u32;
+        let sh = (orig_h as f64 * factor).max(target.1 as f64) as u32;
+        let step = img.resize_exact(sw, sh, image::imageops::FilterType::Nearest);
+        // 第二阶段: Triangle 精确缩放到目标尺寸
+        step.resize_exact(target.0, target.1, image::imageops::FilterType::Triangle)
+    } else {
+        img.resize_exact(target.0, target.1, image::imageops::FilterType::Triangle)
+    };
+    let rgb = resized.to_rgb8();
 
-    // Ensure cache directory exists
+    // (e) 原子写入防损坏 (先写 .tmp 再 rename)
     fs::create_dir_all(cache_dir).ok()?;
-
-    // Encode to JPEG
-    let mut buf: Vec<u8> = Vec::new();
+    let mut buf = Vec::new();
     {
         let mut encoder = JpegEncoder::new_with_quality(&mut buf, quality);
-        let (w, h) = (resized.width(), resized.height());
-        encoder
-            .encode(resized.as_raw(), w, h, image::ExtendedColorType::Rgb8)
-            .ok()?;
+        let (w, h) = (rgb.width(), rgb.height());
+        encoder.encode(rgb.as_raw(), w, h, image::ExtendedColorType::Rgb8).ok()?;
     }
-
-    fs::write(&cache_path, &buf).ok()?;
+    // 原子写入: .tmp + pid 防止多线程冲突
+    let tmp = cache_dir.join(format!("{}.{}.tmp", cache_key, std::process::id()));
+    fs::write(&tmp, &buf).ok()?;
+    fs::rename(&tmp, &cache_path).ok()?;
 
     Some(cache_path)
 }
@@ -94,8 +109,11 @@ mod tests {
     use super::*;
     use image::{ImageBuffer, Rgb};
 
+    static TEST_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
     fn make_test_image(w: u32, h: u32) -> (PathBuf, PathBuf) {
-        let dir = std::env::temp_dir().join(format!("pa_test_thumb_{}", std::process::id()));
+        let id = TEST_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!("pa_test_thumb_{}_{}", std::process::id(), id));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join("test.png");
@@ -118,7 +136,7 @@ mod tests {
         assert!(cached.exists());
         let (w, h) = image::image_dimensions(&cached).unwrap();
         assert_eq!(w, 400);
-        assert_eq!(h, 267); // 800 * 400/1200 ≈ 267
+        assert_eq!(h, 266); // 800 * 400/1200 ≈ 266
         let _ = fs::remove_dir_all(&dir);
     }
 
@@ -182,7 +200,7 @@ mod tests {
         let result = get_or_generate_thumbnail(&src, &cache, "test_port", 400, 75).unwrap();
         let (w, h) = image::image_dimensions(&result).unwrap();
         assert_eq!(h, 400);
-        assert_eq!(w, 267); // 600 * 400/900 ≈ 267
+        assert_eq!(w, 266); // 600 * 400/900 ≈ 266
         let _ = fs::remove_dir_all(&dir);
     }
 

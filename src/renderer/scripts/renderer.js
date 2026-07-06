@@ -327,12 +327,13 @@ const R = {
         const ts = App._settings.thumbnail_size ?? 400;
         API.getThumbnail(S.profileId, imageData.name, imageData._folder, ts)
           .then(thumb => {
+            if (!thumb || !thumb.dataUrl) { img.removeAttribute('data-src'); return; }
             img.src = thumb.dataUrl;
             if (thumb.width) img.width = thumb.width;
             if (thumb.height) img.height = thumb.height;
             img.removeAttribute('data-src');
           })
-          .catch(() => { img.src = ''; img.removeAttribute('data-src'); });
+          .catch(() => { img.removeAttribute('data-src'); });
         this._imgObserver.unobserve(img);
       }
     }, { rootMargin: '200px' });

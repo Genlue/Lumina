@@ -318,10 +318,10 @@ pub async fn files_get_thumbnail(
             .and_then(|f| repos::albums::get_album_by_folder(&p_conn, &profile_id, f))
             .map(|a| a.id);
         repos::images::get_image_by_name(&p_conn, &profile_id, &filename, album_id)
-            .map(|img| format!("{}_{}", img.id, max_dim))
+            .map(|img| format!("{}_{}_v2", img.id, max_dim))
             .unwrap_or_else(|| {
                 // Fallback: hash the canonical path for images not yet in DB
-                format!("{:x}_{}", simple_hash(&file_path.to_string_lossy()), max_dim)
+                format!("{:x}_{}_v2", simple_hash(&file_path.to_string_lossy()), max_dim)
             })
     };
 

@@ -85,10 +85,15 @@ fn scan_dir_recursive(
                 continue;
             }
             if let Ok(meta) = fs::metadata(&entry.path()) {
-                let (width, height) = get_image_dimensions(&entry.path());
+                let file_size = meta.len();
+                let (width, height) = if file_size > 20_000_000 {
+                    (None, None) // >20MB 跳过尺寸读取加速扫描
+                } else {
+                    get_image_dimensions(&entry.path())
+                };
                 root_files.push(FileInfo {
                     name: entry_name,
-                    size: meta.len(),
+                    size: file_size,
                     last_modified: meta.modified().ok()
                         .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                         .map(|d| d.as_millis() as f64)
@@ -142,10 +147,15 @@ fn scan_file_list(dir_path: &Path) -> Result<Vec<FileInfo>, std::io::Error> {
         let name = entry.file_name().to_string_lossy().to_string();
         if should_exclude(&name) || !is_image_file(&name) { continue; }
         let meta = entry.metadata()?;
-        let (width, height) = get_image_dimensions(&entry.path());
+        let file_size = meta.len();
+        let (width, height) = if file_size > 20_000_000 {
+            (None, None)
+        } else {
+            get_image_dimensions(&entry.path())
+        };
         results.push(FileInfo {
             name,
-            size: meta.len(),
+            size: file_size,
             last_modified: meta.modified().ok()
                 .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                 .map(|d| d.as_millis() as f64)
