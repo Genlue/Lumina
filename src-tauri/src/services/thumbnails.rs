@@ -1,8 +1,12 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use std::io::BufReader;
 use image::codecs::jpeg::JpegEncoder;
 use image::ImageReader;
+use image::DynamicImage;
+// jpeg_decoder 用于超大 JPEG 的 IDCT 缩放解码
+use jpeg_decoder as jd;
 
 /// Generate or retrieve a cached thumbnail for the given source image.
 ///
@@ -36,23 +40,13 @@ pub fn get_or_generate_thumbnail(
         let _ = fs::remove_file(&cache_path);
     }
 
-    // (a) 超大尺寸安全门 (>65535 或 0 直接跳过)
-    match image::image_dimensions(source_path) {
-        Ok((w, h)) if w > 65535 || h > 65535 || w == 0 || h == 0 => return None,
-        _ => {}
+    // 快速读取文件头获取尺寸
+    let (orig_w, orig_h) = image::image_dimensions(source_path).ok()?;
+    if orig_w > 65535 || orig_h > 65535 || orig_w == 0 || orig_h == 0 {
+        return None;
     }
 
-    // (b) 解码为 DynamicImage (不是 RGB8，保持灵活性)
-    let img = ImageReader::open(source_path)
-        .ok()?
-        .with_guessed_format()
-        .ok()?
-        .decode()
-        .ok()?;
-
-    let (orig_w, orig_h) = (img.width(), img.height());
-
-    // (c) 计算目标尺寸 (与原来完全相同的逻辑)
+    // 计算目标尺寸（与原来相同）
     let target = if orig_w <= max_dim && orig_h <= max_dim {
         (orig_w, orig_h)
     } else if orig_w >= orig_h {
@@ -65,20 +59,45 @@ pub fn get_or_generate_thumbnail(
         (w.max(1), h)
     };
 
-    // (d) 使用 Triangle 滤波 (比 Lanczos3 快 5x，对缩略图质量可接受)
-    // 对于超大图(>4000px)，先进行一次 nearest-neighbor 步进缩小再 Triangle
-    let resized = if orig_w > 4000 || orig_h > 4000 {
-        // 第一阶段: nearest-neighbor 步进缩小到 ~1600px
-        let factor = 4000.0 / orig_w.max(orig_h) as f64;
-        let sw = (orig_w as f64 * factor).max(target.0 as f64) as u32;
-        let sh = (orig_h as f64 * factor).max(target.1 as f64) as u32;
-        let step = img.resize_exact(sw, sh, image::imageops::FilterType::Nearest);
-        // 第二阶段: Triangle 精确缩放到目标尺寸
-        step.resize_exact(target.0, target.1, image::imageops::FilterType::Triangle)
+    // 判断解码策略
+    let pixel_count = (orig_w as u64) * (orig_h as u64);
+    let is_jpeg = is_jpeg_file(source_path);
+
+    // 解码为 DynamicImage
+    let img = if pixel_count > 30_000_000 && is_jpeg {
+        // ★ 超大 JPEG：使用 jpeg-decoder 的 IDCT 缩放解码，不解全图
+        // 16000x12000 → 2000x1500 (1/8 IDCT scale)，内存从 576MB→9MB
+        decode_jpeg_scaled(source_path, target.0, target.1)?
+    } else if pixel_count > 30_000_000 {
+        // ★ 超大非 JPEG（PNG 等）：无法缩放解码，跳过缩略图
+        return None;
     } else {
-        img.resize_exact(target.0, target.1, image::imageops::FilterType::Triangle)
+        // 正常尺寸：用 image crate 全解码
+        let reader = ImageReader::open(source_path)
+            .ok()?
+            .with_guessed_format()
+            .ok()?;
+
+        // 保留 v2.4.2 的两级缩放优化：>4000px 先 Nearest 缩小再 Triangle
+        if orig_w > 4000 || orig_h > 4000 {
+            let factor = 4000.0 / orig_w.max(orig_h) as f64;
+            let sw = (orig_w as f64 * factor).max(target.0 as f64) as u32;
+            let sh = (orig_h as f64 * factor).max(target.1 as f64) as u32;
+            let step = reader.decode().ok()?
+                .resize_exact(sw, sh, image::imageops::FilterType::Nearest);
+            step.resize_exact(target.0, target.1, image::imageops::FilterType::Triangle)
+        } else {
+            let decoded = reader.decode().ok()?;
+            if decoded.width() != target.0 || decoded.height() != target.1 {
+                decoded.resize_exact(target.0, target.1, image::imageops::FilterType::Triangle)
+            } else {
+                decoded
+            }
+        }
     };
-    let rgb = resized.to_rgb8();
+
+    // 转换为 RGB8 用于 JPEG 编码
+    let rgb = img.to_rgb8();
 
     // (e) 原子写入防损坏 (先写 .tmp 再 rename)
     fs::create_dir_all(cache_dir).ok()?;
@@ -102,6 +121,31 @@ fn source_mtime(path: &Path) -> Option<f64> {
     let meta = fs::metadata(path).ok()?;
     let dur = meta.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?;
     Some(dur.as_secs_f64())
+}
+
+/// Check if the file is a JPEG by extension.
+fn is_jpeg_file(path: &Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .map(|e| matches!(e.to_lowercase().as_str(), "jpg" | "jpeg"))
+        .unwrap_or(false)
+}
+
+/// 使用 jpeg-decoder 的 IDCT 缩放解码超大 JPEG。
+/// 不解全图，直接解码为接近缩略图尺寸的小图，内存和速度都大幅优化。
+fn decode_jpeg_scaled(source_path: &Path, target_w: u32, target_h: u32) -> Option<DynamicImage> {
+    let file = fs::File::open(source_path).ok()?;
+    let mut decoder = jd::Decoder::new(BufReader::new(file));
+    // 设置 IDCT 缩放目标尺寸（实际输出取最近的 1/n 因子）
+    decoder.scale(target_w as u16, target_h as u16).ok()?;
+    let pixels = decoder.decode().ok()?;
+    let info = decoder.info()?;
+    let (w, h) = (info.width as u32, info.height as u32);
+    if pixels.len() < (w as usize).saturating_mul(h as usize).saturating_mul(3) {
+        return None;
+    }
+    let buf = image::ImageBuffer::from_raw(w, h, pixels)?;
+    Some(DynamicImage::ImageRgb8(buf))
 }
 
 #[cfg(test)]

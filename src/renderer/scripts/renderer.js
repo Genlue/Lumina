@@ -327,11 +327,30 @@ const R = {
         const ts = App._settings.thumbnail_size ?? 400;
         API.getThumbnail(S.profileId, imageData.name, imageData._folder, ts)
           .then(thumb => {
-            if (!thumb || !thumb.dataUrl) { img.removeAttribute('data-src'); return; }
+            if (!thumb || !thumb.dataUrl) {
+                img.removeAttribute('data-src');
+                // 超大图显示占位图标
+                if (!img.src) {
+                    const card = img.closest('.image-card');
+                    if (card && !card.querySelector('.img-placeholder')) {
+                        const ph = document.createElement('div');
+                        ph.className = 'img-placeholder';
+                        ph.innerHTML = '<span data-icon="file-image" data-size="24"></span>';
+                        card.appendChild(ph);
+                    }
+                }
+                return;
+            }
             img.src = thumb.dataUrl;
             if (thumb.width) img.width = thumb.width;
             if (thumb.height) img.height = thumb.height;
             img.removeAttribute('data-src');
+            // 移除占位图标（如果有）
+            const card = img.closest('.image-card');
+            if (card) {
+                const ph = card.querySelector('.img-placeholder');
+                if (ph) ph.remove();
+            }
           })
           .catch(() => { img.removeAttribute('data-src'); });
         this._imgObserver.unobserve(img);
