@@ -12,7 +12,7 @@ use jpeg_decoder as jd;
 ///
 /// * `source_path` - Absolute path to the original image file.
 /// * `cache_dir`   - Directory to store cached thumbnails (e.g. `<profile>/.album/cache/thumbnails`).
-/// * `cache_key`   - Unique key for this thumbnail variant, e.g. `"{image_id}_{size}"`.
+/// * `cache_key`   - Unique key for this thumbnail variant, e.g. `"{file_hash}_{max_dim}"`.
 /// * `max_dim`     - Maximum pixel dimension (larger side). Image is never upscaled.
 /// * `quality`     - JPEG quality 1-100 (75-80 recommended).
 ///

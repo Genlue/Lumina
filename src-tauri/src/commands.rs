@@ -309,21 +309,10 @@ pub async fn files_get_thumbnail(
     // Thumbnail mode: generate or retrieve cached thumbnail
     let cache_dir = Path::new(&root).join(".album").join("cache").join("thumbnails");
 
-    // Look up image DB id for cache key
-    let cache_key = {
-        let (p_conn_arc, _) = get_profile_db(&app, &profile_id)?;
-        let p_conn = p_conn_arc.lock().map_err(|e| format!("Profile DB lock: {}", e))?;
-        let album_id = folder
-            .as_deref()
-            .and_then(|f| repos::albums::get_album_by_folder(&p_conn, &profile_id, f))
-            .map(|a| a.id);
-        repos::images::get_image_by_name(&p_conn, &profile_id, &filename, album_id)
-            .map(|img| format!("{}_{}_v2", img.id, max_dim))
-            .unwrap_or_else(|| {
-                // Fallback: hash the canonical path for images not yet in DB
-                format!("{:x}_{}_v2", simple_hash(&file_path.to_string_lossy()), max_dim)
-            })
-    };
+    // Cache key uses file-path hash only — zero DB queries, zero lock contention.
+    // The thumbnail service (get_or_generate_thumbnail) already validates freshness
+    // via mtime, so a file replaced at the same path gets a new thumbnail automatically.
+    let cache_key = format!("{:x}_{}_v2", simple_hash(&file_path.to_string_lossy()), max_dim);
 
     let fp = file_path.clone();
     let result = tauri::async_runtime::spawn_blocking(move || {
