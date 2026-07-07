@@ -55,19 +55,26 @@ const API = {
   },
 
   // === Files ===
+  /** In-memory thumbnail URL cache — avoids backend IPC + DB + disk on page re-switch */
+  _thumbCache: new Map(),
   /** Get a thumbnail (or full image). size: null/0 = full original, number = max px dimension. */
   async getThumbnail(profileId, filename, folder, size = null) {
+    const cacheKey = `${profileId}|${folder||''}|${filename}|${size||'full'}`;
+    const cached = this._thumbCache.get(cacheKey);
+    if (cached) return cached;
     const result = await this._invoke('files_get_thumbnail', { profileId, filename, folder, size });
-    // Convert file path to Tauri asset:// URL for direct disk loading
     if (result && result.dataUrl) {
       try {
         result.dataUrl = window.__TAURI__.core.convertFileSrc(result.dataUrl);
       } catch (e) {
         // Keep original path if convertFileSrc fails
       }
+      this._thumbCache.set(cacheKey, result);
     }
     return result;
   },
+  /** Clear thumbnail cache (useful when profile/settings change) */
+  clearThumbCache() { this._thumbCache.clear(); },
   /** Load full-resolution image (lightbox, background). */
   async getFullImage(profileId, filename, folder) {
     return this.getThumbnail(profileId, filename, folder, null);
