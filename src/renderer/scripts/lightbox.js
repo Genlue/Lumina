@@ -29,36 +29,72 @@ const Lb = {
     S._lbFromRandom = false;
   },
 
-  /** Update image and info */
+  /** Update image, info and star button */
   async _update() {
-    if (S.lbIdx < 0) return;
-    const img = S.filteredImages[S.lbIdx];
+    const idx = S.lbIdx;
+    if (idx < 0) return;
+    const img = S.filteredImages[idx];
     if (!img) return;
 
-    try {
-      const full = await API.getFullImage(S.profileId, img.name, img._folder);
-      document.getElementById('lightbox-img').src = full.dataUrl;
-    } catch {
-      // Fallback: try reading the file
-      try {
-        const blob = await API.readFile(S.profileId, img.name, img._folder);
-        document.getElementById('lightbox-img').src = URL.createObjectURL(blob);
-      } catch (e) {
-        console.error('Lightbox load failed:', e);
-      }
-    }
+    const lbImg = document.getElementById('lightbox-img');
 
-    document.getElementById('lightbox-name').textContent = img.name;
+    // 1. Update info immediately
+    document.getElementById('lightbox-name').textContent = img._displayName || img.name;
     const metaParts = [];
     if (img.size) metaParts.push(U.fmtSize(img.size));
     if (img.lastModified) metaParts.push(U.fmtDate(img.lastModified));
     document.getElementById('lightbox-meta').textContent = metaParts.join(' · ');
 
-    // Star state
+    // 2. Sync star button
+    const starBtn = document.getElementById('lightbox-star');
     const isFav = S.favoritesSet.has(img._key);
-    document.getElementById('lightbox-star').innerHTML = isFav ? '★' : Icons.icon('star', 14);
+    if (starBtn) {
+      if (isFav) {
+        starBtn.innerHTML = '<span data-icon="star" data-size="14" style="fill:var(--c-accent);stroke:var(--c-accent);"></span>';
+      } else {
+        starBtn.innerHTML = '<span data-icon="star" data-size="14"></span>';
+      }
+    }
 
-    document.getElementById('lightbox-zoom-level').textContent = Math.round(S.lbZoom * 100) + '%';
+    // 3. Create spinner if needed
+    let spinner = document.getElementById('lb-spinner');
+    if (!spinner) {
+      spinner = document.createElement('div');
+      spinner.id = 'lb-spinner';
+      spinner.className = 'lb-spinner';
+      document.getElementById('lightbox').appendChild(spinner);
+    }
+
+    // 4. Loading state
+    lbImg.classList.add('loading');
+    spinner.style.display = '';
+
+    // 5. Show thumbnail first (fast, already cached)
+    try {
+      const thumb = await API.getThumbnail(S.profileId, img.name, img._folder, 800);
+      if (S.lbIdx !== idx) return; // user navigated away
+      if (thumb && thumb.dataUrl) {
+        lbImg.src = thumb.dataUrl;
+      }
+    } catch (e) {
+      console.warn('[Lb] thumbnail load failed:', e);
+    }
+
+    // 6. Load full image
+    try {
+      const full = await API.getFullImage(S.profileId, img.name, img._folder);
+      if (S.lbIdx !== idx) return; // user navigated away while loading
+      lbImg.src = full.dataUrl;
+      await lbImg.decode();
+    } catch (e) {
+      console.warn('[Lb] full image load failed, keeping thumbnail:', e);
+    }
+
+    // 7. Done loading (only if still on the same image)
+    if (S.lbIdx === idx) {
+      lbImg.classList.remove('loading');
+      spinner.style.display = 'none';
+    }
   },
 
   _resetZoom() {
