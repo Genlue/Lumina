@@ -311,12 +311,9 @@ const R = {
     }
   },
 
-  /** Lazy load visible images (reuse observer, batch IPC) */
+  /** Lazy load visible images (reuse observer, individual IPC with memory cache) */
   _lazyLoad() {
     if (this._imgObserver) this._imgObserver.disconnect();
-    let batchTimer = null;
-    const pendingBatch = [];
-
     const images = document.querySelectorAll('#image-grid img[data-src]');
     this._imgObserver = new IntersectionObserver(entries => {
       for (const entry of entries) {
@@ -326,62 +323,35 @@ const R = {
         if (!key) continue;
         const imageData = S.filteredImages.find(i => (i._key || i.name) === key);
         if (!imageData) continue;
-        this._imgObserver.unobserve(img);
-        pendingBatch.push({ img, imageData });
-      }
-      // Batch submit via microtask
-      if (pendingBatch.length > 0 && !batchTimer) {
-        batchTimer = Promise.resolve().then(async () => {
-          batchTimer = null;
-          const batch = pendingBatch.splice(0);
-          if (batch.length === 0) return;
-          const ts = App._settings.thumbnail_size ?? 400;
-          const items = batch.map(b => ({ filename: b.imageData.name, folder: b.imageData._folder }));
-          try {
-            const thumbs = await API.getThumbnailsBatch(S.profileId, items, ts);
-            for (let i = 0; i < batch.length; i++) {
-              const b = batch[i];
-              const thumb = thumbs[i];
-              if (!thumb || !thumb.dataUrl) {
-                b.img.removeAttribute('data-src');
-                if (!b.img.src) {
-                  const card = b.img.closest('.image-card');
-                  if (card && !card.querySelector('.img-placeholder')) {
-                    const ph = document.createElement('div');
-                    ph.className = 'img-placeholder';
-                    ph.innerHTML = '<span data-icon="file-image" data-size="24"></span>';
-                    card.appendChild(ph);
-                  }
+
+        const ts = App._settings.thumbnail_size ?? 400;
+        API.getThumbnail(S.profileId, imageData.name, imageData._folder, ts)
+          .then(thumb => {
+            if (!thumb || !thumb.dataUrl) {
+                img.removeAttribute('data-src');
+                if (!img.src) {
+                    const card = img.closest('.image-card');
+                    if (card && !card.querySelector('.img-placeholder')) {
+                        const ph = document.createElement('div');
+                        ph.className = 'img-placeholder';
+                        ph.innerHTML = '<span data-icon="file-image" data-size="24"></span>';
+                        card.appendChild(ph);
+                    }
                 }
-                continue;
-              }
-              b.img.src = thumb.dataUrl;
-              if (thumb.width) b.img.width = thumb.width;
-              if (thumb.height) b.img.height = thumb.height;
-              b.img.removeAttribute('data-src');
-              const card = b.img.closest('.image-card');
-              if (card) {
+                return;
+            }
+            img.src = thumb.dataUrl;
+            if (thumb.width) img.width = thumb.width;
+            if (thumb.height) img.height = thumb.height;
+            img.removeAttribute('data-src');
+            const card = img.closest('.image-card');
+            if (card) {
                 const ph = card.querySelector('.img-placeholder');
                 if (ph) ph.remove();
-              }
             }
-          } catch (e) {
-            console.warn('[Batch] failed, falling back to individual loads:', e);
-            // Fallback: load each image individually
-            const ts = App._settings.thumbnail_size ?? 400;
-            for (const b of batch) {
-              API.getThumbnail(S.profileId, b.imageData.name, b.imageData._folder, ts)
-                .then(thumb => {
-                  if (!thumb || !thumb.dataUrl) { b.img.removeAttribute('data-src'); return; }
-                  b.img.src = thumb.dataUrl;
-                  if (thumb.width) b.img.width = thumb.width;
-                  if (thumb.height) b.img.height = thumb.height;
-                  b.img.removeAttribute('data-src');
-                })
-                .catch(() => { b.img.removeAttribute('data-src'); });
-            }
-          }
-        });
+          })
+          .catch(() => { img.removeAttribute('data-src'); });
+        this._imgObserver.unobserve(img);
       }
     }, { rootMargin: '200px' });
     images.forEach(img => this._imgObserver.observe(img));
