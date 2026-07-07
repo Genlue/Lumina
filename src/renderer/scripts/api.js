@@ -93,8 +93,8 @@ const API = {
         const key = `${profileId}|${r.folder||''}|${r.filename}|${size||'full'}`;
         if (r.dataUrl) {
           try { r.dataUrl = window.__TAURI__.core.convertFileSrc(r.dataUrl); } catch(e) {}
+          this._thumbCache.set(key, r);
         }
-        this._thumbCache.set(key, r);
         // Place at correct position matching input order
         results[uncachedIdx[j]] = r;
       }
