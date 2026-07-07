@@ -79,6 +79,14 @@ cargo test
 
 ## 更新日志
 
+### 2026-07-07 — v2.4.4
+
+- ⚡ **CSS 渲染管线彻底优化** — 消除 hover 大图卡顿，对标 Windows 资源管理器流畅度
+- 🎯 **`transition:all` 全部废除** — 12 处选择器改为具体属性（transform/border-color/box-shadow/background），浏览器不再每帧检查 200+ CSS 属性
+- 🎯 **`will-change: transform`** — 仅在 hover 时激活 GPU 合成层，大图缩放由 GPU 完成，不触发 CPU 重绘
+- 🎯 **`contain: layout style paint`** — 限制卡片内变化不泄漏到外层渲染树
+- 🛡️ **显存保护** — `will-change` 不加在基态，防止 200+ 卡片同时占用 GPU 层
+
 ### 2026-07-06 — v2.4.3
 
 - ⚡ **JPEG IDCT 缩放解码** — 170MB 大图不解全图，直接在 JPEG 频域缩小 64 倍再解码，内存从 576MB→9MB，速度从 3-8 秒→<200ms
