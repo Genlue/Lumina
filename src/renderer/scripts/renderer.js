@@ -365,7 +365,22 @@ const R = {
                 if (ph) ph.remove();
               }
             }
-          } catch (e) { console.warn('[Batch] failed:', e); }
+          } catch (e) {
+            console.warn('[Batch] failed, falling back to individual loads:', e);
+            // Fallback: load each image individually
+            const ts = App._settings.thumbnail_size ?? 400;
+            for (const b of batch) {
+              API.getThumbnail(S.profileId, b.imageData.name, b.imageData._folder, ts)
+                .then(thumb => {
+                  if (!thumb || !thumb.dataUrl) { b.img.removeAttribute('data-src'); return; }
+                  b.img.src = thumb.dataUrl;
+                  if (thumb.width) b.img.width = thumb.width;
+                  if (thumb.height) b.img.height = thumb.height;
+                  b.img.removeAttribute('data-src');
+                })
+                .catch(() => { b.img.removeAttribute('data-src'); });
+            }
+          }
         });
       }
     }, { rootMargin: '200px' });
