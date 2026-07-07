@@ -75,23 +75,28 @@ const API = {
   },
   /** Batch-load thumbnails — single IPC call for multiple images */
   async getThumbnailsBatch(profileId, items, size = 400) {
+    // Pre-fill results in input order (null = uncached)
+    const results = new Array(items.length).fill(null);
     const uncached = [];
-    const results = [];
-    for (const item of items) {
+    const uncachedIdx = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
       const key = `${profileId}|${item.folder||''}|${item.filename}|${size||'full'}`;
       const cached = this._thumbCache.get(key);
-      if (cached) { results.push(cached); }
-      else { uncached.push(item); }
+      if (cached) { results[i] = cached; }
+      else { uncached.push(item); uncachedIdx.push(i); }
     }
     if (uncached.length > 0) {
       const batch = await this._invoke('files_get_thumbnails_batch', { profileId, requests: uncached, size });
-      for (const r of batch) {
+      for (let j = 0; j < batch.length; j++) {
+        const r = batch[j];
         const key = `${profileId}|${r.folder||''}|${r.filename}|${size||'full'}`;
         if (r.dataUrl) {
           try { r.dataUrl = window.__TAURI__.core.convertFileSrc(r.dataUrl); } catch(e) {}
         }
         this._thumbCache.set(key, r);
-        results.push(r);
+        // Place at correct position matching input order
+        results[uncachedIdx[j]] = r;
       }
     }
     return results;
