@@ -87,6 +87,11 @@ cargo test
 - 🎯 **`contain: layout style paint`** — 限制卡片内变化不泄漏到外层渲染树
 - 🛡️ **显存保护** — `will-change` 不加在基态，防止 200+ 卡片同时占用 GPU 层
 
+### 2026-07-07 — v2.5.3
+
+- 🎯 **终极 hover 修复 — 基于 web 标准最佳实践** — 彻底移除所有 `will-change`，Chromium 在 `transform` 动画期间自动提升到 GPU 层，结束后释放。0 额外 GPU 层、0 建毁抖动、无死角
+- 📚 **参考** — 2024-2025 CSS 动画性能最佳实践：transform/opacity 过渡由浏览器自动管理 GPU 合成层，手动 `will-change` 在网格场景反而有害
+
 ### 2026-07-07 — v2.5.2
 
 - 🎯 **hover 零 GPU 包袱** — `will-change: transform` 从卡片基态移到 hover-only，200 张卡片不再常驻 200 个 GPU 合成层
