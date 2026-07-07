@@ -73,6 +73,29 @@ const API = {
     }
     return result;
   },
+  /** Batch-load thumbnails — single IPC call for multiple images */
+  async getThumbnailsBatch(profileId, items, size = 400) {
+    const uncached = [];
+    const results = [];
+    for (const item of items) {
+      const key = `${profileId}|${item.folder||''}|${item.filename}|${size||'full'}`;
+      const cached = this._thumbCache.get(key);
+      if (cached) { results.push(cached); }
+      else { uncached.push(item); }
+    }
+    if (uncached.length > 0) {
+      const batch = await this._invoke('files_get_thumbnails_batch', { profileId, requests: uncached, size });
+      for (const r of batch) {
+        const key = `${profileId}|${r.folder||''}|${r.filename}|${size||'full'}`;
+        if (r.dataUrl) {
+          try { r.dataUrl = window.__TAURI__.core.convertFileSrc(r.dataUrl); } catch(e) {}
+        }
+        this._thumbCache.set(key, r);
+        results.push(r);
+      }
+    }
+    return results;
+  },
   /** Clear thumbnail cache (useful when profile/settings change) */
   clearThumbCache() { this._thumbCache.clear(); },
   /** Load full-resolution image (lightbox, background). */

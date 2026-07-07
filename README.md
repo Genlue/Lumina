@@ -87,6 +87,12 @@ cargo test
 - 🎯 **`contain: layout style paint`** — 限制卡片内变化不泄漏到外层渲染树
 - 🛡️ **显存保护** — `will-change` 不加在基态，防止 200+ 卡片同时占用 GPU 层
 
+### 2026-07-07 — v2.7.0 — 批量缩略图加载
+
+- ⚡ **批量缩略图加载** — 新增 `files_get_thumbnails_batch` 命令，一次 IPC 调用加载全部可见缩略图，替代每张图单独 IPC 的 50 次调用模式
+- 🎯 **Observer 批量提交** — IntersectionObserver 不再逐张触发，改为微任务队列收集后统一批量请求
+- 📚 **参考实现** — KPhotoAlbum 单体存储 + Imervue GPU 虚拟滚动 + Desktop-Gallery 多线程解码
+
 ### 2026-07-07 — v2.6.0 — 权威实践重构
 
 - 🎯 **全盘清理：零 `will-change`、零 `transition:all`** — 基于 2024-2025 web 标准权威实践重构底层渲染。Chromium 自动管理 GPU 合成层，所有卡片 hover 流畅无死角

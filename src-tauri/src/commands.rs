@@ -4,6 +4,9 @@ use tauri::AppHandle;
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
+use serde::Deserialize;
+use serde::Serialize;
+
 use crate::db;
 use crate::db::DbState;
 use crate::models::*;
@@ -339,6 +342,54 @@ pub async fn files_get_thumbnail(
             })
         }
     }
+}
+
+#[derive(Deserialize)]
+pub struct ThumbReq {
+    filename: String,
+    folder: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct ThumbBatchResult {
+    filename: String,
+    folder: Option<String>,
+    data_url: Option<String>,
+}
+
+#[tauri::command]
+pub async fn files_get_thumbnails_batch(
+    app: AppHandle,
+    profile_id: String,
+    requests: Vec<ThumbReq>,
+    size: Option<u32>,
+) -> Result<Vec<ThumbBatchResult>, String> {
+    let root = get_profile_folder(&app, &profile_id)?;
+    let cache_dir = Path::new(&root).join(".album").join("cache").join("thumbnails");
+    let max_dim = size.unwrap_or(400);
+
+    // Use spawn_blocking to avoid blocking the async runtime
+    let root_c = root.clone();
+    let cache_dir_c = cache_dir.clone();
+    let results = tauri::async_runtime::spawn_blocking(move || {
+        requests.into_iter().map(|req| {
+            let fp = match &req.folder {
+                Some(sf) if !sf.is_empty() => Path::new(&root_c).join(sf).join(&req.filename),
+                _ => Path::new(&root_c).join(&req.filename),
+            };
+            let cache_key = format!("{:x}_{}_v2", simple_hash(&fp.to_string_lossy()), max_dim);
+            let data_url = services::thumbnails::get_or_generate_thumbnail(
+                &fp, &cache_dir_c, &cache_key, max_dim, 75
+            ).map(|p| p.to_string_lossy().to_string());
+            ThumbBatchResult {
+                filename: req.filename,
+                folder: req.folder,
+                data_url,
+            }
+        }).collect::<Vec<_>>()
+    }).await.map_err(|e| format!("Batch thumbnail error: {}", e))?;
+
+    Ok(results)
 }
 
 /// Simple non-cryptographic hash for cache key fallback when image not in DB.

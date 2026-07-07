@@ -44,6 +44,7 @@ pub fn run() {
             commands::scanner_list_folders,
             commands::scanner_list_subfolders,
             commands::files_get_thumbnail,
+            commands::files_get_thumbnails_batch,
             commands::files_rename,
             commands::files_move_to_trash,
             commands::files_permanent_delete,
