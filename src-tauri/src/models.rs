@@ -87,6 +87,14 @@ pub struct Settings {
     pub bg_transparent: bool,
     pub bg_effect_type: String,  // 'acrylic' | 'blur'
     pub sidebar_blur: i64,
+    // === 强调色模式独立隔离（v2.8.2）===
+    pub bg_image_accent_mode: String,              // 背景图模式下的强调色模式快照
+    pub bg_image_accent_color_dark: String,        // 背景图模式自定义深色
+    pub bg_image_accent_color_light: String,       // 背景图模式自定义浅色
+    pub transparent_accent_color_dark: String,     // 透明模式自定义深色
+    pub transparent_accent_color_light: String,    // 透明模式自定义浅色
+    pub extract_color_dark: String,                // 自动提取的深色（不覆盖自定义）
+    pub extract_color_light: String,               // 自动提取的浅色（不覆盖自定义）
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

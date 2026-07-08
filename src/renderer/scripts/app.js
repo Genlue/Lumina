@@ -295,6 +295,15 @@ const App = {
 
       await API.touchProfile(profileId);
       App._settings = await API.getSettings(profileId);
+      // v2.8.2: 同步强调色隔离字段默认值
+      const s = App._settings;
+      s.bg_image_accent_mode = s.bg_image_accent_mode || 'custom';
+      s.bg_image_accent_color_dark = s.bg_image_accent_color_dark || '#4A9EFF';
+      s.bg_image_accent_color_light = s.bg_image_accent_color_light || '#003D7A';
+      s.transparent_accent_color_dark = s.transparent_accent_color_dark || '#4A9EFF';
+      s.transparent_accent_color_light = s.transparent_accent_color_light || '#003D7A';
+      s.extract_color_dark = s.extract_color_dark || '#4A9EFF';
+      s.extract_color_light = s.extract_color_light || '#003D7A';
       await API.scanAll(profileId);
       await API.listFav(profileId);
       console.log('[App] After scanAll - albumFolders:', S.albumFolders);
@@ -372,6 +381,7 @@ const App = {
 
       // 透明背景同步
       if (App._settings.bg_transparent) {
+        App._settings.accent_mode = 'custom';  // 透明模式下强制自定义
         ST.applyBgTransparent(true);
         // 同步效果类型
         const efType = App._settings.bg_effect_type || 'acrylic';

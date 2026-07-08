@@ -79,7 +79,18 @@ cargo test
 
 ## 更新日志
 
-### 2026-07-08 — v2.8.1 — 透明背景增强 + 关键 Bug 修复
+### 2026-07-08 — v2.8.2 — 强调色模式独立隔离 + Bug 修复
+
+- 🏗️ **核心架构：强调色模式独立隔离** — 背景图模式和透明模式各自维护独立的强调色配置（accent_mode/accent_color），切换时互相快照/恢复，彻底解决状态污染。新增 7 个 DB 字段做隔离存储：`bg_image_accent_mode`、`bg_image_accent_color_dark/light`、`transparent_accent_color_dark/light`、`extract_color_dark/light`
+- 🎨 **自动提取不覆盖自定义颜色** — `extractAccent()` 不再修改 `accent_color_*`，提取色存入独立的 `extract_color_*` 字段。`applyCurrentAccent()` 根据 `accent_mode` 选择颜色来源（extract→提取色，custom→自定义色）
+- 🐛 **背景图缩略图竖排→横排修复** — 隐藏/恢复操作使用 `display: flex`（而非空字符串），修正 `bg-thumb-grid` 布局
+- 🐛 **透明模式隐藏整个背景图卡片** — 添加 `id="bg-image-card"` 包裹整个卡片，透明模式下全局隐藏
+- 🔧 **透明模式隐藏 bg_blur 滑块** — DWM 不支持动态调节模糊半径，两种效果下均隐藏模糊度滑块
+- 🔧 **透明模式强调色锁定** — 提取面板彻底隐藏 + 按钮锁定，仅显示自定义颜色面板
+- 🔧 **bg-overlay z-index 修复** — z-index 从 -1 改为 1，使 bg_opacity 在透明模式下正确生效
+- 🗃️ **DB V13 迁移** — 新增 7 个强调色隔离字段
+
+### 2026-07-08 — v2.8.1
 
 - 🔴 **关键修复：设置保存静默失败 Bug** — 修复 `repos/settings.rs` 中 SQL 参数编号错误（`?27/?28/?26` → `?26/?27/?28/?29`），导致所有 `bg_transparent` 等新字段写入数据库时 0 行受影响，数据实际从未保存。这直接导致"切换页面后按钮回弹"问题
 - 🔲 **Acrylic/Blur Behind 效果切换** — 设置页新增效果类型二选一按钮，Acrylic 模式保留模糊度+透明度双滑块，Blur Behind 模式隐藏模糊度滑块

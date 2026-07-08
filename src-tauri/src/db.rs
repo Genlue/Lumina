@@ -308,6 +308,20 @@ fn init_profile_db_schema(conn: &Connection) -> rusqlite::Result<()> {
         println!("[DB] Profile DB migration V12 applied (bg_effect_type)");
     }
 
+    if version < 13 {
+        conn.execute_batch(
+            "ALTER TABLE settings ADD COLUMN bg_image_accent_mode TEXT NOT NULL DEFAULT 'custom';
+             ALTER TABLE settings ADD COLUMN bg_image_accent_color_dark TEXT NOT NULL DEFAULT '#4A9EFF';
+             ALTER TABLE settings ADD COLUMN bg_image_accent_color_light TEXT NOT NULL DEFAULT '#003D7A';
+             ALTER TABLE settings ADD COLUMN transparent_accent_color_dark TEXT NOT NULL DEFAULT '#4A9EFF';
+             ALTER TABLE settings ADD COLUMN transparent_accent_color_light TEXT NOT NULL DEFAULT '#003D7A';
+             ALTER TABLE settings ADD COLUMN extract_color_dark TEXT NOT NULL DEFAULT '#4A9EFF';
+             ALTER TABLE settings ADD COLUMN extract_color_light TEXT NOT NULL DEFAULT '#003D7A';"
+        )?;
+        conn.execute("INSERT INTO _schema_version (version) VALUES (13)", [])?;
+        println!("[DB] Profile DB migration V13 applied (accent isolation fields)");
+    }
+
     Ok(())
 }
 
@@ -619,6 +633,13 @@ pub fn get_profile_conn(
             bg_transparent: i64,
             sidebar_blur: i64,
             bg_effect_type: String,
+            bg_image_accent_mode: Option<String>,
+            bg_image_accent_color_dark: Option<String>,
+            bg_image_accent_color_light: Option<String>,
+            transparent_accent_color_dark: Option<String>,
+            transparent_accent_color_light: Option<String>,
+            extract_color_dark: Option<String>,
+            extract_color_light: Option<String>,
         }
 
         let old = conn.query_row(
@@ -628,7 +649,10 @@ pub fn get_profile_conn(
                     thumbnail_size, toolbar_height, toolbar_blur, toolbar_opacity,
                     select_overlay_opacity, reverse_search_enabled, list_columns,
                     home_title, accent_mode, accent_color_dark,
-                    accent_color_light, bg_transparent, sidebar_blur, bg_effect_type
+                    accent_color_light, bg_transparent, sidebar_blur, bg_effect_type,
+                    bg_image_accent_mode, bg_image_accent_color_dark,
+                    bg_image_accent_color_light, transparent_accent_color_dark,
+                    transparent_accent_color_light, extract_color_dark, extract_color_light
              FROM settings WHERE profile_id != ?1 LIMIT 1",
             rusqlite::params![profile_id],
             |row| Ok(OldSettings {
@@ -649,6 +673,13 @@ pub fn get_profile_conn(
                 bg_transparent: row.get(25).unwrap_or(0),
                 sidebar_blur: row.get(26).unwrap_or(16),
                 bg_effect_type: row.get(27).unwrap_or_else(|_| "acrylic".to_string()),
+                bg_image_accent_mode: row.get(28).ok().flatten(),
+                bg_image_accent_color_dark: row.get(29).ok().flatten(),
+                bg_image_accent_color_light: row.get(30).ok().flatten(),
+                transparent_accent_color_dark: row.get(31).ok().flatten(),
+                transparent_accent_color_light: row.get(32).ok().flatten(),
+                extract_color_dark: row.get(33).ok().flatten(),
+                extract_color_light: row.get(34).ok().flatten(),
             }),
         ).ok();
 
@@ -671,15 +702,21 @@ pub fn get_profile_conn(
                  card_opacity, card_blur, sidebar_font, random_interval, thumbnail_size,
                  toolbar_height, toolbar_blur, toolbar_opacity, select_overlay_opacity,
                  reverse_search_enabled, list_columns, home_title, accent_mode,
-                 accent_color_dark, accent_color_light, bg_transparent, sidebar_blur, bg_effect_type)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29)",
+                 accent_color_dark, accent_color_light, bg_transparent, sidebar_blur, bg_effect_type,
+                 bg_image_accent_mode, bg_image_accent_color_dark, bg_image_accent_color_light,
+                 transparent_accent_color_dark, transparent_accent_color_light,
+                 extract_color_dark, extract_color_light)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34, ?35, ?36)",
                 rusqlite::params![profile_id, s.view_mode, s.sort_by, s.theme_mode, s.accent_color,
                         s.bg_image, s.bg_blur, s.bg_opacity, s.sidebar_width, s.sidebar_opacity,
                         s.draw_count, s.card_opacity, s.card_blur, s.sidebar_font, s.random_interval,
                         s.thumbnail_size, s.toolbar_height, s.toolbar_blur, s.toolbar_opacity,
                         s.select_overlay_opacity, s.reverse_search_enabled, s.list_columns,
                         s.home_title, s.accent_mode, s.accent_color_dark,
-                        s.accent_color_light, s.bg_transparent, s.sidebar_blur, s.bg_effect_type],
+                        s.accent_color_light, s.bg_transparent, s.sidebar_blur, s.bg_effect_type,
+                        s.bg_image_accent_mode, s.bg_image_accent_color_dark, s.bg_image_accent_color_light,
+                        s.transparent_accent_color_dark, s.transparent_accent_color_light,
+                        s.extract_color_dark, s.extract_color_light],
             ).map_err(|e| format!("Migration INSERT settings: {}", e))?;
         }
 
