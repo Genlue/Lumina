@@ -152,6 +152,12 @@ const API = {
   },
 
   // === Favorites ===
+  async exportFavorites(profileId) {
+    return this._invoke('favorites_export', { profileId });
+  },
+  async importFavorites(profileId, data, mode) {
+    return this._invoke('favorites_import', { profileId, data, mode });
+  },
   async toggleFav(profileId, filename, folder) {
     return this._invoke('favorites_toggle', { profileId, filename, folder });
   },

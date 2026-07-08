@@ -1186,3 +1186,101 @@ pub fn cache_clear(app: AppHandle, profile_id: String) -> Result<u64, String> {
 pub fn open_in_explorer(path: String) -> Result<(), String> {
     open::that(&path).map_err(|e| format!("Open error: {}", e))
 }
+
+// ============================================================
+// Window Effects
+// ============================================================
+
+#[tauri::command]
+pub fn window_set_effect(app: AppHandle, enabled: bool) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        if enabled {
+            #[cfg(target_os = "windows")]
+            {
+                let _ = window.set_effects(tauri::utils::config::WindowEffectsConfig {
+                    effects: vec![tauri::window::Effect::Acrylic],
+                    ..Default::default()
+                });
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                let _ = window.set_effects(tauri::utils::config::WindowEffectsConfig {
+                    effects: vec![tauri::window::Effect::Blur],
+                    ..Default::default()
+                });
+            }
+        } else {
+            let _: Result<_, _> = window.set_effects(None::<tauri::utils::config::WindowEffectsConfig>);
+        }
+    }
+    Ok(())
+}
+
+// ============================================================
+// Favorites Export/Import
+// ============================================================
+
+#[tauri::command]
+pub fn favorites_export(app: AppHandle, profile_id: String) -> Result<String, String> {
+    let (p_conn_arc, _) = get_profile_db(&app, &profile_id)?;
+    let p_conn = p_conn_arc.lock().map_err(|e| format!("Lock: {}", e))?;
+    let list = repos::favorites::list_favorites(&p_conn, &profile_id);
+    let items: Vec<FavoritesExportItem> = list.iter().map(|f| FavoritesExportItem {
+        filename: f.filename.clone().unwrap_or_default(),
+        album_id: f.album_id,
+        folder_name: f.folder_name.clone(),
+        added_at: f.added_at.clone(),
+        file_size: f.file_size,
+        width: f.width,
+        height: f.height,
+    }).collect();
+    serde_json::to_string_pretty(&items).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn favorites_import(app: AppHandle, profile_id: String, data: String, mode: String) -> Result<i64, String> {
+    let items: Vec<FavoritesExportItem> = serde_json::from_str(&data).map_err(|e| format!("Parse JSON: {}", e))?;
+    let (p_conn_arc, _) = get_profile_db(&app, &profile_id)?;
+    let p_conn = p_conn_arc.lock().map_err(|e| format!("Lock: {}", e))?;
+
+    if mode == "overwrite" {
+        p_conn.execute("DELETE FROM favorites WHERE profile_id=?1", rusqlite::params![profile_id]).map_err(|e| e.to_string())?;
+    }
+
+    let mut imported: i64 = 0;
+    for item in &items {
+        // Try to match image in DB
+        let image_id: Option<i64> = p_conn.query_row(
+            "SELECT id FROM images WHERE profile_id=?1 AND filename=?2 AND album_id IS ?3",
+            rusqlite::params![profile_id, item.filename, item.album_id], |r| r.get(0)
+        ).ok().or_else(|| {
+            p_conn.query_row(
+                "SELECT id FROM images WHERE profile_id=?1 AND filename=?2",
+                rusqlite::params![profile_id, item.filename], |r| r.get(0)
+            ).ok()
+        });
+
+        if let Some(img_id) = image_id {
+            let _ = p_conn.execute(
+                "INSERT OR IGNORE INTO favorites (profile_id, image_id, added_at, filename, album_id) VALUES (?1,?2,?3,?4,?5)",
+                rusqlite::params![profile_id, img_id, item.added_at, item.filename, item.album_id]
+            );
+            imported += 1;
+        }
+    }
+    Ok(imported)
+}
+
+// ============================================================
+// File I/O helpers
+// ============================================================
+
+#[tauri::command]
+pub fn write_text_file(path: String, content: String) -> Result<(), String> {
+    std::fs::write(&path, &content).map_err(|e| format!("Write file: {}", e))
+}
+
+#[tauri::command]
+pub fn read_text_file(path: String) -> Result<String, String> {
+    std::fs::read_to_string(&path).map_err(|e| format!("Read file: {}", e))
+}

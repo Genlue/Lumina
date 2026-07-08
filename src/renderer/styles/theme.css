@@ -35,3 +35,16 @@
   --bg-opacity: 0;
   --sidebar-opacity: 0.85;
 }
+
+/* 透明背景模式 */
+html.bg-transparent-mode body {
+  background: transparent !important;
+}
+html.bg-transparent-mode #bg-layer {
+  display: none !important;
+}
+html.bg-transparent-mode #startup {
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}

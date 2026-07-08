@@ -48,6 +48,10 @@ const ST = {
       this._highlightThemeBtns(s.theme_mode ?? 'dark');
       this._loadBgList();
 
+      // 同步背景模式
+      const bgMode = App._settings.bg_transparent ? 'transparent' : 'image';
+      this._highlightBgModeBtns(bgMode);
+
       // Sync reverse search UI state
       this.applyReverseSearch(App._settings?.reverse_search_enabled ?? false);
 
@@ -706,6 +710,43 @@ const ST = {
       App._settings.bg_image = null;
       this._loadBgList();
     }
+  },
+
+  setBgMode(mode) {
+    if (mode === 'transparent') {
+      this.applyBgTransparent(true);
+    } else {
+      this.applyBgTransparent(false);
+      if (App._settings.bg_image) this.applyBgImage(App._settings.bg_image);
+    }
+    App._settings.bg_mode = mode;
+    API.saveSettings(S.profileId, { bg_transparent: mode === 'transparent' });
+    this._highlightBgModeBtns(mode);
+  },
+
+  async applyBgTransparent(enabled) {
+    if (enabled) {
+      document.documentElement.classList.add('bg-transparent-mode');
+      try {
+        await API._invoke('window_set_effect', { enabled: true });
+      } catch (e) {
+        console.warn('[App] Window effect not available:', e);
+      }
+      const bgLayer = document.getElementById('bg-layer');
+      if (bgLayer) { bgLayer.style.backgroundImage = ''; bgLayer.style.opacity = '0'; }
+    } else {
+      document.documentElement.classList.remove('bg-transparent-mode');
+      try {
+        await API._invoke('window_set_effect', { enabled: false });
+      } catch (e) { /* ignore */ }
+    }
+  },
+
+  _highlightBgModeBtns(mode) {
+    const imgBtn = document.getElementById('btn-bg-image');
+    const transBtn = document.getElementById('btn-bg-transparent');
+    if (imgBtn) imgBtn.style.borderColor = mode === 'image' ? 'var(--c-accent)' : 'transparent';
+    if (transBtn) transBtn.style.borderColor = mode === 'transparent' ? 'var(--c-accent)' : 'transparent';
   },
 
   applyBlur(val) {

@@ -84,6 +84,8 @@ pub struct Settings {
     pub accent_mode: String,  // 'custom' | 'extract'
     pub accent_color_dark: String,
     pub accent_color_light: String,
+    pub bg_transparent: bool,
+    pub sidebar_blur: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -124,4 +126,15 @@ pub struct ThumbnailResult {
 pub struct ThemeColors {
     pub dominant: String,
     pub palette: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FavoritesExportItem {
+    pub filename: String,
+    pub album_id: Option<i64>,
+    pub folder_name: Option<String>,
+    pub added_at: String,
+    pub file_size: Option<i64>,
+    pub width: Option<i64>,
+    pub height: Option<i64>,
 }

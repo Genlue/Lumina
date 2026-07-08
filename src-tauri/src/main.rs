@@ -75,6 +75,11 @@ pub fn run() {
             commands::dialog_open_folder,
             commands::cache_get_info,
             commands::cache_clear,
+            commands::window_set_effect,
+            commands::favorites_export,
+            commands::favorites_import,
+            commands::write_text_file,
+            commands::read_text_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

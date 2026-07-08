@@ -370,6 +370,13 @@ const App = {
         }
       });
 
+      // 透明背景同步
+      if (App._settings.bg_transparent) {
+        ST.applyBgTransparent(true);
+      } else {
+        document.documentElement.classList.remove('bg-transparent-mode');
+      }
+
       // Restore bg settings AFTER DOM is visible
       ST.applyBlur(App._settings.bg_blur ?? 0);
       ST.applyOpacity(App._settings.bg_opacity ?? 1.0);
@@ -1122,6 +1129,45 @@ function _syncJsCheck() {
   el.style.borderColor = isLight ? '#c3e6cb' : '#2d6a4f';
 }
 
+window._exportFavorites = async () => {
+  const savePath = await window.__TAURI__.dialog.save({
+    filters: [{ name: '收藏文件', extensions: ['json'] }]
+  });
+  if (!savePath) return;
+  try {
+    const json = await API.exportFavorites(S.profileId);
+    await API._invoke('write_text_file', { path: savePath, content: json });
+    Toast.show('收藏已导出', 'success');
+  } catch (e) {
+    Toast.show('导出失败: ' + (e.message || e), 'error');
+  }
+};
+
+window._importFavorites = async () => {
+  const openPath = await window.__TAURI__.dialog.open({
+    filters: [{ name: '收藏文件', extensions: ['json'] }],
+    multiple: false,
+  });
+  if (!openPath) return;
+  const r = await Modal.show('导入收藏', '请选择导入模式', [
+    { label: '合并', primary: true },
+    { label: '覆盖', danger: true },
+    { label: '取消' }
+  ]);
+  if (r.idx === 2 || r.idx < 0) return;
+  const mode = r.idx === 0 ? 'merge' : 'overwrite';
+  try {
+    const data = await API._invoke('read_text_file', { path: openPath });
+    const count = await API.importFavorites(S.profileId, data, mode);
+    await API.listFav(S.profileId);
+    R.updateFavCount();
+    if (S.currentView === 'favorites') R.renderGrid();
+    Toast.show(`已导入 ${count} 条收藏`, 'success');
+  } catch (e) {
+    Toast.show('导入失败: ' + (e.message || e), 'error');
+  }
+};
+
 window._switchFolder = async () => {
   const r = await Modal.show('更换文件夹', '选择已有或添加新文件夹？', [
     { label: '选择已有' }, { label: '添加新文件夹', primary: true }, { label: '取消' },
@@ -1144,6 +1190,13 @@ window._switchFolder = async () => {
 // ====== LIGHTBOX ACTIONS ======
 
 document.getElementById('lightbox-star')?.addEventListener('click', () => {
+  // Star animation
+  const starBtn = document.getElementById('lightbox-star');
+  starBtn.classList.remove('lb-star-animate');
+  void starBtn.offsetWidth;
+  starBtn.classList.add('lb-star-animate');
+  setTimeout(() => starBtn.classList.remove('lb-star-animate'), 300);
+
   if (S.lbIdx < 0) return;
   const img = S.filteredImages[S.lbIdx];
   if (!img) return;

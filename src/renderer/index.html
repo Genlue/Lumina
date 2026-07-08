@@ -147,6 +147,11 @@
         <div class="settings-grid">
 <div class="settings-group-label">背景</div>
 <div class="settings-card" style="grid-column:1/-1;"><h3>背景图片</h3><div id="bg-thumb-grid" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;"></div><button id="btn-import-bg" onclick="window._importBg()" style="margin-top:8px;padding:6px 12px;background:var(--c-accent-bg);color:var(--c-accent);border-radius:6px;font-size:0.85em;cursor:pointer;">+ 导入背景图</button> <button id="btn-open-bg-folder" onclick="window._openBgFolder()" style="margin-top:8px;padding:6px 12px;background:var(--c-card);color:var(--c-text2);border:1px solid var(--c-border);border-radius:6px;font-size:0.85em;cursor:pointer;">打开文件夹</button> <button id="btn-refresh-bg" onclick="ST._refreshBgList()" style="margin-top:8px;padding:6px 12px;background:var(--c-card);color:var(--c-text2);border:1px solid var(--c-border);border-radius:6px;font-size:0.85em;cursor:pointer;">刷新</button></div>
+<div class="settings-card"><h3>背景模式</h3>
+<div style="display:flex;gap:8px;">
+  <button id="btn-bg-image" class="theme-btn" onclick="ST.setBgMode('image')">背景图片</button>
+  <button id="btn-bg-transparent" class="theme-btn" onclick="ST.setBgMode('transparent')">透明背景</button>
+</div></div>
 <div class="settings-card"><h3>背景模糊</h3><input type="range" id="set-bg-blur" oninput="ST.applyBlur(parseInt(this.value))" min="0" max="50" value="0"><span id="bg-blur-val">0px</span></div>
 <div class="settings-card"><h3>背景透明度</h3><input type="range" id="set-bg-opacity" oninput="ST.applyOpacity(parseInt(this.value)/100)" min="0" max="100" value="100"><span id="bg-opacity-val">100%</span></div>
 
@@ -197,6 +202,11 @@
   <div class="settings-card"><h3>列表列数</h3><input type="range" id="set-list-cols" oninput="ST.applyListColumns(parseInt(this.value))" min="1" max="5" value="3"><span id="list-cols-val">3</span></div>
 <div class="settings-card"><h3>逆向搜索栏</h3><div style="display:flex;gap:8px;"><button id="btn-reverse-on" onclick="ST.toggleReverseSearch(true)" style="flex:1;padding:10px;border-radius:8px;background:var(--c-card);color:var(--c-text);border:2px solid transparent;cursor:pointer;font-size:14px;">开启</button><button id="btn-reverse-off" onclick="ST.toggleReverseSearch(false)" style="flex:1;padding:10px;border-radius:8px;background:var(--c-card);color:var(--c-text);border:2px solid transparent;cursor:pointer;font-size:14px;">关闭</button></div></div>
 <div class="settings-card"><h3>缓存管理</h3><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><span id="cache-size-label">计算中...</span><button id="btn-clear-cache" class="btn-primary" onclick="ST.clearCache()" style="padding:6px 16px;">清除缓存</button></div></div>
+<div class="settings-card" style="grid-column:1/-1;"><h3>收藏管理</h3>
+<div style="display:flex;gap:8px;margin-top:8px;">
+  <button id="btn-export-fav" class="btn-primary" onclick="window._exportFavorites()">导出收藏</button>
+  <button id="btn-import-fav" class="btn-primary" onclick="window._importFavorites()">导入收藏</button>
+</div></div>
 <style>
 #accent-card { position: relative; }
 .accent-mode-btn { flex:1; padding:10px; border-radius:8px; background:var(--c-card); color:var(--c-text); border:2px solid transparent; cursor:pointer; font-size:14px; }
