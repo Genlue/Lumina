@@ -235,6 +235,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "requires local dir"]
     fn test_scan_desktop_folder1() {
         let dir = r"C:\Users\Administrator\Desktop\1";
         println!("\n========== SCANNING DESKTOP FOLDER ==========");

@@ -85,6 +85,7 @@ pub struct Settings {
     pub accent_color_dark: String,
     pub accent_color_light: String,
     pub bg_transparent: bool,
+    pub bg_effect_type: String,  // 'acrylic' | 'blur'
     pub sidebar_blur: i64,
 }
 

@@ -11,7 +11,7 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
                 thumbnail_size, toolbar_height, toolbar_blur, toolbar_opacity,
                 select_overlay_opacity, reverse_search_enabled, home_title, list_columns,
                 accent_mode, accent_color_dark, accent_color_light,
-                bg_transparent, sidebar_blur
+                bg_transparent, sidebar_blur, bg_effect_type
          FROM settings WHERE profile_id = ?1",
         params![profile_id],
         |row| Ok(Settings {
@@ -36,6 +36,7 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
             accent_color_light: row.get(25).unwrap_or_else(|_| "#003D7A".to_string()),
             bg_transparent: row.get(26).unwrap_or(0) != 0,
             sidebar_blur: row.get(27).unwrap_or(16),
+            bg_effect_type: row.get(28).unwrap_or_else(|_| "acrylic".to_string()),
         }),
     ) {
         Ok(s) => s,
@@ -47,12 +48,12 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
                  toolbar_height, toolbar_blur, toolbar_opacity,
                  select_overlay_opacity, reverse_search_enabled, home_title, list_columns,
                  accent_mode, accent_color_dark, accent_color_light,
-                 bg_transparent, sidebar_blur)
+                 bg_transparent, sidebar_blur, bg_effect_type)
                  VALUES (?1, 'grid', 'name-asc', 'dark', '#6D79F6',
                  NULL, 0, 1.0, 150, 0.7, 10, 0.7, 16, 20, 3, 400,
                  56, 16, 0.7, 0.2, 1, NULL, 3,
                  'custom', '#4A9EFF', '#003D7A',
-                 0, 16)",
+                 0, 16, 'acrylic')",
                 params![profile_id],
             ).ok();
             Settings {
@@ -76,6 +77,7 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
                 accent_color_dark: "#4A9EFF".to_string(),
                 accent_color_light: "#003D7A".to_string(),
                 bg_transparent: false,
+                bg_effect_type: "acrylic".to_string(),
                 sidebar_blur: 16,
             }
         }
@@ -122,6 +124,7 @@ pub fn save_settings(conn: &Connection, profile_id: &str, updates: serde_json::V
 
     let bg_transparent = updates["bg_transparent"].as_bool().unwrap_or(current.bg_transparent);
     let sidebar_blur = updates["sidebar_blur"].as_i64().unwrap_or(current.sidebar_blur);
+    let bg_effect_type = updates["bg_effect_type"].as_str().map(|s| s.to_string()).unwrap_or(current.bg_effect_type);
 
     conn.execute(
         "UPDATE settings SET view_mode=?1, sort_by=?2, theme_mode=?3, accent_color=?4,
@@ -130,14 +133,14 @@ pub fn save_settings(conn: &Connection, profile_id: &str, updates: serde_json::V
          thumbnail_size=?15, toolbar_height=?16, toolbar_blur=?17, toolbar_opacity=?18,
          select_overlay_opacity=?19, reverse_search_enabled=?20, home_title=?21, list_columns=?22,
          accent_mode=?23, accent_color_dark=?24, accent_color_light=?25,
-         bg_transparent=?27, sidebar_blur=?28
-         WHERE profile_id=?26",
+         bg_transparent=?26, sidebar_blur=?27, bg_effect_type=?28
+         WHERE profile_id=?29",
         params![view_mode, sort_by, theme_mode, accent_color,
                 bg_image, bg_blur, bg_opacity, sidebar_width, sidebar_opacity,
                 draw_count, card_opacity, card_blur, sidebar_font, random_interval,
                 thumbnail_size, toolbar_height, toolbar_blur, toolbar_opacity,
                 select_overlay_opacity, reverse_search_enabled, home_title, list_columns,
                 accent_mode, accent_color_dark, accent_color_light,
-                bg_transparent, sidebar_blur, profile_id],
+                bg_transparent, sidebar_blur, bg_effect_type, profile_id],
     ).ok();
 }

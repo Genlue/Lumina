@@ -1192,15 +1192,23 @@ pub fn open_in_explorer(path: String) -> Result<(), String> {
 // ============================================================
 
 #[tauri::command]
-pub fn window_set_effect(app: AppHandle, enabled: bool) -> Result<(), String> {
+pub fn window_set_effect(app: AppHandle, enabled: bool, effect_type: Option<String>) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("main") {
         if enabled {
+            let effect = effect_type.as_deref().unwrap_or("acrylic");
             #[cfg(target_os = "windows")]
             {
-                let _ = window.set_effects(tauri::utils::config::WindowEffectsConfig {
-                    effects: vec![tauri::window::Effect::Acrylic],
-                    ..Default::default()
-                });
+                if effect == "blur" {
+                    let _ = window.set_effects(tauri::utils::config::WindowEffectsConfig {
+                        effects: vec![tauri::window::Effect::Blur],
+                        ..Default::default()
+                    });
+                } else {
+                    let _ = window.set_effects(tauri::utils::config::WindowEffectsConfig {
+                        effects: vec![tauri::window::Effect::Acrylic],
+                        ..Default::default()
+                    });
+                }
             }
             #[cfg(not(target_os = "windows"))]
             {

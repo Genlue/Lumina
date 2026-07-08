@@ -373,6 +373,13 @@ const App = {
       // 透明背景同步
       if (App._settings.bg_transparent) {
         ST.applyBgTransparent(true);
+        // 同步效果类型
+        const efType = App._settings.bg_effect_type || 'acrylic';
+        // 重新应用窗口效果
+        API._invoke('window_set_effect', { enabled: true, effect_type: efType }).catch(() => {});
+        // 应用覆盖层
+        ST._updateOverlayOpacity(App._settings.bg_opacity ?? 1.0);
+        ST._updateOverlayBlur(App._settings.bg_blur ?? 0);
       } else {
         document.documentElement.classList.remove('bg-transparent-mode');
       }

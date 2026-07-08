@@ -48,3 +48,16 @@ html.bg-transparent-mode #startup {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
 }
+
+/* 透明背景覆盖层 */
+#bg-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0);
+  transition: backdrop-filter 0.15s, opacity 0.15s;
+}
+html.bg-transparent-mode #bg-overlay {
+  display: block;
+}
