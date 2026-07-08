@@ -178,3 +178,150 @@ pub fn remove_by_image_id(conn: &Connection, profile_id: &str, image_id: i64) {
         params![profile_id, image_id],
     ).ok();
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+
+    fn setup() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE images (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                profile_id TEXT NOT NULL,
+                album_id   INTEGER,
+                filename   TEXT NOT NULL,
+                file_size  INTEGER,
+                file_date  INTEGER,
+                width      INTEGER,
+                height     INTEGER
+            );
+            CREATE TABLE albums (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                profile_id  TEXT NOT NULL,
+                folder_name TEXT NOT NULL
+            );
+            CREATE TABLE favorites (
+                profile_id TEXT NOT NULL,
+                image_id   INTEGER NOT NULL,
+                added_at   TEXT NOT NULL DEFAULT (datetime('now')),
+                filename   TEXT,
+                album_id   INTEGER,
+                PRIMARY KEY(profile_id, image_id)
+            );"
+        ).unwrap();
+        conn
+    }
+
+    fn add_image(conn: &Connection, profile_id: &str, id: i64, filename: &str, album_id: Option<i64>) {
+        conn.execute(
+            "INSERT OR IGNORE INTO images (id, profile_id, album_id, filename) VALUES (?1, ?2, ?3, ?4)",
+            params![id, profile_id, album_id, filename],
+        ).ok();
+    }
+
+    #[test]
+    fn test_toggle_favorite_add() {
+        let conn = setup();
+        add_image(&conn, "p1", 1, "test.jpg", None);
+        let result = toggle_favorite(&conn, "p1", 1, "test.jpg", None);
+        assert!(result, "toggle should add favorite, returning true");
+        assert!(is_favorite(&conn, "p1", 1));
+    }
+
+    #[test]
+    fn test_toggle_favorite_remove() {
+        let conn = setup();
+        add_image(&conn, "p1", 1, "test.jpg", None);
+        toggle_favorite(&conn, "p1", 1, "test.jpg", None);
+        let result = toggle_favorite(&conn, "p1", 1, "test.jpg", None);
+        assert!(!result, "toggle should remove favorite, returning false");
+        assert!(!is_favorite(&conn, "p1", 1));
+    }
+
+    #[test]
+    fn test_count_favorites() {
+        let conn = setup();
+        add_image(&conn, "p1", 1, "a.jpg", None);
+        add_image(&conn, "p1", 2, "b.jpg", None);
+        add_image(&conn, "p2", 3, "c.jpg", None);
+        assert_eq!(count_favorites(&conn, "p1"), 0);
+        toggle_favorite(&conn, "p1", 1, "a.jpg", None);
+        assert_eq!(count_favorites(&conn, "p1"), 1);
+        toggle_favorite(&conn, "p1", 2, "b.jpg", None);
+        assert_eq!(count_favorites(&conn, "p1"), 2);
+        assert_eq!(count_favorites(&conn, "p2"), 0);
+    }
+
+    #[test]
+    fn test_list_favorites_joins_with_images_and_albums() {
+        let conn = setup();
+        add_image(&conn, "p1", 1, "photo.jpg", Some(1));
+        conn.execute("INSERT INTO albums (id, profile_id, folder_name) VALUES (1, 'p1', 'album1')", []).ok();
+        toggle_favorite(&conn, "p1", 1, "photo.jpg", Some(1));
+        let list = list_favorites(&conn, "p1");
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].filename, Some("photo.jpg".to_string()));
+        assert_eq!(list[0].folder_name, Some("album1".to_string()));
+    }
+
+    #[test]
+    fn test_remove_by_filename() {
+        let conn = setup();
+        add_image(&conn, "p1", 1, "gone.jpg", None);
+        toggle_favorite(&conn, "p1", 1, "gone.jpg", None);
+        assert!(is_favorite(&conn, "p1", 1));
+        remove_by_filename(&conn, "p1", "gone.jpg", None);
+        assert!(!is_favorite(&conn, "p1", 1));
+    }
+
+    #[test]
+    fn test_remove_by_image_id() {
+        let conn = setup();
+        add_image(&conn, "p1", 1, "del.jpg", None);
+        toggle_favorite(&conn, "p1", 1, "del.jpg", None);
+        assert!(is_favorite(&conn, "p1", 1));
+        remove_by_image_id(&conn, "p1", 1);
+        assert!(!is_favorite(&conn, "p1", 1));
+    }
+
+    #[test]
+    fn test_list_favorites_handles_orphan_reconciliation() {
+        let conn = setup();
+        // Create image, favorite it, then delete the image record
+        add_image(&conn, "p1", 10, "orphan.jpg", None);
+        toggle_favorite(&conn, "p1", 10, "orphan.jpg", None);
+        conn.execute("DELETE FROM images WHERE id=10", []).ok();
+        // Create a new image with the same filename — orphan should reconcile
+        add_image(&conn, "p1", 20, "orphan.jpg", None);
+        let list = list_favorites(&conn, "p1");
+        assert_eq!(list.len(), 1, "Orphan should reconcile to new image_id 20");
+        assert_eq!(list[0].image_id, 20, "Should point to new image record");
+    }
+
+    #[test]
+    fn test_list_favorites_removes_unresolvable_orphans() {
+        let conn = setup();
+        add_image(&conn, "p1", 1, "ghost.jpg", None);
+        toggle_favorite(&conn, "p1", 1, "ghost.jpg", None);
+        // Delete image without re-creating
+        conn.execute("DELETE FROM images WHERE id=1", []).ok();
+        let list = list_favorites(&conn, "p1");
+        assert_eq!(list.len(), 0, "Unresolvable orphan should be removed");
+    }
+
+    #[test]
+    fn test_favorites_scoped_by_profile() {
+        let conn = setup();
+        add_image(&conn, "p1", 1, "shared.jpg", None);
+        add_image(&conn, "p2", 2, "shared.jpg", None);
+        toggle_favorite(&conn, "p1", 1, "shared.jpg", None);
+        toggle_favorite(&conn, "p2", 2, "shared.jpg", None);
+        assert_eq!(list_favorites(&conn, "p1").len(), 1);
+        assert_eq!(list_favorites(&conn, "p2").len(), 1);
+        remove_by_image_id(&conn, "p1", 1);
+        assert_eq!(list_favorites(&conn, "p1").len(), 0);
+        assert_eq!(list_favorites(&conn, "p2").len(), 1, "p2 should be unaffected");
+    }
+}

@@ -152,3 +152,168 @@ pub fn purge_thumbnails_for_image(cache_dir: &Path, image_id: i64) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+
+    fn setup() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE images (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                profile_id TEXT NOT NULL,
+                album_id   INTEGER,
+                filename   TEXT NOT NULL,
+                file_size  INTEGER,
+                file_date  INTEGER,
+                width      INTEGER,
+                height     INTEGER
+            );
+            CREATE INDEX IF NOT EXISTS idx_images_profile ON images(profile_id);
+            CREATE INDEX IF NOT EXISTS idx_images_album  ON images(album_id);"
+        ).unwrap();
+        conn
+    }
+
+    fn make_file(name: &str, size: u64) -> FileInfo {
+        FileInfo {
+            name: name.to_string(),
+            size,
+            last_modified: 1000.0,
+            width: Some(1920),
+            height: Some(1080),
+        }
+    }
+
+    #[test]
+    fn test_sync_images_inserts_new() {
+        let conn = setup();
+        let files = vec![make_file("test.jpg", 1024)];
+        sync_images(&conn, "profile1", None, &files);
+        let images = list_images(&conn, "profile1", Some(None));
+        assert_eq!(images.len(), 1);
+        assert_eq!(images[0].filename, "test.jpg");
+        assert_eq!(images[0].file_size, Some(1024));
+        assert_eq!(images[0].width, Some(1920));
+        assert_eq!(images[0].height, Some(1080));
+    }
+
+    #[test]
+    fn test_sync_images_updates_existing() {
+        let conn = setup();
+        let files = vec![make_file("update.jpg", 512)];
+        sync_images(&conn, "p1", None, &files);
+        // Update with new size
+        let files2 = vec![FileInfo {
+            name: "update.jpg".to_string(),
+            size: 2048,
+            last_modified: 2000.0,
+            width: Some(100),
+            height: Some(200),
+        }];
+        sync_images(&conn, "p1", None, &files2);
+        let images = list_images(&conn, "p1", Some(None));
+        assert_eq!(images.len(), 1, "Should still be 1 image");
+        assert_eq!(images[0].file_size, Some(2048), "Size should be updated");
+        assert_eq!(images[0].width, Some(100), "Width should be updated");
+    }
+
+    #[test]
+    fn test_sync_images_removes_missing() {
+        let conn = setup();
+        let files1 = vec![make_file("keep.jpg", 100), make_file("remove.jpg", 200)];
+        sync_images(&conn, "p1", None, &files1);
+        let files2 = vec![make_file("keep.jpg", 100)];
+        sync_images(&conn, "p1", None, &files2);
+        let images = list_images(&conn, "p1", Some(None));
+        assert_eq!(images.len(), 1, "remove.jpg should be deleted");
+        assert_eq!(images[0].filename, "keep.jpg");
+    }
+
+    #[test]
+    fn test_sync_images_empty_deletes_all() {
+        let conn = setup();
+        let files = vec![make_file("a.jpg", 10), make_file("b.jpg", 20)];
+        sync_images(&conn, "p1", None, &files);
+        sync_images(&conn, "p1", None, &[]);
+        let images = list_images(&conn, "p1", Some(None));
+        assert!(images.is_empty(), "Empty sync should delete all images");
+    }
+
+    #[test]
+    fn test_sync_images_scoped_by_profile() {
+        let conn = setup();
+        let files = vec![make_file("shared.jpg", 100)];
+        sync_images(&conn, "p1", None, &files);
+        sync_images(&conn, "p2", None, &files);
+        assert_eq!(list_images(&conn, "p1", Some(None)).len(), 1);
+        assert_eq!(list_images(&conn, "p2", Some(None)).len(), 1);
+    }
+
+    #[test]
+    fn test_sync_images_with_album_id() {
+        let conn = setup();
+        let root_files = vec![make_file("root.jpg", 100)];
+        let album_files = vec![make_file("album.jpg", 200)];
+        sync_images(&conn, "p1", None, &root_files);
+        sync_images(&conn, "p1", Some(1), &album_files);
+        assert_eq!(list_images(&conn, "p1", Some(None)).len(), 1, "Root images");
+        assert_eq!(list_images(&conn, "p1", Some(Some(1))).len(), 1, "Album images");
+        assert_eq!(list_images(&conn, "p1", None).len(), 2, "All images");
+    }
+
+    #[test]
+    fn test_get_image_by_id() {
+        let conn = setup();
+        let files = vec![make_file("findme.jpg", 100)];
+        sync_images(&conn, "p1", None, &files);
+        let images = list_images(&conn, "p1", Some(None));
+        let found = get_image_by_id(&conn, images[0].id);
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().filename, "findme.jpg");
+        assert!(get_image_by_id(&conn, 99999).is_none());
+    }
+
+    #[test]
+    fn test_get_image_by_name_with_null_album() {
+        let conn = setup();
+        sync_images(&conn, "p1", None, &[make_file("pic.jpg", 100)]);
+        let found = get_image_by_name(&conn, "p1", "pic.jpg", None);
+        assert!(found.is_some());
+        let found2 = get_image_by_name(&conn, "p1", "pic.jpg", Some(1));
+        assert!(found2.is_none(), "Should not find with wrong album_id");
+    }
+
+    #[test]
+    fn test_get_image_by_name_with_exact_album() {
+        let conn = setup();
+        sync_images(&conn, "p1", Some(5), &[make_file("pic.jpg", 100)]);
+        let found = get_image_by_name(&conn, "p1", "pic.jpg", Some(5));
+        assert!(found.is_some());
+        let not_found = get_image_by_name(&conn, "p1", "pic.jpg", None);
+        assert!(not_found.is_none(), "Should not find root image when it's in an album");
+    }
+
+    #[test]
+    fn test_update_image_meta() {
+        let conn = setup();
+        sync_images(&conn, "p1", None, &[make_file("meta.jpg", 100)]);
+        let images = list_images(&conn, "p1", Some(None));
+        let id = images[0].id;
+        update_image_meta(&conn, id, Some(800), Some(600));
+        let updated = get_image_by_id(&conn, id).unwrap();
+        assert_eq!(updated.width, Some(800));
+        assert_eq!(updated.height, Some(600));
+    }
+
+    #[test]
+    fn test_list_images_with_no_album_filter() {
+        let conn = setup();
+        sync_images(&conn, "p1", None, &[make_file("root.jpg", 10)]);
+        sync_images(&conn, "p1", Some(1), &[make_file("alb.jpg", 20)]);
+        let all = list_images(&conn, "p1", None);
+        assert_eq!(all.len(), 2);
+    }
+}

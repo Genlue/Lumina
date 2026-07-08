@@ -181,3 +181,163 @@ pub fn save_settings(conn: &Connection, profile_id: &str, updates: serde_json::V
                 extract_color_dark, extract_color_light, profile_id],
     ).ok();
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+
+    fn setup() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE settings (
+                profile_id      TEXT PRIMARY KEY,
+                view_mode       TEXT NOT NULL DEFAULT 'grid',
+                sort_by         TEXT NOT NULL DEFAULT 'name-asc',
+                theme_mode      TEXT NOT NULL DEFAULT 'dark',
+                accent_color    TEXT NOT NULL DEFAULT '#6D79F6',
+                bg_image        TEXT,
+                bg_blur         INTEGER NOT NULL DEFAULT 0,
+                bg_opacity      REAL NOT NULL DEFAULT 1.0,
+                sidebar_width   INTEGER NOT NULL DEFAULT 150,
+                sidebar_opacity REAL NOT NULL DEFAULT 0.7,
+                draw_count      INTEGER NOT NULL DEFAULT 10,
+                card_opacity    REAL NOT NULL DEFAULT 0.7,
+                card_blur       INTEGER NOT NULL DEFAULT 16,
+                sidebar_font    INTEGER NOT NULL DEFAULT 20,
+                random_interval INTEGER NOT NULL DEFAULT 3,
+                thumbnail_size  INTEGER NOT NULL DEFAULT 400,
+                toolbar_height  INTEGER NOT NULL DEFAULT 56,
+                toolbar_blur    INTEGER NOT NULL DEFAULT 16,
+                toolbar_opacity REAL NOT NULL DEFAULT 0.7,
+                select_overlay_opacity REAL NOT NULL DEFAULT 0.2,
+                reverse_search_enabled INTEGER NOT NULL DEFAULT 1,
+                home_title      TEXT,
+                list_columns    INTEGER NOT NULL DEFAULT 3,
+                accent_mode     TEXT NOT NULL DEFAULT 'custom',
+                accent_color_dark TEXT NOT NULL DEFAULT '#4A9EFF',
+                accent_color_light TEXT NOT NULL DEFAULT '#003D7A',
+                bg_transparent  INTEGER NOT NULL DEFAULT 0,
+                sidebar_blur    INTEGER NOT NULL DEFAULT 16,
+                bg_effect_type  TEXT NOT NULL DEFAULT 'acrylic',
+                bg_image_accent_mode TEXT NOT NULL DEFAULT 'custom',
+                bg_image_accent_color_dark TEXT NOT NULL DEFAULT '#4A9EFF',
+                bg_image_accent_color_light TEXT NOT NULL DEFAULT '#003D7A',
+                transparent_accent_color_dark TEXT NOT NULL DEFAULT '#4A9EFF',
+                transparent_accent_color_light TEXT NOT NULL DEFAULT '#003D7A',
+                extract_color_dark TEXT NOT NULL DEFAULT '#4A9EFF',
+                extract_color_light TEXT NOT NULL DEFAULT '#003D7A'
+            );"
+        ).unwrap();
+        conn
+    }
+
+    #[test]
+    fn test_get_settings_auto_creates_row() {
+        let conn = setup();
+        let s = get_settings(&conn, "new-profile");
+        assert_eq!(s.profile_id, "new-profile");
+        assert_eq!(s.view_mode, "grid");
+        assert_eq!(s.sort_by, "name-asc");
+        assert_eq!(s.theme_mode, "dark");
+        assert_eq!(s.accent_color, "#6D79F6");
+        assert_eq!(s.bg_opacity, 1.0);
+        assert_eq!(s.sidebar_width, 150);
+        assert_eq!(s.bg_transparent, false);
+        assert_eq!(s.bg_effect_type, "acrylic");
+        assert_eq!(s.accent_mode, "custom");
+        assert_eq!(s.home_title, None);
+    }
+
+    #[test]
+    fn test_get_settings_after_save() {
+        let conn = setup();
+        let mut json = serde_json::Map::new();
+        json.insert("view_mode".to_string(), serde_json::Value::String("list".to_string()));
+        json.insert("theme_mode".to_string(), serde_json::Value::String("light".to_string()));
+        json.insert("accent_color".to_string(), serde_json::Value::String("#FF0000".to_string()));
+        json.insert("draw_count".to_string(), serde_json::Value::Number(serde_json::Number::from(20)));
+        json.insert("bg_transparent".to_string(), serde_json::Value::Bool(true));
+        json.insert("home_title".to_string(), serde_json::Value::String("My Album".to_string()));
+
+        save_settings(&conn, "p1", serde_json::Value::Object(json));
+
+        let s = get_settings(&conn, "p1");
+        assert_eq!(s.view_mode, "list");
+        assert_eq!(s.theme_mode, "light");
+        assert_eq!(s.accent_color, "#FF0000");
+        assert_eq!(s.draw_count, 20);
+        assert_eq!(s.bg_transparent, true);
+        assert_eq!(s.home_title, Some("My Album".to_string()));
+        assert_eq!(s.sort_by, "name-asc");
+        assert_eq!(s.bg_opacity, 1.0);
+        assert_eq!(s.sidebar_width, 150);
+    }
+
+    #[test]
+    fn test_save_settings_partial_update() {
+        let conn = setup();
+        let mut init = serde_json::Map::new();
+        init.insert("view_mode".to_string(), serde_json::Value::String("list".to_string()));
+        init.insert("draw_count".to_string(), serde_json::Value::Number(serde_json::Number::from(42)));
+        save_settings(&conn, "p1", serde_json::Value::Object(init));
+
+        let mut partial = serde_json::Map::new();
+        partial.insert("view_mode".to_string(), serde_json::Value::String("grid".to_string()));
+        save_settings(&conn, "p1", serde_json::Value::Object(partial));
+
+        let s = get_settings(&conn, "p1");
+        assert_eq!(s.view_mode, "grid");
+        assert_eq!(s.draw_count, 42, "Unchanged field should keep previous value");
+    }
+
+    #[test]
+    fn test_save_settings_boolean_fields() {
+        let conn = setup();
+        let mut json = serde_json::Map::new();
+        json.insert("reverse_search_enabled".to_string(), serde_json::Value::Bool(false));
+        json.insert("list_columns".to_string(), serde_json::Value::Number(serde_json::Number::from(5)));
+        save_settings(&conn, "p1", serde_json::Value::Object(json));
+
+        let s = get_settings(&conn, "p1");
+        assert_eq!(s.reverse_search_enabled, 0);
+        assert_eq!(s.list_columns, 5);
+    }
+
+    #[test]
+    fn test_settings_scoped_by_profile() {
+        let conn = setup();
+        let s1 = get_settings(&conn, "p1");
+        let s2 = get_settings(&conn, "p2");
+        assert_eq!(s1.profile_id, "p1");
+        assert_eq!(s2.profile_id, "p2");
+
+        let mut json = serde_json::Map::new();
+        json.insert("view_mode".to_string(), serde_json::Value::String("masonry".to_string()));
+        save_settings(&conn, "p1", serde_json::Value::Object(json));
+
+        let updated = get_settings(&conn, "p1");
+        assert_eq!(updated.view_mode, "masonry");
+        let unchanged = get_settings(&conn, "p2");
+        assert_eq!(unchanged.view_mode, "grid");
+    }
+
+    #[test]
+    fn test_save_accent_color_fields() {
+        let conn = setup();
+        let mut json = serde_json::Map::new();
+        json.insert("accent_mode".to_string(), serde_json::Value::String("extract".to_string()));
+        json.insert("accent_color_dark".to_string(), serde_json::Value::String("#111111".to_string()));
+        json.insert("accent_color_light".to_string(), serde_json::Value::String("#222222".to_string()));
+        json.insert("bg_effect_type".to_string(), serde_json::Value::String("blur".to_string()));
+        json.insert("sidebar_blur".to_string(), serde_json::Value::Number(serde_json::Number::from(32)));
+        save_settings(&conn, "p1", serde_json::Value::Object(json));
+
+        let s = get_settings(&conn, "p1");
+        assert_eq!(s.accent_mode, "extract");
+        assert_eq!(s.accent_color_dark, "#111111");
+        assert_eq!(s.accent_color_light, "#222222");
+        assert_eq!(s.bg_effect_type, "blur");
+        assert_eq!(s.sidebar_blur, 32);
+    }
+}

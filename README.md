@@ -79,7 +79,16 @@ cargo test
 
 ## 更新日志
 
-### 2026-07-08 — v2.8.2 — 强调色模式独立隔离 + Bug 修复
+### 2026-07-08 — v2.8.3 — Bug 修复：背景图恢复 + 透明模式控件修复
+
+- 🐛 **切回背景图模式恢复背景图** — 透明→背景图切换时主动调用 `applyBgImage` 恢复背景
+- 🐛 **透明模式强调色锁定** — `_renderAccentUI` 加透明保护、`extractAccent`/`setAccentMode` 加入口拦截，彻底禁用提取
+- 🐛 **提取→自定义立即应用颜色** — `setAccentMode('custom')` 后调用 `applyCurrentAccent()`
+- 🐛 **Acrylic 模式下保留模糊度滑块** — Blur 模式隐藏、Acrylic 模式显示，切换页面后状态保持
+- 🐛 **修复 bg-overlay 覆盖层** — 背景色从 `rgba(0,0,0,0)` 改为 `rgba(0,0,0,0.5)`，bg_opacity 滑块在两种透明效果下均可调节覆盖层明暗
+- 🧪 **新增 52 个单元测试** — profiles/images/albums/favorites/trash/settings 六个 repo 模块的完整测试覆盖
+
+### 2026-07-08 — v2.8.2
 
 - 🏗️ **核心架构：强调色模式独立隔离** — 背景图模式和透明模式各自维护独立的强调色配置（accent_mode/accent_color），切换时互相快照/恢复，彻底解决状态污染。新增 7 个 DB 字段做隔离存储：`bg_image_accent_mode`、`bg_image_accent_color_dark/light`、`transparent_accent_color_dark/light`、`extract_color_dark/light`
 - 🎨 **自动提取不覆盖自定义颜色** — `extractAccent()` 不再修改 `accent_color_*`，提取色存入独立的 `extract_color_*` 字段。`applyCurrentAccent()` 根据 `accent_mode` 选择颜色来源（extract→提取色，custom→自定义色）

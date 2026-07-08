@@ -67,11 +67,11 @@ const ST = {
         document.getElementById('accent-custom-panel').style.display = '';
         document.getElementById('accent-extract-panel').style.display = 'none';
         this._highlightAccentBtns('custom');
-        // 隐藏 blur 滑块（透明模式下始终隐藏）
-        const blurCard = document.getElementById('set-bg-blur')?.closest('.settings-card');
-        const blurVal = document.getElementById('bg-blur-val');
-        if (blurCard) blurCard.style.display = 'none';
-        if (blurVal) blurVal.style.display = 'none';
+        const efTypeRender = App._settings.bg_effect_type || 'acrylic';
+        const blurCard1 = document.getElementById('set-bg-blur')?.closest('.settings-card');
+        const blurVal1 = document.getElementById('bg-blur-val');
+        if (blurCard1) blurCard1.style.display = (efTypeRender === 'acrylic') ? '' : 'none';
+        if (blurVal1) blurVal1.style.display = (efTypeRender === 'acrylic') ? '' : 'none';
         // 隐藏背景图卡片
         const bgCard = document.getElementById('bg-image-card');
         if (bgCard) bgCard.style.display = 'none';
@@ -112,10 +112,11 @@ const ST = {
       if (App._settings.bg_transparent) {
         document.getElementById('effect-type-card')?.classList.remove('hidden');
         const blurEl = document.getElementById('set-bg-blur');
+        const efTypeRender = App._settings.bg_effect_type || 'acrylic';
         if (blurEl) {
-          blurEl.closest('.settings-card').style.display = 'none';
+          blurEl.closest('.settings-card').style.display = (efTypeRender === 'acrylic') ? '' : 'none';
         }
-        document.getElementById('bg-blur-val').style.display = 'none';
+        document.getElementById('bg-blur-val').style.display = (efTypeRender === 'acrylic') ? '' : 'none';
         this._highlightAccentBtns('custom');
         document.getElementById('accent-custom-panel').style.display = '';
         document.getElementById('accent-extract-panel').style.display = 'none';
@@ -541,6 +542,11 @@ const ST = {
 
   /** Set accent mode (custom/extract) */
   setAccentMode(mode) {
+    // 透明模式下禁止切换到提取模式
+    if (App._settings.bg_transparent && mode === 'extract') {
+      Toast.show('透明模式下不支持提取颜色', 'info');
+      return;
+    }
     this._closeColorPicker();
     App._settings.accent_mode = mode;
     API.saveSettings(S.profileId, { accent_mode: mode });
@@ -551,6 +557,7 @@ const ST = {
     if (mode === 'custom') {
       if (panel) panel.style.display = '';
       if (extractPanel) extractPanel.style.display = 'none';
+      this.applyCurrentAccent();
     } else {
       if (panel) panel.style.display = 'none';
       if (extractPanel) extractPanel.style.display = '';
@@ -567,6 +574,8 @@ const ST = {
 
   /** Update accent UI elements */
   _renderAccentUI() {
+    // 透明模式下跳过，由外部覆盖逻辑控制
+    if (App._settings.bg_transparent) return;
     // 切换模式时关闭可能残留的picker
     this._closeColorPicker();
     const s = App._settings;
@@ -598,6 +607,7 @@ const ST = {
   /** Extract accent colors from background image for both dark and light themes */
   extractAccent(forMode) {
     if (App._settings?.accent_mode !== 'extract') return;
+    if (App._settings.bg_transparent) return;  // 透明模式下禁止提取
     const bgFile = App._settings.bg_image;
     if (!bgFile) { Toast.show('请先选择背景图片', 'info'); return; }
 
@@ -842,6 +852,11 @@ const ST = {
 
       // === 关闭透明背景效果 ===
       this.applyBgTransparent(false);
+
+      // 恢复背景图
+      this.applyBgImage(App._settings.bg_image || null);
+
+      App._settings.bg_transparent = false;  // 提前设置，确保 _renderAccentUI 能看到
 
       // === UI 控件恢复 ===
       const bgCard = document.getElementById('bg-image-card');

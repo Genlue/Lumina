@@ -55,7 +55,7 @@ html.bg-transparent-mode #startup {
   inset: 0;
   z-index: 1;      /* 改为 1，确保在背景层之上、内容层之下 */
   pointer-events: none;
-  background: rgba(0, 0, 0, 0);
+  background: rgba(0, 0, 0, 0.5);
   transition: backdrop-filter 0.15s, opacity 0.15s;
 }
 html.bg-transparent-mode #bg-overlay {
