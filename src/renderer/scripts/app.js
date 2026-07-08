@@ -715,6 +715,11 @@ const App = {
     document.getElementById('btn-min')?.addEventListener('click', () => win?.minimize());
     document.getElementById('btn-max')?.addEventListener('click', () => win?.toggleMaximize());
     document.getElementById('btn-close')?.addEventListener('click', () => win?.close());
+    // 透明模式下 data-tauri-drag-region 不生效，手动拖拽
+    document.getElementById('title-bar')?.addEventListener('mousedown', (e) => {
+      if (e.target.closest('#title-btns')) return;
+      win?.startDragging();
+    });
   },
 
   // ====== IMAGE OPERATIONS ======
