@@ -79,7 +79,15 @@ cargo test
 
 ## 更新日志
 
-### 2026-07-08 — v2.8.3 — Bug 修复：背景图恢复 + 透明模式控件修复
+### 2026-07-08 — v2.8.4 — 透明背景简化 + 遮罩修复
+
+- 🐛 **修复遮罩渗透** — `#bg-overlay` 的 `rgba(0,0,0,0.5)` 在切回背景图时残留导致页面变暗，已重置为透明
+- 🔧 **透明背景简化** — 删除效果类型切换（Acrylic/Blur）、删除透明模式下 bg_blur/bg_opacity 滑块、删除维护分组和恢复默认按钮，固定使用 Acrylic + 100% 透明度
+- 🔧 **切回背景图自动应用滑块** — 切换回背景图模式时主动调用 `applyBlur`/`applyOpacity` 使数值立即生效
+- 🗑️ **删除冗余方法** — `setEffectType`、`_highlightEffectTypeBtns`、`_updateOverlayOpacity`、`_updateOverlayBlur`、`resetDefaults`
+- 🧹 **清理 UI** — 删除效果类型卡片和维护分组 DOM 元素
+
+### 2026-07-08 — v2.8.3
 
 - 🐛 **切回背景图模式恢复背景图** — 透明→背景图切换时主动调用 `applyBgImage` 恢复背景
 - 🐛 **透明模式强调色锁定** — `_renderAccentUI` 加透明保护、`extractAccent`/`setAccentMode` 加入口拦截，彻底禁用提取
