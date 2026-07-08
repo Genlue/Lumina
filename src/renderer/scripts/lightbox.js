@@ -50,9 +50,9 @@ const Lb = {
     const isFav = S.favoritesSet.has(img._key);
     if (starBtn) {
       if (isFav) {
-        starBtn.innerHTML = '<span data-icon="star" data-size="14" style="fill:var(--c-accent);stroke:var(--c-accent);"></span>';
+        starBtn.innerHTML = Icons.icon('star', 14).replace('fill="none"', 'fill="var(--c-accent)"').replace('stroke="currentColor"', 'stroke="var(--c-accent)"');
       } else {
-        starBtn.innerHTML = '<span data-icon="star" data-size="14"></span>';
+        starBtn.innerHTML = Icons.icon('star', 14);
       }
     }
 
