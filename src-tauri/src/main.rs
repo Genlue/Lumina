@@ -78,6 +78,7 @@ pub fn run() {
             commands::window_set_effect,
             commands::favorites_export,
             commands::favorites_import,
+            commands::favorites_copy_to_backgrounds,
             commands::write_text_file,
             commands::read_text_file,
         ])

@@ -387,9 +387,6 @@ const App = {
         const efType = App._settings.bg_effect_type || 'acrylic';
         // 重新应用窗口效果
         API._invoke('window_set_effect', { enabled: true, effect_type: efType }).catch(() => {});
-        // 应用覆盖层
-        ST._updateOverlayOpacity(App._settings.bg_opacity ?? 1.0);
-        ST._updateOverlayBlur(App._settings.bg_blur ?? 0);
       } else {
         document.documentElement.classList.remove('bg-transparent-mode');
       }
@@ -1182,6 +1179,39 @@ window._importFavorites = async () => {
     Toast.show(`已导入 ${count} 条收藏`, 'success');
   } catch (e) {
     Toast.show('导入失败: ' + (e.message || e), 'error');
+  }
+};
+
+window._favToBg = async () => {
+  try {
+    const result = await API._invoke('favorites_copy_to_backgrounds', { profileId: S.profileId, overwriteExisting: false });
+    const dupLen = result.duplicates ? result.duplicates.length : 0;
+    if (dupLen > 0) {
+      const choice = await Modal.show('重复文件',
+        `${dupLen} 个文件在背景图中已存在：<br><small>${result.duplicates.slice(0,5).join(', ')}${dupLen > 5 ? ', ...' : ''}</small><br><br>请选择操作：`,
+        [{ label: '跳过', primary: true }, { label: '覆盖全部', danger: true }, { label: '取消' }]
+      );
+      if (choice.idx === 2) { Toast.show('已取消', 'info'); return; }
+      if (choice.idx === 1) {
+        const overwriteResult = await API._invoke('favorites_copy_to_backgrounds', { profileId: S.profileId, overwriteExisting: true });
+        await API.scanAll(S.profileId);
+        await ST._loadBgList();
+        const total = overwriteResult.copied + overwriteResult.overwritten;
+        Toast.show(`已复制 ${total} 张（覆盖 ${overwriteResult.overwritten} 张）`, 'success');
+        return;
+      }
+    }
+    if (result.copied > 0) {
+      await API.scanAll(S.profileId);
+      await ST._loadBgList();
+      Toast.show(`已复制 ${result.copied} 张收藏图片到背景图`, 'success');
+    } else if (result.skipped > 0 && dupLen > 0) {
+      Toast.show(`已跳过 ${result.skipped} 个重复文件`, 'info');
+    } else {
+      Toast.show('没有可复制的收藏图片', 'info');
+    }
+  } catch (e) {
+    Toast.show('复制失败: ' + (e.message || e), 'error');
   }
 };
 

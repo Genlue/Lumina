@@ -767,7 +767,7 @@ const ST = {
     }
   },
 
-  setBgMode(mode) {
+  async setBgMode(mode) {
     if (mode === 'transparent') {
       // === 快照：保存背景图模式的强调色配置 ===
       App._settings.bg_image_accent_mode = App._settings.accent_mode;
@@ -820,6 +820,8 @@ const ST = {
       // 应用当前强调色
       this.applyCurrentAccent();
       this._updateAccentSwatches();
+      // 刷新状态
+      await API.scanAll(S.profileId);
     } else {
       // === 保存透明模式的强调色 ===
       App._settings.transparent_accent_color_dark = App._settings.accent_color_dark;
@@ -836,6 +838,8 @@ const ST = {
 
       // === 关闭透明背景效果 ===
       this.applyBgTransparent(false);
+      // 刷新数据
+      await API.scanAll(S.profileId);
 
       // 恢复背景图
       this.applyBgImage(App._settings.bg_image || null);

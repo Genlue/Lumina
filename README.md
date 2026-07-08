@@ -79,7 +79,14 @@ cargo test
 
 ## 更新日志
 
-### 2026-07-08 — v2.8.5 — 灯箱收藏图标修复 + 缩放卡片美化
+### 2026-07-08 — v2.9.0 — 收藏转背景图 + 启动错误修复
+
+- ✨ **收藏→背景图批量导入** — 设置页新增"将收藏图片设为背景图"按钮，一键复制所有收藏图片到 `.album/backgrounds/`。支持重复文件检测：弹窗提示"跳过/覆盖全部/取消"（全选/跳过交互）
+- 🐛 **修复启动时 `ST._updateOverlayOpacity is not a function`** — 清除 app.js 中残留的对已删除方法的调用，透明模式 profile 启动不再崩溃
+- 🐛 **切换模式刷新背景图列表** — `setBgMode()` 改为 async，切换时调用 `API.scanAll()` 确保背景图列表正确显示
+- 🗃️ **新增 FavCopyResult Rust 结构体** — 返回 copied/overwritten/skipped/duplicates 四字段
+
+### 2026-07-08 — v2.8.5
 
 - 🐛 **修复灯箱收藏图标不显示** — 根因：`lightbox.js` 动态插入的 `<span data-icon>` 不会被已执行过的 `Icons.init()` 处理。改用 `Icons.icon()` 直接生成 SVG
 - 🎨 **缩放比例数卡片化** — `#lightbox-zoom-level` 改为与按钮一致的毛玻璃卡片样式，文字颜色跟随主题色，增强可读性

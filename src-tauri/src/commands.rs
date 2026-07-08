@@ -10,6 +10,7 @@ use serde::Serialize;
 use crate::db;
 use crate::db::DbState;
 use crate::models::*;
+use crate::models::FavCopyResult;
 use crate::repos;
 use crate::services;
 
@@ -1291,4 +1292,61 @@ pub fn write_text_file(path: String, content: String) -> Result<(), String> {
 #[tauri::command]
 pub fn read_text_file(path: String) -> Result<String, String> {
     std::fs::read_to_string(&path).map_err(|e| format!("Read file: {}", e))
+}
+
+// ============================================================
+// Favorites → Backgrounds
+// ============================================================
+
+#[tauri::command]
+pub fn favorites_copy_to_backgrounds(
+    app: AppHandle,
+    profile_id: String,
+    overwrite_existing: bool,
+) -> Result<FavCopyResult, String> {
+    let (p_conn_arc, folder) = get_profile_db(&app, &profile_id)?;
+    let p_conn = p_conn_arc.lock().map_err(|e| format!("Lock: {}", e))?;
+
+    let bg_dir = std::path::Path::new(&folder).join(".album").join("backgrounds");
+    std::fs::create_dir_all(&bg_dir).map_err(|e| format!("Create bg dir: {}", e))?;
+
+    let favs = repos::favorites::list_favorites(&p_conn, &profile_id);
+    let mut result = FavCopyResult {
+        copied: 0, overwritten: 0, skipped: 0, duplicates: vec![]
+    };
+
+    for fav in &favs {
+        let filename = match &fav.filename {
+            Some(f) => f,
+            None => continue,
+        };
+        let src = match &fav.folder_name {
+            Some(f) => std::path::Path::new(&folder).join(f).join(filename),
+            None => std::path::Path::new(&folder).join(filename),
+        };
+        if !src.exists() { continue; }
+
+        let dest = bg_dir.join(filename);
+        if dest.exists() {
+            if overwrite_existing {
+                if let Err(e) = std::fs::copy(&src, &dest) {
+                    eprintln!("Overwrite failed: {} -> {}: {}", src.display(), dest.display(), e);
+                    continue;
+                }
+                result.overwritten += 1;
+            } else {
+                result.skipped += 1;
+                result.duplicates.push(filename.clone());
+            }
+            continue;
+        }
+
+        if let Err(e) = std::fs::copy(&src, &dest) {
+            eprintln!("Copy failed: {} -> {}: {}", src.display(), dest.display(), e);
+            continue;
+        }
+        result.copied += 1;
+    }
+
+    Ok(result)
 }

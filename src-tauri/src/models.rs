@@ -147,3 +147,11 @@ pub struct FavoritesExportItem {
     pub width: Option<i64>,
     pub height: Option<i64>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FavCopyResult {
+    pub copied: i64,
+    pub overwritten: i64,
+    pub skipped: i64,
+    pub duplicates: Vec<String>,
+}
