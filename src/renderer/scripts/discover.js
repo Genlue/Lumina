@@ -1,5 +1,5 @@
 // ============================================================
-// Photo Album — Discover Page (waterfall / draw / random)
+// Lumina — Discover Page (waterfall / draw / random)
 // ============================================================
 
 const D = {

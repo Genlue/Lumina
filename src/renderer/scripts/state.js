@@ -1,5 +1,5 @@
 // ============================================================
-// Photo Album — Application State (encapsulated)
+// Lumina — Application State (encapsulated)
 // ============================================================
 
 const State = (() => {

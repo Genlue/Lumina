@@ -1,5 +1,5 @@
 // ============================================================
-// Photo Album — Lucide SVG Icons
+// Lumina — Lucide SVG Icons
 // All icons from https://lucide.dev
 // ============================================================
 

@@ -31,7 +31,7 @@ pub fn should_exclude(name: &str) -> bool {
         return true;
     }
     EXCLUDE_DIRS.contains(&name) || name == "album.json" || name == "albums.json"
-        || name == "albums.json.tmp" || name == "photo-album.html"
+        || name == "albums.json.tmp" || name == "lumina.html"
 }
 
 /// Recursively scan a directory.
@@ -184,7 +184,7 @@ mod tests {
     #[test]
     fn test_recursive_scan_detects_nested_images() {
         // Create a temporary test directory structure
-        let dir = std::env::temp_dir().join("photo_album_test_scan");
+        let dir = std::env::temp_dir().join("lumina_test_scan");
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(dir.join("folder1").join("sub1")).unwrap();
         fs::create_dir_all(dir.join("folder2")).unwrap();

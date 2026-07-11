@@ -15,7 +15,7 @@ fn db_path() -> PathBuf {
         .ok()
         .and_then(|p| p.parent().map(|d| d.to_path_buf()))
         .unwrap_or_else(|| PathBuf::from("."));
-    exe_dir.join("data").join("photo-album.db")
+    exe_dir.join("data").join("lumina.db")
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -88,5 +88,16 @@ pub fn run() {
 }
 
 fn main() {
+    // 数据库路径迁移：旧 photo-album.db → 新 lumina.db
+    let exe_dir = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+        .unwrap_or_else(|| PathBuf::from("."));
+    let old_db = exe_dir.join("data").join("photo-album.db");
+    let new_db = exe_dir.join("data").join("lumina.db");
+    if old_db.exists() && !new_db.exists() {
+        std::fs::rename(&old_db, &new_db).ok();
+    }
+
     run();
 }

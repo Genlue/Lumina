@@ -1,5 +1,5 @@
 // ============================================================
-// Photo Album — Adaptive Theme Color Extraction (Canvas + WCAG)
+// Lumina — Adaptive Theme Color Extraction (Canvas + WCAG)
 // ============================================================
 
 /**

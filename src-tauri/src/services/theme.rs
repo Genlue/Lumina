@@ -125,7 +125,7 @@ mod tests {
 
     #[test]
     fn test_extract_different_colors_for_different_images() {
-        let dir = std::env::temp_dir().join("photo_album_theme_test");
+        let dir = std::env::temp_dir().join("lumina_theme_test");
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
 

@@ -1,6 +1,6 @@
 {
   "identifier": "default",
-  "description": "Default capability for Photo Album",
+  "description": "Default capability for Lumina",
   "windows": ["*"],
   "permissions": [
     "core:default",

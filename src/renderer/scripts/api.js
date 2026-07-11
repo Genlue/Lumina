@@ -1,5 +1,5 @@
 // ============================================================
-// Photo Album — API layer (Tauri invoke wrappers)
+// Lumina — API layer (Tauri invoke wrappers)
 // ============================================================
 
 const API = {

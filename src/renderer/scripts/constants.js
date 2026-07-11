@@ -1,5 +1,5 @@
 // ============================================================
-// Photo Album — Constants
+// Lumina — Constants
 // ============================================================
 
 /** Supported image extensions */
@@ -8,7 +8,7 @@ const IMG_EXTS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp']);
 /** Files/paths excluded from scanning */
 const EXCLUDE = new Set([
   'album.json', 'albums.json', 'albums.json.tmp',
-  '.album', 'photo-album.html',
+  '.album', 'lumina.html',
 ]);
 
 /** Trash directory name */

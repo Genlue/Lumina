@@ -1,7 +1,7 @@
 {
-  "productName": "Photo Album",
+  "productName": "Lumina",
   "version": "1.0.0",
-  "identifier": "com.photoalbum.app",
+  "identifier": "com.lumina.album",
   "build": {
     "frontendDist": "../src/renderer"
   },
@@ -9,7 +9,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Photo Album",
+        "title": "流光相册",
         "width": 1280,
         "height": 860,
         "minWidth": 900,
@@ -34,7 +34,7 @@
       "../src/renderer/**/*": "src/renderer/",
       "../README.md": "README.md",
       "../.gitignore": ".gitignore",
-      "../Photo Album.bat": "Photo Album.bat",
+      "../Lumina.bat": "Lumina.bat",
       "Cargo.toml": "src-tauri/Cargo.toml",
       "Cargo.lock": "src-tauri/Cargo.lock",
       "src/**/*": "src-tauri/src/",

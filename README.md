@@ -1,4 +1,4 @@
-# Photo Album 📸
+# Lumina (流光相册) 📸
 
 一个基于 **Tauri v2** 的本地相册管理软件，轻量、快速、隐私安全。
 
@@ -33,7 +33,7 @@
 
 ### 直接运行
 
-下载 `photo-album.exe`，双击运行即可。
+下载 `lumina.exe`，双击运行即可。
 
 > 需要 [WebView2](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) 运行时（Windows 11 自带，Windows 10 可能需要安装）
 
@@ -44,15 +44,15 @@
 https://rustup.rs/
 
 # 2. 克隆仓库
-git clone https://github.com/Genlue/PhotoAlbum.git
-cd PhotoAlbum
+git clone https://github.com/Genlue/Lumina.git
+cd Lumina
 
 # 3. 构建
 cd src-tauri
 cargo build --release
 
 # 4. 运行
-./target/release/photo-album.exe
+./target/release/lumina.exe
 ```
 
 ## 使用说明
@@ -89,12 +89,12 @@ bash scripts/build-installer.sh
 cd src-tauri && cargo tauri build --bundles nsis
 ```
 
-安装器位于: `src-tauri/target/release/bundle/nsis/Photo Album_1.0.0_x64-setup.exe`
+安装器位于: `src-tauri/target/release/bundle/nsis/Lumina_1.0.0_x64-setup.exe`
 
 ## 安装说明
 
 - **系统要求**: Windows 10+，需安装 WebView2 Runtime（Windows 11 预装，Win10 需从微软官网下载）
-- **安装步骤**: 双击安装器 → 选择安装目录（默认 `%LOCALAPPDATA%\Photo Album`）→ 完成
+- **安装步骤**: 双击安装器 → 选择安装目录（默认 `%LOCALAPPDATA%\Lumina`）→ 完成
 - **启动**: 通过开始菜单或桌面快捷方式启动
 - **卸载**: 通过控制面板"添加/删除程序"或安装目录下的 `uninstall.exe`
 - **权限**: 安装到当前用户目录，无需管理员权限
@@ -343,7 +343,7 @@ cd src-tauri && cargo tauri build --bundles nsis
 
 ### 2026-06-30 — v1.6.0
 
-- 🏠 **标题栏加图标** — 窗口左上角"Photo Album"文字前添加软件图标（16px）
+- 🏠 **标题栏加图标** — 窗口左上角"Lumina"文字前添加软件图标（16px）
 - ✏️ **主页标题可编辑** — 设置页新增主页标题/副标题编辑功能，可自定义文字，保存后持久化
 - 📊 **仪表盘重新设计** — 移除进度条，改为左大右三行布局（图片总数+三行数据），所有数字/文字使用主题色，字号翻倍
 - 🎯 **SVG对齐终极修复** — 图标改为 `display:block` + flex容器 + `margin-top:-1px`，彻底解决视觉偏移
@@ -354,7 +354,7 @@ cd src-tauri && cargo tauri build --bundles nsis
 - 🏠 **主页顶栏** — "我的相册"文字移入粘性毛玻璃顶栏，消除背景干扰，提升可读性
 - ⚙️ **设置页可读性** — 分组标签改为毛玻璃卡片+左侧强调色条；滑块数值加大加粗
 - 🎯 **SVG图标对齐** — 统一所有场景下图标与文字的垂直居中对齐（flex + inline-flex）
-- 🎨 **侧边栏美化** — PhotoAlbum 文字跟随主题色；"新建相册"去掉多余加号；计数数字加大+选中态跟随主题色
+- 🎨 **侧边栏美化** — Lumina 文字跟随主题色；"新建相册"去掉多余加号；计数数字加大+选中态跟随主题色
 - 🃏 **发现页重新设计** — 顶部三标签改为独立圆角毛玻璃按钮；随机欣赏图片名+控制按钮套入毛玻璃卡片；抽卡按钮改为120x120正方形卡片+Lucide SVG图标
 - 📐 **所有新卡片跟随卡片设置** — 卡片透明度/模糊度设置对所有新增卡片生效
 
