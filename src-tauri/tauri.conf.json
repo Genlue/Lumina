@@ -27,5 +27,27 @@
         "scope": ["**"]
       }
     }
+  },
+  "bundle": {
+    "icon": ["icons/icon.ico"],
+    "resources": {
+      "../src/renderer/**/*": "src/renderer/",
+      "../README.md": "README.md",
+      "../.gitignore": ".gitignore",
+      "../Photo Album.bat": "Photo Album.bat",
+      "Cargo.toml": "src-tauri/Cargo.toml",
+      "Cargo.lock": "src-tauri/Cargo.lock",
+      "src/**/*": "src-tauri/src/",
+      "icons/**/*": "src-tauri/icons/",
+      "build.rs": "src-tauri/build.rs",
+      "tauri.conf.json": "src-tauri/tauri.conf.json"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "displayLanguageSelector": true
+      }
+    }
   }
 }

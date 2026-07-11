@@ -77,6 +77,29 @@ cargo tauri dev
 cargo test
 ```
 
+## 构建安装器
+
+```bash
+# 前置条件: 安装 cargo-tauri CLI
+cargo install tauri-cli --version "^2"
+
+# 构建 NSIS 安装器（仅 Windows）
+bash scripts/build-installer.sh
+# 或手动执行:
+cd src-tauri && cargo tauri build --bundles nsis
+```
+
+安装器位于: `src-tauri/target/release/bundle/nsis/Photo Album_1.0.0_x64-setup.exe`
+
+## 安装说明
+
+- **系统要求**: Windows 10+，需安装 WebView2 Runtime（Windows 11 预装，Win10 需从微软官网下载）
+- **安装步骤**: 双击安装器 → 选择安装目录（默认 `%LOCALAPPDATA%\Photo Album`）→ 完成
+- **启动**: 通过开始菜单或桌面快捷方式启动
+- **卸载**: 通过控制面板"添加/删除程序"或安装目录下的 `uninstall.exe`
+- **权限**: 安装到当前用户目录，无需管理员权限
+- **数据隔离**: 应用数据存储在图片文件夹下的 `.album/` 目录，卸载时不会删除用户数据
+
 ## 更新日志
 
 ### 2026-07-11 — v2.10.0 — 强调色"跟随系统"模式
