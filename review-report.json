@@ -1,0 +1,158 @@
+{
+  "review": [
+    {
+      "id": 1,
+      "title": "设为封面功能无效",
+      "rootCause": {
+        "verified": true,
+        "detail": "albums_set_cover 正确将 cover_image 写入 DB (models.rs L17, repos/albums.rs L43-48)，但 renderer.js L244-255 中 renderAlbumGrid() 始终使用 imgs[0].name 获取封面缩略图，从未查询 cover_image。ScanResult 模型 (models.rs L96-103) 也不包含封面信息。"
+      },
+      "fixPlan": {
+        "verdict": "FLAWED",
+        "detail": "Option A（在 ScanResult 中添加 album_covers）架构上有问题：scanner.rs 是纯文件系统扫描器，不查询 DB。让 scanner 查询 DB 违背关注点分离。Option B（新增 albums_list_covers 命令）更干净。最简方案：新增一个 'albums_list' 命令返回 Album 记录（含 cover_image），前端在 _doLoad 或 renderAlbumGrid 中调用。注意修复后 renderAlbumGrid 需同时支持 cover_image 优先，fallback 到 imgs[0]。"
+      },
+      "filesAccurate": true
+    },
+    {
+      "id": 2,
+      "title": "单选缺少"移动到文件夹"",
+      "rootCause": {
+        "verified": true,
+        "detail": "showCtx() (app.js L601-698) 菜单项包含：locate、fav、rename、cover、explorer、delete，唯独没有"移动到文件夹"。showMultiCtx() (L737-853) 有该项。"
+      },
+      "fixPlan": {
+        "verdict": "CORRECT",
+        "detail": "在 showCtx() 中添加"移动到文件夹"菜单项，逻辑复用 showMultiCtx() 中 move 部分的 Modal.prompt + moveToFolder/moveBetween 流程。验证无误。"
+      },
+      "filesAccurate": true
+    },
+    {
+      "id": 3,
+      "title": "SVG对齐不完整",
+      "rootCause": {
+        "verified": false,
+        "detail": "部分成立但描述含糊。layout.css L1013-1030 已有统一 SVG 对齐规则（`display:block;flex-shrink:0;margin-top:-1px`），但不是 review 声称的 flex 对齐。现有规则覆盖了 nav-item、sidebar-btn、toolbar-btn、home-card h3、dashboard labels。主张的"breadcrumb、设置页标题、相册列表项、模态框、toast 未对齐"缺乏具体代码证据——这些元素的 SVG 是否确实错位需要逐个检查，而非笼统断言。"
+      },
+      "fixPlan": {
+        "verdict": "INSUFFICIENT",
+        "detail": "修复方案"全面扫描所有包含SVG图标的元素"过于笼统，缺少具体清单。建议：列出每个具体 DOM 位置和预期对齐方式，而非"全面扫描"。且现有 CSS 使用 margin-top 微调而非 flex 对齐，如果改为 flex 对齐需评估对层级结构的影响。"
+      },
+      "filesAccurate": true
+    },
+    {
+      "id": 4,
+      "title": "主页自定义文字跨Profile泄露",
+      "rootCause": {
+        "verified": false,
+        "detail": "**核心验证通过**：home_title 确实未持久化——models.rs Settings 结构体没有该字段，repos/settings.rs 读写均未覆盖，db.rs settings 表 schema 和所有迁移(V1-V7)都没有 home_title 列。**但"跨Profile泄露"说法不准确**：_doLoad() L237 用 API.getSettings() 完全覆盖 App._settings，不存在跨 profile 泄漏。实际问题是：home_title 设置后仅存于内存，reload 或切换 profile 后会丢失。"
+      },
+      "fixPlan": {
+        "verdict": "CORRECT (但需补充)",
+        "detail": "DB 迁移、models.rs、repos/settings.rs 的修改方案正确。但还需注意：(1) db.rs 中的 OldSettings 结构体（L558-569）也需要添加 home_title，否则 profile_id 迁移时会静默丢失 home_title；(2) settings_get 的 SELECT 查询需要加 home_title 列；(3) 前端 settings.js 已有 renderHomeTitleSettings/saveHomeTitle 函数可用，无需大改。"
+      },
+      "filesAccurate": false,
+      "filesNote": "缺少 db.rs 中 OldSettings 结构体的修改——OldSettings 和 init_profile_db_schema 中的 settings 表 SELECT 列列表都需要同步添加 home_title。"
+    },
+    {
+      "id": 5,
+      "title": "图片/相册卡片不跟随卡片设置",
+      "rootCause": {
+        "verified": true,
+        "detail": "layout.css L447: .image-card 使用 `background: var(--c-card,#2a2a2a)`，L529: .album-card 使用 `background: var(--c-card,#2a2a2a)`，均未使用 --card-opacity 和 --card-blur 变量。对比：.home-card(L262)、.settings-card(L660)、.dashboard-card(L712) 均使用了 `rgba(var(--c-card-r,...)...)` + `backdrop-filter:blur(var(--card-blur,...))` + `var(--card-opacity,...)`。--c-card-r/-g/-b 由 ST.applyTheme() (settings.js L91-92) 设定，完全可用。"
+      },
+      "fixPlan": {
+        "verdict": "CORRECT",
+        "detail": "将 .image-card 和 .album-card 改为 rgba + --card-opacity + --card-blur 方案正确。但"卡片文字加大加粗"部分超出了原标题"不跟随卡片设置"的范围，属于增强锦上添花。建议分离为独立变更。"
+      },
+      "filesAccurate": true
+    },
+    {
+      "id": 6,
+      "title": "相册空白区右键可新建文件夹",
+      "rootCause": {
+        "verified": true,
+        "detail": "context-menu.js L41-46: 只阻止了 #image-grid / #album-grid / .home-card / .discover-panel 上的默认右键菜单，其他区域（如 album grid 空白间隙、页面空白边距）显示浏览器原生菜单。"
+      },
+      "fixPlan": {
+        "verdict": "PARTIALLY CORRECT",
+        "detail": "方向正确但缺少关键细节：(1)'禁用全局默认右键菜单'过于激进——会影响 input 输入框等需要原生右键菜单的位置。更好的方式是在 #page-album 或 .page-scroll 上逐个阻止。(2)'空白区'未精确定义——是 #album-grid 内卡片之外的空白，还是整个 #album-grid-wrap 的空白，还是 #page-scroll 的空白区域？上下文菜单的定位（坐标）取决于定义。建议明确监听 #album-grid-wrap 的 contextmenu 事件，当 target 不是 .album-card 或 .album-cover 时触发"新建文件夹"。"
+      },
+      "filesAccurate": true
+    },
+    {
+      "id": 7,
+      "title": "收藏页无法取消已损坏图片",
+      "rootCause": {
+        "verified": true,
+        "detail": "commands.rs L652-671: favorites_toggle 先调用 get_image_by_name，image 不存在时提前返回 Err(\"Image not found\")，导致无法删除收藏。注意：favorites.rs 的 list_favorites(L36-120) 已有孤儿回收逻辑，在下一次加载收藏页时会清理孤儿。但用户无法通过 UI 主动取消收藏。"
+      },
+      "fixPlan": {
+        "verdict": "PARTIALLY CORRECT",
+        "detail": "思路正确但引用了不存在的函数：repos::favorites::is_favorited 不存在——favorites.rs 只有 is_favorite(conn, profile_id, image_id) 通过 image_id 查询。但本场景下 image 记录已不存在，无法获知 image_id，因此需要新增一个按 (profile_id, filename, album_id) 查询的函数。建议方案：(1) 新增 repos::favorites::is_favorited_by_name(conn, profile_id, filename, album_id) -> bool；(2) 在 favorites_toggle 中当 get_image_by_name 失败时，回退检查该函数并删除。"
+      },
+      "filesAccurate": false,
+      "filesNote": "缺少 repos/favorites.rs 需要新增的查询函数。引用的 is_favorited 在代码库中不存在。"
+    },
+    {
+      "id": 8,
+      "title": "删除到回收站时应取消收藏",
+      "rootCause": {
+        "verified": true,
+        "detail": "commands.rs L379-422: files_move_to_trash 只做两个操作——(1) 移动文件到 .album/trash/；(2) 插入 trash 表记录。没有做任何 favorites 相关的清理。"
+      },
+      "fixPlan": {
+        "verdict": "PARTIALLY CORRECT",
+        "detail": "方向正确但过于简化。files_move_to_trash 没有查询 images 表，因此没有 image_id 可用来删除 favorites。需要：(1) 先用 get_image_by_name 查询 DB image 记录（和 favorites_toggle 中一样）；(2) 如果有 image_id，调用 repos::favorites::remove_by_image（需新增，或复用 toggle_favorite 删除分支）；(3) 如果 image 记录也不存在（外部删除了文件+DB记录），可以考虑直接按 (profile_id, filename, album_id) 从 favorites 删除。"
+      },
+      "filesAccurate": false,
+      "filesNote": "files_move_to_trash 中没有查询 image 的步骤。需要补全。"
+    },
+    {
+      "id": 9,
+      "title": "相册删除逻辑错误",
+      "rootCause": {
+        "verified": true,
+        "detail": "commands.rs L528-564: folders_delete 在 move_up=false 时执行 fs::remove_dir_all(full_path) 永久删除目录下所有文件，不走回收站。也没有清理 favorites 或 trash 表。同时 albums DB 记录的删除只是做了 DELETE FROM albums 和 LIKE 删除子 albums，但没有删除关联的 images 记录（外键级联取决于表定义——db.rs 中 images 表的 album_id 有 REFERENCES albums(id) ON DELETE CASCADE，但 favorites 表关联 image_id 而非 album_id，所以图片删除后 favorites 成为孤儿）。"
+      },
+      "fixPlan": {
+        "verdict": "FLAWED",
+        "detail": "修复方案存在多个问题：(1) 复杂度严重不足——将文件夹下每张图片重命名到回收站在大量文件下性能很差，且边缘情况（非图片文件、符号链接、长路径）未处理。(2) fs::remove_dir_all 删除文件夹前必须确保所有文件已移走或删除——如果 recycler 函数失败（权限、路径长度等），文件夹会删除失败。(3) 扫描后需要重新 sync_images——但文件夹已不存在，scanner 不会再扫到这些文件，所以 images 表中的记录需要通过 DB 操作清理，而不是依赖扫描。(4) move_up=true 的情况未涉及 favorites 清理——文件虽然移到根目录，但 favorites 表中的 image_id 的 album_id 可能变了，需要同步。**建议**：不要用逐个文件 recycler 方式，直接：(a) 批量删除 favorites（通过 JOIN images ON album_id IN (subquery)）；(b) 删除 images（CASCADE 已处理关联）；(c) 删除 albums；(d) 执行 fs::remove_dir_all（DB 记录已清）。如果非要走回收站，才用逐个文件方式，但要增加全面的错误处理和回滚。"
+      },
+      "filesAccurate": true,
+      "filesNote": "此部分涉及大量重构，commands.rs 的 folders_delete 需要重大重写，repos/trash.rs 需要批量添加功能，repos/favorites.rs 需要批量删除功能。"
+    },
+    {
+      "id": 10,
+      "title": "右键菜单在底部被遮挡",
+      "rootCause": {
+        "verified": true,
+        "detail": "context-menu.js L11-22: CM.show() 用 Math.min(y, maxY) 裁剪纵坐标，当 y 靠近底部时菜单贴着底部边缘弹出，光标与菜单产生较大偏移。缺少"翻转"逻辑。"
+      },
+      "fixPlan": {
+        "verdict": "CORRECT",
+        "detail": "修复代码逻辑正确：先检测 y + h 是否超出视口，如是则设置 finalY = y - h（菜单出现在光标上方），再 clamp 到 [4, maxY] 范围。边缘情况：如果光标在视口顶部不足一个菜单高度时，menu 顶部会在 4px 处，但可能会遮挡部分内容。建议再加一个高度不足的兜底：如果 y - h < 4 且 y + h > window.innerHeight - 8（即上下都放不下），简单 clamp 到 4px 即可接受。"
+      },
+      "filesAccurate": true
+    }
+  ],
+  "summary": {
+    "correct": [2, 5, 10],
+    "partiallyCorrect": [6, 7, 8],
+    "insufficient": [3],
+    "flawed": [1, 9],
+    "inaccurateRootCause": [3, 4],
+    "totalVerified": 10,
+    "fixPlanValidCount": 3,
+    "fixPlanPartiallyValidCount": 3,
+    "fixPlanFlawedCount": 2,
+    "fixPlanInsufficientCount": 1,
+    "fileListAccuracy": {
+      "correct": [2, 3, 5, 6, 9, 10],
+      "missingFiles": {
+        "4": ["db.rs 中 OldSettings 结构体同步迁移"],
+        "7": ["repos/favorites.rs 中按 filename 查询的新函数"],
+        "8": ["files_move_to_trash 中需补充 image DB 查询"]
+      }
+    }
+  }
+}

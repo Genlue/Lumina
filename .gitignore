@@ -1,0 +1,15 @@
+node_modules/
+dist/
+dist-pkg/
+*.db
+*.db-journal
+.DS_Store
+Thumbs.db
+*.log
+target/
+data/
+*.bak*
+photo-album.exe.WebView2/
+photo-album.exe
+*.exe
+

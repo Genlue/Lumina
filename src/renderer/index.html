@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photo Album</title>
+  <link rel="stylesheet" href="styles/win11-vars.css">
+  <link rel="stylesheet" href="styles/theme.css">
+  <link rel="stylesheet" href="styles/layout.css">
+</head>
+<body>
+
+  <!-- Title bar -->
+  <div id="title-bar">
+    <div id="title-drag" data-tauri-drag-region><img src="assets/icons/icon-32.png" style="width:16px;height:16px;border-radius:4px;vertical-align:middle;margin-right:6px;">Photo Album</div>
+    <div id="title-btns">
+      <button id="btn-min" title="最小化"><span data-icon="minus" data-size="14"></span></button>
+      <button id="btn-max" title="最大化"><span data-icon="maximize" data-size="14"></span></button>
+      <button id="btn-close" title="关闭"><span data-icon="x" data-size="14"></span></button>
+    </div>
+  </div>
+
+  <div id="bg-layer"></div>
+  <div id="bg-overlay"></div>
+
+  <div id="startup">
+    <div id="startup-config" style="text-align:center;">
+      <img src="assets/icons/icon-128.png" alt="" style="width:80px;height:80px;border-radius:20px;display:block;margin:-60px auto 0 auto;">
+      <h1>Photo Album</h1>
+      <p>本地相册管理</p>
+      <button id="btn-select-folder" class="btn-primary">选择图片文件夹</button>
+      <div id="startup-status">等待初始化...</div>
+      <div id="js-check" class="js-check">JS未加载</div>
+      <div id="loading-bar" style="margin-top:12px;width:200px;height:4px;background:var(--c-border);border-radius:2px;overflow:hidden;"><div id="loading-fill" style="height:100%;width:0;background:var(--c-accent);transition:width 0.3s;"></div></div>
+      <script>
+        (function(){
+          var el = document.getElementById('js-check');
+          el.textContent = 'JS已加载';
+          el.classList.add('loaded');
+          // Apply system theme immediately (CSS vars not ready yet)
+          try {
+            var mode = window.matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark';
+            if (mode === 'light') {
+              el.style.background = '#d4edda';
+              el.style.color = '#155724';
+              el.style.borderColor = '#c3e6cb';
+            } else {
+              el.style.background = '#1a472a';
+              el.style.color = '#b0e0b0';
+              el.style.borderColor = '#2d6a4f';
+            }
+          } catch(e){}
+        })();
+      </script>
+    </div>
+    <div id="startup-profiles" class="hidden">
+      <h2>选择文件夹</h2>
+      <div id="startup-profile-list"></div>
+      <button id="btn-start-new" class="btn-primary">+ 添加新文件夹</button>
+    </div>
+  </div>
+
+  <div id="app" class="hidden">
+    <nav id="sidebar">
+      <div id="sidebar-logo"><img src="assets/icons/icon-32.png" alt="" style="width:28px;height:28px;border-radius:6px;"><span>Photo Album</span></div>
+      <div id="folder-info"><span></span></div>
+      <div class="nav-section">
+        <div class="nav-item active" data-page="home"><span data-icon="house" data-size="16"></span> 主页<span class="count" id="nav-home-count"></span></div>
+        <div class="nav-item" data-page="all"><span data-icon="images" data-size="16"></span> 图片<span class="count" id="nav-all-count"></span></div>
+        <div class="nav-item" data-page="album"><span data-icon="album" data-size="16"></span> 相册<span class="count" id="nav-album-count"></span></div>
+        <div class="nav-item" data-page="favorites"><span data-icon="star" data-size="16"></span> 收藏<span class="count" id="nav-fav-count"></span></div>
+        <div class="nav-item" data-page="discover"><span data-icon="compass" data-size="16"></span> 发现</div>
+        <div class="nav-item" data-page="settings"><span data-icon="settings" data-size="16"></span> 设置</div>
+      </div>
+      <div class="sidebar-divider"></div>
+      <div id="album-list-wrap"><div id="album-list"></div></div>
+      <div id="sidebar-footer">
+        <button id="btn-new-album" class="sidebar-btn primary"><span data-icon="folder-plus" data-size="14"></span> 新建相册</button>
+        <button id="btn-switch-folder" class="sidebar-btn" onclick="window._switchFolder()"><span data-icon="refresh-cw" data-size="14"></span> 更换文件夹</button>
+        <button id="btn-trash" class="sidebar-btn danger" onclick="App.navToTrash()" style="color:#f44b5b!important;border:1px solid #f44b5b;"><span data-icon="trash" data-size="14" style="color:#f44b5b"></span> 回收站<span class="count-badge">0</span></button>
+      </div>
+    </nav>
+    <main id="main">
+      <section id="page-home" class="page-panel hidden" style="padding:0;display:flex;flex-direction:column;overflow:hidden;">
+        <div id="home-toolbar">
+          <span id="home-title" class="home-title">我的相册</span>
+        </div>
+        <div class="page-scroll">
+          <div class="home-grid" style="margin-top:24px;">
+          <div class="home-card dashboard-card" style="cursor:default;">
+            <div class="dash-left">
+              <span class="dash-main-num" id="stat-total-imgs">0</span>
+              <span class="dash-main-label"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> 图片总数</span>
+            </div>
+            <div class="dash-right">
+              <div class="dash-right-row">
+                <span class="dash-right-label"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg> 占用空间</span>
+                <span class="dash-right-num" id="stat-total-size">0 B</span>
+              </div>
+              <div class="dash-divider"></div>
+              <div class="dash-right-row">
+                <span class="dash-right-label"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><path d="M2 21h20"/></svg> 相册数</span>
+                <span class="dash-right-num" id="stat-albums">0</span>
+              </div>
+              <div class="dash-divider"></div>
+              <div class="dash-right-row">
+                <span class="dash-right-label"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> 收藏数</span>
+                <span class="dash-right-num" id="stat-favs">0</span>
+              </div>
+            </div>
+          </div>
+          <div class="home-card" data-action="rescan"><h3><span data-icon="refresh-cw"></span> 刷新图片</h3><p>重新扫描文件夹，同步新增/删除的图片</p></div>
+          <div class="home-card" data-nav="album"><h3><span data-icon="folder-open"></span> 相册浏览</h3><p>按文件夹整理，拖拽管理</p></div>
+          <div class="home-card" data-nav="discover-waterfall"><h3><span data-icon="columns-2"></span> 瀑布流</h3><p>自适应列布局</p></div>
+          <div class="home-card" data-nav="discover-draw"><h3><span data-icon="shuffle"></span> 随机抽卡</h3><p>翻转卡片惊喜展示</p></div>
+          <div class="home-card" data-nav="discover-random"><h3><span data-icon="play"></span> 随机欣赏</h3><p>全屏随机轮播</p></div>
+          </div>
+        </div>
+      </section>
+      <section id="page-album" class="page-panel hidden">
+        <div id="toolbar">
+          <button id="btn-back" class="toolbar-btn" title="返回上级" style="display:none;"><span data-icon="arrow-left" data-size="14"></span></button>
+          <span id="breadcrumb">全部图片</span>
+          <div id="search-wrap">
+            <span class="search-icon"><span data-icon="search" data-size="14"></span></span>
+            <input id="search-input" type="text" placeholder="搜索图片...">
+            <span class="search-icon search-neg-icon" style="opacity:0.5;display:none;"><span data-icon="list-filter" data-size="14"></span></span>
+            <input id="search-neg" type="text" placeholder="排除..." style="display:none;">
+          </div>
+          <div class="toolbar-btn-group"><button id="btn-view-grid" class="toolbar-btn active" title="网格"><span data-icon="grid-2x2" data-size="14"></span></button><button id="btn-view-list" class="toolbar-btn" title="列表"><span data-icon="list" data-size="14"></span></button></div>
+          <button id="btn-multi-select" class="toolbar-btn" title="多选"><span data-icon="square-check" data-size="14"></span> 多选</button>
+          <select id="sort-select"><option value="name-asc">名称↑</option><option value="name-desc">名称↓</option><option value="date-desc">最新优先</option><option value="date-asc">最旧优先</option></select>
+        </div>
+        <div class="page-scroll">
+          <div id="album-grid-wrap"><div id="album-grid"></div><div class="empty-wrap hidden" id="albums-empty"><div class="empty-text">尚无相册</div></div></div>
+          <div id="image-container"><div id="image-grid"></div><div class="empty-wrap hidden" id="empty-state"><div class="empty-text">暂无图片</div></div></div>
+        </div>
+      </section>
+      <section id="page-discover" class="page-panel hidden">
+        <div class="discover-tabs"><span class="discover-title">发现</span><button class="discover-tab active" data-tab="waterfall">瀑布流</button><button class="discover-tab" data-tab="draw">随机抽卡</button><button class="discover-tab" data-tab="random">随机欣赏</button></div>
+        <div class="page-scroll">
+          <div id="discover-waterfall" class="discover-panel"><div id="waterfall-grid"></div></div>
+          <div id="discover-draw" class="discover-panel hidden"><div id="draw-area"></div></div>
+          <div id="discover-random" class="discover-panel hidden"><div id="random-area"></div></div>
+        </div>
+      </section>
+      <section id="page-settings" class="page-panel hidden">
+        <div class="settings-grid">
+<div class="settings-group-label">背景</div>
+<div class="settings-card" style="grid-column:1/-1;" id="bg-image-card"><h3>背景图片</h3><div id="bg-thumb-grid" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;"></div><button id="btn-import-bg" onclick="window._importBg()" style="margin-top:8px;padding:6px 12px;background:var(--c-accent-bg);color:var(--c-accent);border-radius:6px;font-size:0.85em;cursor:pointer;">+ 导入背景图</button> <button id="btn-open-bg-folder" onclick="window._openBgFolder()" style="margin-top:8px;padding:6px 12px;background:var(--c-card);color:var(--c-text2);border:1px solid var(--c-border);border-radius:6px;font-size:0.85em;cursor:pointer;">打开文件夹</button> <button id="btn-refresh-bg" onclick="ST._refreshBgList()" style="margin-top:8px;padding:6px 12px;background:var(--c-card);color:var(--c-text2);border:1px solid var(--c-border);border-radius:6px;font-size:0.85em;cursor:pointer;">刷新</button></div>
+<div class="settings-card"><h3>背景模式</h3>
+<div style="display:flex;gap:8px;">
+  <button id="btn-bg-image" class="theme-btn" onclick="ST.setBgMode('image')">背景图片</button>
+  <button id="btn-bg-transparent" class="theme-btn" onclick="ST.setBgMode('transparent')">透明背景</button>
+</div></div>
+<div class="settings-card"><h3>背景模糊</h3><input type="range" id="set-bg-blur" oninput="ST.applyBlur(parseInt(this.value))" min="0" max="50" value="0"><span id="bg-blur-val">0px</span></div>
+<div class="settings-card"><h3>背景透明度</h3><input type="range" id="set-bg-opacity" oninput="ST.applyOpacity(parseInt(this.value)/100)" min="0" max="100" value="100"><span id="bg-opacity-val">100%</span></div>
+
+<div class="settings-group-label">侧边栏</div>
+<div class="settings-card"><h3>侧边栏宽度</h3><input type="range" id="set-sidebar-w" oninput="ST.applySidebarWidth(parseInt(this.value))" min="150" max="500" value="150"><span id="sidebar-w-val">150px</span></div>
+<div class="settings-card"><h3>侧边栏字体</h3><input type="range" id="set-sidebar-font" oninput="ST.applySidebarFont(parseInt(this.value))" min="10" max="30" value="20"><span id="sidebar-font-val">20px</span></div>
+<div class="settings-card"><h3>侧边栏模糊</h3><input type="range" id="set-sidebar-blur" oninput="ST.applySidebarBlur(parseInt(this.value))" min="0" max="50" value="16"><span id="sidebar-blur-val">16px</span></div>
+<div class="settings-card"><h3>侧边栏透明度</h3><input type="range" id="set-sidebar-opacity" oninput="ST.applySidebarOpacity(parseInt(this.value)/100)" min="0" max="100" value="70"><span id="sidebar-opacity-val">70%</span></div>
+
+<div class="settings-group-label">卡片</div>
+<div class="settings-card"><h3>卡片透明度</h3><input type="range" id="set-card-opacity" oninput="ST.applyCardOpacity(this.value/100)" min="0" max="100" value="70"><span id="card-opacity-val">70%</span></div>
+<div class="settings-card"><h3>卡片模糊</h3><input type="range" id="set-card-blur" oninput="ST.applyCardBlur(parseInt(this.value))" min="0" max="30" value="16"><span id="card-blur-val">16px</span></div>
+
+<div class="settings-group-label">顶栏</div>
+<div class="settings-card"><h3>顶栏高度</h3><input type="range" id="set-toolbar-h" oninput="ST.applyToolbarHeight(parseInt(this.value))" min="56" max="80" value="56"><span id="toolbar-h-val">56px</span></div>
+<div class="settings-card"><h3>顶栏模糊</h3><input type="range" id="set-toolbar-blur" oninput="ST.applyToolbarBlur(parseInt(this.value))" min="0" max="50" value="16"><span id="toolbar-blur-val">16px</span></div>
+<div class="settings-card"><h3>顶栏透明度</h3><input type="range" id="set-toolbar-opacity" oninput="ST.applyToolbarOpacity(parseInt(this.value)/100)" min="0" max="100" value="70"><span id="toolbar-opacity-val">70%</span></div>
+
+<div class="settings-group-label">其他</div>
+<div class="settings-card"><h3>主题</h3><div style="display:flex;gap:8px;"><button id="btn-theme-dark" onclick="ST.applyTheme('dark')" class="theme-btn">深色</button><button id="btn-theme-light" onclick="ST.applyTheme('light')" class="theme-btn">浅色</button><button id="btn-theme-system" onclick="ST.applyTheme('system')" class="theme-btn">跟随系统</button></div></div>
+<div class="settings-card" id="accent-card"><h3>强调色</h3>
+  <div style="display:flex;gap:8px;margin-bottom:8px;">
+    <button id="btn-accent-custom" class="accent-mode-btn" onclick="ST.setAccentMode('custom')">自定义颜色</button>
+    <button id="btn-accent-extract" class="accent-mode-btn" onclick="ST.setAccentMode('extract')">背景图提取</button>
+    <button id="btn-accent-system" class="accent-mode-btn" onclick="ST.setAccentMode('system')">跟随系统</button>
+  </div>
+  <div id="accent-custom-panel">
+    <div style="display:flex;gap:12px;align-items:center;">
+      <span style="font-size:0.82em;color:var(--c-text3);">深色:</span>
+      <div id="accent-swatch-dark" class="accent-swatch" style="background:#4A9EFF;" onclick="ST.openColorPicker('dark')" oncontextmenu="ST.openColorPicker('dark');event.preventDefault();"></div>
+      <span style="font-size:0.82em;color:var(--c-text3);">浅色:</span>
+      <div id="accent-swatch-light" class="accent-swatch" style="background:#003D7A;" onclick="ST.openColorPicker('light')" oncontextmenu="ST.openColorPicker('light');event.preventDefault();"></div>
+    </div>
+  </div>
+  <div id="accent-extract-panel" style="display:none;">
+    <span style="font-size:0.82em;color:var(--c-text3);">切换背景图或主题时自动提取</span>
+  </div>
+  <div id="accent-system-panel" style="display:none;">
+    <div style="display:flex;gap:12px;align-items:center;">
+      <span style="font-size:0.82em;color:var(--c-text3);">系统强调色:</span>
+      <div id="accent-swatch-system" class="accent-swatch" style="background:#4A9EFF;"></div>
+      <span id="accent-system-color-value" style="font-size:0.82em;color:var(--c-text3);"></span>
+    </div>
+  </div>
+</div>
+<div class="settings-card"><h3>缩略图大小</h3><input type="range" id="set-thumb-size" oninput="ST.applyThumbnailSize(parseInt(this.value))" min="100" max="800" value="400"><span id="thumb-size-val">400px</span></div>
+<div class="settings-card"><h3>抽卡个数</h3><input type="range" id="set-draw-count" oninput="ST.applyDrawCount(parseInt(this.value))" min="1" max="30" value="10"><span id="draw-count-val">10</span></div>
+<div class="settings-card"><h3>播放间隔 (秒)</h3><input type="range" id="set-random-interval" oninput="ST.applyRandomInterval(parseInt(this.value))" min="1" max="30" value="3"><span id="random-interval-val">3</span></div>
+<div class="settings-card"><h3>多选遮罩浓度</h3><input type="range" id="set-overlay-opacity" oninput="ST.applyOverlayOpacity(Number(this.value)/100)" min="0" max="60" value="20"><span id="overlay-opacity-val">20%</span></div>
+  <div class="settings-card" style="grid-column:1/-1;"><h3>主页标题</h3>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <input type="text" id="set-home-title" style="flex:1;padding:8px 12px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--radius-sm);color:var(--c-text);font-size:var(--font-size-base);" placeholder="我的相册">
+    </div>
+    <button id="btn-save-home-text" class="btn-primary" style="margin-top:8px;padding:6px 16px;" onclick="ST.saveHomeTitle()">保存</button>
+  </div>
+  <div class="settings-card"><h3>列表列数</h3><input type="range" id="set-list-cols" oninput="ST.applyListColumns(parseInt(this.value))" min="1" max="5" value="3"><span id="list-cols-val">3</span></div>
+<div class="settings-card"><h3>逆向搜索栏</h3><div style="display:flex;gap:8px;"><button id="btn-reverse-on" onclick="ST.toggleReverseSearch(true)" style="flex:1;padding:10px;border-radius:8px;background:var(--c-card);color:var(--c-text);border:2px solid transparent;cursor:pointer;font-size:14px;">开启</button><button id="btn-reverse-off" onclick="ST.toggleReverseSearch(false)" style="flex:1;padding:10px;border-radius:8px;background:var(--c-card);color:var(--c-text);border:2px solid transparent;cursor:pointer;font-size:14px;">关闭</button></div></div>
+<div class="settings-card"><h3>缓存管理</h3><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><span id="cache-size-label">计算中...</span><button id="btn-clear-cache" class="btn-primary" onclick="ST.clearCache()" style="padding:6px 16px;">清除缓存</button></div></div>
+<div class="settings-card" style="grid-column:1/-1;"><h3>收藏管理</h3>
+<div style="display:flex;gap:8px;margin-top:8px;">
+  <button id="btn-export-fav" class="btn-primary" onclick="window._exportFavorites()">导出收藏</button>
+  <button id="btn-import-fav" class="btn-primary" onclick="window._importFavorites()">导入收藏</button>
+</div>
+<button id="btn-fav-to-bg" class="btn-primary" onclick="window._favToBg()" style="margin-top:6px;">将收藏图片设为背景图</button></div>
+<style>
+#accent-card { position: relative; }
+.accent-mode-btn { flex:1; padding:10px; border-radius:8px; background:var(--c-card); color:var(--c-text); border:2px solid transparent; cursor:pointer; font-size:14px; }
+.accent-mode-btn.active { border-color:var(--c-accent); }
+.accent-swatch { width:32px; height:32px; border-radius:50%; cursor:pointer; border:2px solid var(--c-border); transition:border-color 0.2s; }
+.accent-swatch:hover { border-color:var(--c-accent); }
+.theme-btn { flex:1; padding:10px; border-radius:8px; background:var(--c-card); color:var(--c-text); border:2px solid transparent; cursor:pointer; font-size:14px; }
+</style>
+        </div>
+      </section>
+    </main>
+  </div>
+  <div id="lightbox" class="hidden">
+    <div id="lightbox-bg"></div><img id="lightbox-img" src="" alt="">
+    <div id="lightbox-info"><span id="lightbox-name"></span><span id="lightbox-meta"></span></div>
+    <div id="lightbox-controls">
+      <button id="lightbox-prev" title="上一张"><span data-icon="chevron-left" data-size="14"></span></button>
+      <button id="lightbox-zoom-out" title="缩小"><span data-icon="zoom-out" data-size="14"></span></button>
+      <span id="lightbox-zoom-level">100%</span>
+      <button id="lightbox-zoom-in" title="放大"><span data-icon="zoom-in" data-size="14"></span></button>
+      <button id="lightbox-fit" title="适合屏幕"><span data-icon="fullscreen" data-size="14"></span></button>
+      <button id="lightbox-star" title="收藏"><span data-icon="star" data-size="14"></span></button>
+      <button id="lightbox-delete" title="删除"><span data-icon="trash" data-size="14"></span></button>
+      <button id="lightbox-next" title="下一张"><span data-icon="chevron-right" data-size="14"></span></button>
+      <button id="lightbox-close" title="关闭"><span data-icon="x" data-size="14"></span></button>
+    </div>
+  </div>
+  <div id="ctx-m" class="hidden"></div>
+  <div id="toast-c"></div>
+
+  <script src="scripts/constants.js"></script>
+  <script src="scripts/utils.js"></script>
+  <script src="scripts/state.js"></script>
+  <script src="scripts/api.js"></script>
+  <script src="scripts/modal.js"></script>
+  <script src="scripts/toast.js"></script>
+  <script src="scripts/context-menu.js"></script>
+  <script src="scripts/lightbox.js"></script>
+  <script src="scripts/renderer.js"></script>
+  <script src="scripts/discover.js"></script>
+  <script src="scripts/theme-extractor.js"></script>
+  <script src="scripts/settings.js"></script>
+  <script src="scripts/icons.js"></script>
+  <script src="scripts/app.js"></script>
+</body>
+</html>
