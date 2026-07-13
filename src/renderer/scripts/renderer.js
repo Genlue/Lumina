@@ -2,6 +2,176 @@
 // Lumina — Renderer (clean)
 // ============================================================
 
+// ========================
+// 多词搜索解析器
+// 空格=AND, |=OR, -=排除, "..."=转义|-
+// ========================
+function _parseSearchQuery(query) {
+  if (!query) return null;
+
+  // 步骤1: 解析引号保护的内容
+  var parts = [];
+  var i = 0;
+  while (i < query.length) {
+    if (query[i] === '"') {
+      var end = query.indexOf('"', i + 1);
+      if (end === -1) end = query.length;
+      parts.push({ t: 'lit', v: query.slice(i + 1, end).toLowerCase() });
+      i = end + 1;
+    } else if (query[i] === '|') {
+      parts.push({ t: 'or' });
+      i++;
+    } else if (/\s/.test(query[i])) {
+      // 合并连续空格
+      while (i < query.length && /\s/.test(query[i])) i++;
+      if (i < query.length) parts.push({ t: 'sp' });
+    } else if (query[i] === '-') {
+      // 排除标记：前面必须是空或sp或|
+      var prev = parts.length === 0 ? null : parts[parts.length - 1].t;
+      if (prev === null || prev === 'sp' || prev === 'or') {
+        parts.push({ t: 'ex' });
+        i++;
+      } else {
+        // 不是排除标记，当普通字符
+        var w = '';
+        while (i < query.length && !/\s/.test(query[i]) && query[i] !== '|' && query[i] !== '"') {
+          w += query[i];
+          i++;
+        }
+        if (w) parts.push({ t: 'wd', v: w.toLowerCase() });
+      }
+    } else {
+      var w = '';
+      while (i < query.length && !/\s/.test(query[i]) && query[i] !== '|' && query[i] !== '"' && !(query[i] === '-' && w.length === 0 && (i+1 < query.length && !/\s/.test(query[i+1])))) {
+        w += query[i];
+        i++;
+      }
+      // 处理结尾的 -（不是排除标记且后面没有空格）
+      if (i < query.length && query[i] === '-' && w.length > 0) {
+        w += '-';
+        i++;
+      }
+      if (w) parts.push({ t: 'wd', v: w.toLowerCase() });
+      // 如果没产生任何字符也没推进i，强制推进防止死循环
+      if (!w && i < query.length) i++;
+    }
+  }
+
+  // 步骤2: 按 | 分 OR 组，每组内按空格分 AND 词
+  // 先合并连续的 wd 和 lit，中间遇到 sp 表示 AND
+  var orGroups = [];
+  var currentGroup = [];
+  var currentAnd = [];
+  var currentExcludes = [];
+  var expectWord = false;
+
+  for (var p = 0; p < parts.length; p++) {
+    var part = parts[p];
+    if (part.t === 'or') {
+      if (currentAnd.length > 0) currentGroup.push({ and: currentAnd });
+      if (currentGroup.length > 0) orGroups.push({ group: currentGroup, exclude: currentExcludes });
+      currentGroup = [];
+      currentAnd = [];
+      currentExcludes = [];
+      expectWord = false;
+    } else if (part.t === 'ex') {
+      if (currentAnd.length > 0) currentGroup.push({ and: currentAnd });
+      currentAnd = [];
+      expectWord = true;
+    } else if (part.t === 'sp') {
+      if (currentAnd.length > 0) currentGroup.push({ and: currentAnd });
+      currentAnd = [];
+      expectWord = false;
+    } else if (part.t === 'wd' || part.t === 'lit') {
+      // 检查上一个 token 是否是 ex
+      var prevToken = p > 0 ? parts[p-1].t : null;
+      if (prevToken === 'ex' || (prevToken === 'sp' && p > 1 && parts[p-1].t === 'sp' && parts[p-2].t === 'ex')) {
+        currentExcludes.push(part.v);
+      } else {
+        currentAnd.push(part.v);
+      }
+      expectWord = false;
+    }
+  }
+  if (currentAnd.length > 0) currentGroup.push({ and: currentAnd });
+  if (currentGroup.length > 0 || currentExcludes.length > 0) {
+    orGroups.push({ group: currentGroup, exclude: currentExcludes });
+  }
+
+  if (orGroups.length === 0) return null;
+
+  // 返回匹配函数
+  return {
+    groups: orGroups,
+    // 检测文本是否匹配正向条件
+    match: function(text) {
+      var lower = text.toLowerCase();
+      return orGroups.some(function(g) {
+        if (g.group.length === 0) return true;
+        return g.group.every(function(andGroup) {
+          return andGroup.and.every(function(term) {
+            return lower.indexOf(term) !== -1;
+          });
+        });
+      });
+    },
+    // 检测文本是否需要排除
+    exclude: function(text) {
+      var lower = text.toLowerCase();
+      return orGroups.some(function(g) {
+        return g.exclude.some(function(term) {
+          return lower.indexOf(term) !== -1;
+        });
+      });
+    },
+    // 获取所有正匹配词（用于高亮）
+    getTerms: function() {
+      var terms = [];
+      for (var g = 0; g < orGroups.length; g++) {
+        for (var gg = 0; gg < orGroups[g].group.length; gg++) {
+          for (var t = 0; t < orGroups[g].group[gg].and.length; t++) {
+            var term = orGroups[g].group[gg].and[t];
+            if (terms.indexOf(term) === -1) terms.push(term);
+          }
+        }
+      }
+      return terms;
+    }
+  };
+}
+
+function _formatSearchIndicator(parsed) {
+  if (!parsed || !parsed.groups || parsed.groups.length === 0) return '';
+  var parts = [];
+  for (var g = 0; g < parsed.groups.length; g++) {
+    var group = parsed.groups[g];
+    var groupParts = [];
+    for (var gg = 0; gg < group.group.length; gg++) {
+      var word = group.group[gg].and.join(' + ');
+      groupParts.push(word);
+    }
+    var str = groupParts.join(' ');
+    if (group.exclude.length > 0) {
+      str += ' -' + group.exclude.join(' -');
+    }
+    parts.push(str);
+  }
+  return parts.length === 1 ? parts[0] : parts.map(function(p) { return p || '(空)'; }).join(' | ');
+}
+
+function _highlightMatches(text, terms) {
+  var escaped = U.esc(text);
+  if (!terms || terms.length === 0) return escaped;
+  for (var t = 0; t < terms.length; t++) {
+    var safe = terms[t].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    escaped = escaped.replace(new RegExp('(' + safe + ')', 'gi'), '<mark>$1</mark>');
+  }
+  return escaped;
+}
+
+// 模块级变量：供高亮等功能跨函数共享
+var _currentParsed = null;
+
 const R = {
   _imgObserver: null,
 
@@ -97,25 +267,35 @@ const R = {
       imgs = imgs.filter(i => i._folder === S.currentView);
     }
 
-    // Search
-    const search = (document.getElementById('search-input')?.value?.toLowerCase() ?? '').trim();
-    const exclude = (document.getElementById('search-neg')?.value?.toLowerCase() ?? '').trim();
+    // 搜索过滤（支持 AND/OR）
+    var search = (document.getElementById('search-input')?.value?.toLowerCase() ?? '').trim();
+    var exclude = (document.getElementById('search-neg')?.value?.toLowerCase() ?? '').trim();
 
-    if (search || exclude) {
-        const isInAlbum = S.currentView !== 'all' && S.currentView !== 'albums'
-            && S.currentView !== 'trash' && S.currentView !== 'favorites';
-        const matchType = S._searchAlbumMatchType?.[S.currentView];
-        const isAlbumNameMatch = isInAlbum && matchType === 'name';
+    var searchParsed = search ? _parseSearchQuery(search) : null;
+    var excludeParsed = exclude ? _parseSearchQuery(exclude) : null;
 
-        // 正搜索过滤（非相册名匹配模式下）
-        if (search && !isAlbumNameMatch) {
-            imgs = imgs.filter(i => i.name.toLowerCase().includes(search));
-        }
+    // 保存到模块变量供高亮使用
+    _currentParsed = searchParsed;
 
-        // 逆搜索过滤：始终执行，包括相册名匹配模式
-        if (exclude) {
-            imgs = imgs.filter(i => !i.name.toLowerCase().includes(exclude));
-        }
+    var isInAlbum = S.currentView !== 'all' && S.currentView !== 'albums'
+        && S.currentView !== 'trash' && S.currentView !== 'favorites';
+    var matchType = S._searchAlbumMatchType?.[S.currentView];
+    var isAlbumNameMatch = isInAlbum && matchType === 'name';
+
+    if (searchParsed && !isAlbumNameMatch) {
+      imgs = imgs.filter(function(i) {
+        return searchParsed.match(i.name);
+      });
+      if (searchParsed.exclude) {
+        imgs = imgs.filter(function(i) {
+          return !searchParsed.exclude(i.name);
+        });
+      }
+    }
+    if (excludeParsed) {
+      imgs = imgs.filter(function(i) {
+        return !excludeParsed.match(i.name) || excludeParsed.exclude(i.name);
+      });
     }
 
     // Sort
@@ -170,10 +350,13 @@ const R = {
     if (S.selected.has(img._key)) card.classList.add('selected');
     card.dataset.key = img._key;
 
+    var displayName = img._displayName || img.name;
+    var highlighted = _currentParsed ? _highlightMatches(displayName, _currentParsed.getTerms()) : U.esc(displayName);
+
     if (viewMode === 'list') {
-      card.innerHTML = `<div style="width:42px;height:42px;background:var(--c-card);border-radius:6px;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;"><img src="" data-src="${img._key}" loading="lazy" style="width:100%;height:100%;object-fit:cover;opacity:0;" onload="this.style.opacity='1'"></div><div style="flex:1;min-width:0;"><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${U.esc(img._displayName || img.name)}</div><div class="card-meta"><span>${img.size ? U.fmtSize(img.size) : '--'}</span><span>${img.lastModified ? U.fmtDate(img.lastModified) : '--'}</span>${img._folder ? '<span>' + Icons.icon('folder', 12) + ' ' + U.esc(img._folder) + '</span>' : ''}</div></div>`;
+      card.innerHTML = `<div style="width:42px;height:42px;background:var(--c-card);border-radius:6px;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;"><img src="" data-src="${img._key}" loading="lazy" style="width:100%;height:100%;object-fit:cover;opacity:0;" onload="this.style.opacity='1'"></div><div style="flex:1;min-width:0;"><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${highlighted}</div><div class="card-meta"><span>${img.size ? U.fmtSize(img.size) : '--'}</span><span>${img.lastModified ? U.fmtDate(img.lastModified) : '--'}</span>${img._folder ? '<span>' + Icons.icon('folder', 12) + ' ' + U.esc(img._folder) + '</span>' : ''}</div></div>`;
     } else {
-      card.innerHTML = `<img src="" data-src="${img._key}" loading="lazy" style="width:100%;height:100%;object-fit:cover;opacity:0;" onload="this.style.opacity='1'"><div class="card-name">${U.esc(img._displayName || img.name)}</div>`;
+      card.innerHTML = `<img src="" data-src="${img._key}" loading="lazy" style="width:100%;height:100%;object-fit:cover;opacity:0;" onload="this.style.opacity='1'"><div class="card-name">${highlighted}</div>`;
     }
     return card;
   },
@@ -187,30 +370,33 @@ const R = {
     const currentPath = (S.currentView === 'all' || S.currentView === 'albums') ? '' : S.currentView;
     let childFolders = S.getChildAlbums(currentPath);
 
-    // Search filtering for albums
-    const search = (document.getElementById('search-input')?.value?.toLowerCase() ?? '').trim();
-    const exclude = (document.getElementById('search-neg')?.value?.toLowerCase() ?? '').trim();
+    // Search filtering for albums (支持 AND/OR)
+    var search = (document.getElementById('search-input')?.value?.toLowerCase() ?? '').trim();
+    var exclude = (document.getElementById('search-neg')?.value?.toLowerCase() ?? '').trim();
 
-    if (search || exclude) {
-        const matchType = {};
-        const filtered = childFolders.filter(f => {
-            const displayName = S.getDisplayName(f).toLowerCase();
-            const images = S.albumImages[f] ?? [];
+    var searchParsed = search ? _parseSearchQuery(search) : null;
+    var excludeParsed = exclude ? _parseSearchQuery(exclude) : null;
+
+    if (searchParsed || excludeParsed) {
+        var matchType = {};
+        var filtered = childFolders.filter(function(f) {
+            var displayName = S.getDisplayName(f).toLowerCase();
+            var images = S.albumImages[f] ?? [];
 
             // 正搜索
-            const nameMatch = !search || displayName.includes(search);
-            const imgMatch = !search || images.some(img => img.name.toLowerCase().includes(search));
-            const passesPositive = nameMatch || imgMatch;
+            var nameMatch = !searchParsed || searchParsed.match(displayName);
+            var imgMatch = !searchParsed || images.some(function(img) { return searchParsed.match(img.name); });
+            var passesPositive = nameMatch || imgMatch;
 
             // 逆搜索：排除包含排除词的文件夹或图片
-            if (exclude) {
-                const nameExcluded = displayName.includes(exclude);
-                const imgExcluded = images.some(img => img.name.toLowerCase().includes(exclude));
+            if (excludeParsed) {
+                var nameExcluded = excludeParsed.match(displayName);
+                var imgExcluded = images.some(function(img) { return excludeParsed.match(img.name); });
                 if (nameExcluded || imgExcluded) return false;
             }
 
             if (passesPositive) {
-                matchType[f] = (search && nameMatch) ? 'name' : (search && imgMatch) ? 'image-only' : 'name';
+                matchType[f] = (searchParsed && nameMatch) ? 'name' : (searchParsed && imgMatch) ? 'image-only' : 'name';
                 return true;
             }
             return false;

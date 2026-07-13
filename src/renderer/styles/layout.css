@@ -373,6 +373,30 @@ img {
 #search-wrap.dual #search-neg { display: inline-block; width: calc(50% - 12px); }
 #search-wrap.dual .search-neg-icon { display: inline; }
 
+/* 搜索指示器 */
+.search-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  font-size: 0.78em;
+  color: var(--c-text3);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 关键词高亮 mark */
+mark {
+  background: rgba(255, 255, 0, 0.35);
+  color: inherit;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
 .toolbar-btn {
   display: inline-flex;
   align-items: center;

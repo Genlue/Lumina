@@ -690,6 +690,15 @@ const App = {
             await R.renderAlbumGrid();
         }
     }, DEBOUNCE));
+
+    // 搜索指示器：非防抖，即时更新
+    document.getElementById('search-input')?.addEventListener('input', function() {
+      _updateSearchIndicator();
+    });
+    document.getElementById('search-neg')?.addEventListener('input', function() {
+      _updateSearchIndicator();
+    });
+
     document.getElementById('sort-select')?.addEventListener('change', e => {
       App._settings.sort_by = e.target.value;
       API.saveSettings(S.profileId, { sort_by: e.target.value });
@@ -1150,6 +1159,31 @@ function _syncJsCheck() {
   el.style.background = isLight ? '#d4edda' : '#1a472a';
   el.style.color = isLight ? '#155724' : '#b0e0b0';
   el.style.borderColor = isLight ? '#c3e6cb' : '#2d6a4f';
+
+  // 同步设置 btn-select-folder
+  var btn = document.getElementById('btn-select-folder');
+  if (btn) {
+    btn.style.background = isLight ? '#d4edda' : '#1a472a';
+    btn.style.color      = isLight ? '#155724' : '#b0e0b0';
+    btn.style.border     = '1px solid ' + (isLight ? '#c3e6cb' : '#2d6a4f');
+  }
+}
+
+function _updateSearchIndicator() {
+  var el = document.getElementById('search-indicator');
+  if (!el) return;
+  var s = (document.getElementById('search-input')?.value ?? '').trim();
+  var e = (document.getElementById('search-neg')?.value ?? '').trim();
+  var parts = [];
+  if (s) {
+    var p = _parseSearchQuery(s);
+    parts.push(_formatSearchIndicator(p));
+  }
+  if (e) {
+    parts.push('[排除] ' + _formatSearchIndicator(_parseSearchQuery(e)));
+  }
+  el.textContent = parts.join('   ');
+  el.style.display = parts.length > 0 ? 'flex' : 'none';
 }
 
 window._exportFavorites = async () => {

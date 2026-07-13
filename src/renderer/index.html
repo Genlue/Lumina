@@ -127,6 +127,7 @@
             <span class="search-icon search-neg-icon" style="opacity:0.5;display:none;"><span data-icon="list-filter" data-size="14"></span></span>
             <input id="search-neg" type="text" placeholder="排除..." style="display:none;">
           </div>
+          <div id="search-indicator" class="search-indicator hidden"></div>
           <div class="toolbar-btn-group"><button id="btn-view-grid" class="toolbar-btn active" title="网格"><span data-icon="grid-2x2" data-size="14"></span></button><button id="btn-view-list" class="toolbar-btn" title="列表"><span data-icon="list" data-size="14"></span></button></div>
           <button id="btn-multi-select" class="toolbar-btn" title="多选"><span data-icon="square-check" data-size="14"></span> 多选</button>
           <select id="sort-select"><option value="name-asc">名称↑</option><option value="name-desc">名称↓</option><option value="date-desc">最新优先</option><option value="date-asc">最旧优先</option></select>
@@ -217,6 +218,7 @@
   <button id="btn-import-fav" class="btn-primary" onclick="window._importFavorites()">导入收藏</button>
 </div>
 <button id="btn-fav-to-bg" class="btn-primary" onclick="window._favToBg()" style="margin-top:6px;">将收藏图片设为背景图</button></div>
+<div class="settings-card" style="grid-column:1/-1;"><h3>使用指南</h3><div style="display:flex;gap:8px;align-items:center;"><button id="btn-show-guide" class="btn-primary" onclick="ST.showSearchGuide()">搜索语法与快捷键</button></div></div>
 <style>
 #accent-card { position: relative; }
 .accent-mode-btn { flex:1; padding:10px; border-radius:8px; background:var(--c-card); color:var(--c-text); border:2px solid transparent; cursor:pointer; font-size:14px; }

@@ -1272,4 +1272,28 @@ const ST = {
     const el = document.getElementById(id);
     if (el) el.textContent = val;
   },
+
+  // === 使用指南 ===
+
+  showSearchGuide() {
+    Modal.show('搜索语法与快捷键',
+      '<div style="text-align:left;line-height:1.8;">' +
+      '<h4 style="margin-bottom:8px;">搜索语法</h4>' +
+      '<p><b>空格</b> = AND（同时匹配多个词）<br>' +
+      '<code style="background:var(--c-surface);padding:2px 6px;border-radius:3px;">猫 狗</code> → 同时包含"猫"和"狗"</p>' +
+      '<p><b>|</b> = OR（匹配任一条件）<br>' +
+      '<code style="background:var(--c-surface);padding:2px 6px;border-radius:3px;">猫 | 狗</code> → 包含"猫"或"狗"</p>' +
+      '<p><b>-</b> = 排除（不含该词）<br>' +
+      '<code style="background:var(--c-surface);padding:2px 6px;border-radius:3px;">猫 -狗</code> → 包含"猫"但不含"狗"</p>' +
+      '<p><b>""</b> = 精确短语（忽略其中的特殊字符）<br>' +
+      '<code style="background:var(--c-surface);padding:2px 6px;border-radius:3px;">"猫 | 狗"</code> → 精确匹配"猫 | 狗"</p>' +
+      '<hr style="border-color:var(--c-border);margin:12px 0;">' +
+      '<h4 style="margin-bottom:8px;">快捷键</h4>' +
+      '<p><b>Ctrl+F</b> 或 <b>空格</b> → 聚焦搜索栏<br>' +
+      '<b>右键点击搜索栏</b> → 清空内容<br>' +
+      '<b>Esc</b> → 返回上级相册</p>' +
+      '</div>',
+      [{ label: '知道了', primary: true }]
+    );
+  },
 };
