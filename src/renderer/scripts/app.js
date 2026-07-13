@@ -1163,9 +1163,9 @@ function _syncJsCheck() {
   // 同步设置 btn-select-folder
   var btn = document.getElementById('btn-select-folder');
   if (btn) {
-    btn.style.background = isLight ? '#d4edda' : '#1a472a';
-    btn.style.color      = isLight ? '#155724' : '#b0e0b0';
-    btn.style.border     = '1px solid ' + (isLight ? '#c3e6cb' : '#2d6a4f');
+    btn.style.setProperty('background', isLight ? '#d4edda' : '#1a472a', 'important');
+    btn.style.setProperty('color', isLight ? '#155724' : '#b0e0b0', 'important');
+    btn.style.setProperty('border', '1px solid ' + (isLight ? '#c3e6cb' : '#2d6a4f'), 'important');
   }
 }
 
