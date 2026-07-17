@@ -1021,7 +1021,7 @@ mark {
 }
 #lightbox-info {
   position: fixed;
-  bottom: 100px;
+  bottom: 76px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 2;
