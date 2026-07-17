@@ -109,6 +109,26 @@
               </div>
             </div>
           </div>
+          <div class="home-card dashboard-charts" style="grid-column:1/-1;cursor:default;padding:20px;">
+  <div class="charts-row">
+    <div class="chart-box">
+      <h4 class="chart-title">格式分布</h4>
+      <div id="chart-format" class="chart-canvas"></div>
+    </div>
+    <div class="chart-box">
+      <h4 class="chart-title">文件夹分布</h4>
+      <div id="chart-folders" class="chart-canvas"></div>
+    </div>
+    <div class="chart-box">
+      <h4 class="chart-title">时间分布</h4>
+      <div id="chart-timeline" class="chart-canvas"></div>
+    </div>
+    <div class="chart-box">
+      <h4 class="chart-title">存储占用</h4>
+      <div id="chart-storage" class="chart-canvas"></div>
+    </div>
+  </div>
+</div>
           <div class="home-card" data-action="rescan"><h3><span data-icon="refresh-cw"></span> 刷新图片</h3><p>重新扫描文件夹，同步新增/删除的图片</p></div>
           <div class="home-card" data-nav="album"><h3><span data-icon="folder-open"></span> 相册浏览</h3><p>按文件夹整理，拖拽管理</p></div>
           <div class="home-card" data-nav="discover-waterfall"><h3><span data-icon="columns-2"></span> 瀑布流</h3><p>自适应列布局</p></div>
@@ -232,7 +252,8 @@
     </main>
   </div>
   <div id="lightbox" class="hidden">
-    <div id="lightbox-bg"></div><img id="lightbox-img" src="" alt="">
+    <div id="lightbox-bg"></div>
+    <div id="lightbox-img-wrap"><img id="lightbox-img" src="" alt=""></div>
     <div id="lightbox-info"><span id="lightbox-name"></span><span id="lightbox-meta"></span></div>
     <div id="lightbox-controls">
       <button id="lightbox-prev" title="上一张"><span data-icon="chevron-left" data-size="14"></span></button>
@@ -240,6 +261,8 @@
       <span id="lightbox-zoom-level">100%</span>
       <button id="lightbox-zoom-in" title="放大"><span data-icon="zoom-in" data-size="14"></span></button>
       <button id="lightbox-fit" title="适合屏幕"><span data-icon="fullscreen" data-size="14"></span></button>
+      <button id="lightbox-rotate-ccw" title="逆时针旋转"><span data-icon="rotate-ccw" data-size="14"></span></button>
+      <button id="lightbox-rotate-cw" title="顺时针旋转"><span data-icon="rotate-cw" data-size="14"></span></button>
       <button id="lightbox-star" title="收藏"><span data-icon="star" data-size="14"></span></button>
       <button id="lightbox-delete" title="删除"><span data-icon="trash" data-size="14"></span></button>
       <button id="lightbox-next" title="下一张"><span data-icon="chevron-right" data-size="14"></span></button>

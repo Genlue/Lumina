@@ -1085,7 +1085,103 @@ const App = {
     if (elImgs) elImgs.textContent = totalImgs;
     if (elSize) elSize.textContent = U.fmtSize(totalSize);
     if (elAlbums) elAlbums.textContent = S.albumFolders.length;
-    if (elFavs) elFavs.textContent = S.favoritesSet.size;
+    if (elFavs) elFavs.textContent = S.favoritesList.length;
+
+    // Render charts
+    this._renderFormatChart(totalImgs);
+    this._renderFolderChart();
+    this._renderTimelineChart();
+    this._renderStorageChart(totalSize);
+  },
+
+  _renderFormatChart(totalImgs) {
+    const container = document.getElementById('chart-format');
+    if (!container) return;
+    const allImgs = [...S.rootImages, ...Object.values(S.albumImages).flat()];
+    const formats = {};
+    for (const img of allImgs) {
+      const ext = (img.name || '').split('.').pop().toLowerCase() || 'unknown';
+      formats[ext] = (formats[ext] || 0) + 1;
+    }
+    const entries = Object.entries(formats).sort((a, b) => b[1] - a[1]).slice(0, 6);
+    const maxVal = Math.max(...entries.map(e => e[1]), 1);
+    const colors = ['var(--c-accent)', '#4CAF50', '#FF9800', '#9C27B0', '#00BCD4', '#F44336'];
+    container.innerHTML = '<div class="chart-donut">'
+      + `<svg class="chart-donut-svg" width="80" height="80" viewBox="0 0 36 36">`
+      + entries.reduce((acc, [fmt, count], i) => {
+          const pct = count / totalImgs;
+          const dash = pct * 100;
+          const offset = entries.slice(0, i).reduce((s, [_, c]) => s + (c / totalImgs) * 100, 0);
+          return acc + `<circle cx="18" cy="18" r="15.9" fill="none" stroke="${colors[i % colors.length]}" stroke-width="3" stroke-dasharray="${dash} ${100 - dash}" stroke-dashoffset="${-offset}" transform="rotate(-90 18 18)" stroke-linecap="round"/>`;
+        }, '')
+      + `<text x="18" y="18" text-anchor="middle" dominant-baseline="central" fill="var(--c-text)" font-size="4" font-weight="bold">${totalImgs}</text>`
+      + `</svg><div class="chart-legend">`
+      + entries.map(([fmt, count], i) =>
+        `<div class="chart-legend-item"><span class="chart-legend-dot" style="background:${colors[i % colors.length]}"></span>${fmt} <span style="margin-left:auto;color:var(--c-text3)">${count}</span></div>`
+      ).join('')
+      + '</div></div>';
+  },
+
+  _renderFolderChart() {
+    const container = document.getElementById('chart-folders');
+    if (!container) return;
+    const folderCounts = {};
+    for (const [folder, imgs] of Object.entries(S.albumImages)) {
+      const topFolder = folder.split('/')[0];
+      folderCounts[topFolder] = (folderCounts[topFolder] || 0) + imgs.length;
+    }
+    folderCounts['根目录'] = (folderCounts['根目录'] || 0) + S.rootImages.length;
+    const entries = Object.entries(folderCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    const maxVal = Math.max(...entries.map(e => e[1]), 1);
+    const accent = 'var(--c-accent)';
+    container.innerHTML = entries.map(([name, count]) =>
+      `<div class="chart-bar-row"><span class="chart-bar-label" title="${name}">${name.length > 6 ? name.slice(0, 6) + '…' : name}</span><div class="chart-bar-track"><div class="chart-bar-fill" style="width:${(count / maxVal) * 100}%"></div></div><span class="chart-bar-value">${count}</span></div>`
+    ).join('');
+  },
+
+  _renderTimelineChart() {
+    const container = document.getElementById('chart-timeline');
+    if (!container) return;
+    const allImgs = [...S.rootImages, ...Object.values(S.albumImages).flat()];
+    const months = {};
+    // Group by year-month
+    for (const img of allImgs) {
+      if (!img.lastModified) continue;
+      const d = new Date(img.lastModified);
+      const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      months[key] = (months[key] || 0) + 1;
+    }
+    const entries = Object.entries(months).sort().slice(-12); // Last 12 months
+    if (entries.length === 0) {
+      container.innerHTML = '<div style="text-align:center;color:var(--c-text3);font-size:0.75em;padding:16px;">暂无数据</div>';
+      return;
+    }
+    const maxVal = Math.max(...entries.map(e => e[1]), 1);
+    const barColors = ['rgba(var(--c-accent-r,74,158,255),0.15)', 'rgba(var(--c-accent-r,74,158,255),0.3)', 'rgba(var(--c-accent-r,74,158,255),0.5)', 'rgba(var(--c-accent-r,74,158,255),0.7)', 'var(--c-accent)'];
+    container.innerHTML = '<div style="display:flex;align-items:end;gap:4px;height:70px;padding:0 4px;">'
+      + entries.map(([month, count]) => {
+        const pct = (count / maxVal) * 100;
+        const ci = Math.min(Math.floor((count / maxVal) * 4), 4);
+        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;"><div style="width:100%;height:${pct}%;background:${barColors[ci]};border-radius:3px 3px 0 0;transition:height 0.3s;min-height:4px;"></div><span style="font-size:0.6em;color:var(--c-text3);transform:rotate(-30deg);white-space:nowrap;">${month.slice(5)}</span></div>`;
+      }).join('')
+      + '</div>';
+  },
+
+  _renderStorageChart(totalSize) {
+    const container = document.getElementById('chart-storage');
+    if (!container) return;
+    const allImgs = [...S.rootImages, ...Object.values(S.albumImages).flat()];
+    const extSizes = {};
+    for (const img of allImgs) {
+      const ext = (img.name || '').split('.').pop().toLowerCase() || 'unknown';
+      extSizes[ext] = (extSizes[ext] || 0) + (img.size || 0);
+    }
+    const entries = Object.entries(extSizes).sort((a, b) => b[1] - a[1]).slice(0, 6);
+    const maxVal = Math.max(...entries.map(e => e[1]), 1);
+    const colors = ['var(--c-accent)', '#4CAF50', '#FF9800', '#9C27B0', '#00BCD4', '#F44336'];
+    container.innerHTML = entries.map(([fmt, size], i) =>
+      `<div class="chart-bar-row"><span class="chart-bar-label">${fmt}</span><div class="chart-bar-track"><div class="chart-bar-fill" style="width:${(size / maxVal) * 100}%;background:${colors[i % colors.length]}"></div></div><span class="chart-bar-value">${U.fmtSize(size)}</span></div>`
+    ).join('');
   },
 
   async deleteFromLb() {

@@ -10,6 +10,7 @@ const Lb = {
     S.lbZoom = 1;
     S.lbPanX = 0;
     S.lbPanY = 0;
+    S.lbRotation = 0;
 
     // Sync random slideshow position when lightbox opened from random mode
     if (S._lbFromRandom) S._randomIdx = idx;
@@ -17,6 +18,7 @@ const Lb = {
     document.getElementById('lightbox').classList.remove('hidden');
     this._update();
     this._resetZoom();
+    document.getElementById('lightbox-bg').style.backgroundImage = '';
   },
 
   /** Close lightbox */
@@ -26,7 +28,9 @@ const Lb = {
     S.lbZoom = 1;
     S.lbPanX = 0;
     S.lbPanY = 0;
+    S.lbRotation = 0;
     S._lbFromRandom = false;
+    document.getElementById('lightbox-bg').style.backgroundImage = '';
   },
 
   /** Update image, info and star button */
@@ -85,9 +89,12 @@ const Lb = {
       const full = await API.getFullImage(S.profileId, img.name, img._folder);
       if (S.lbIdx !== idx) return; // user navigated away while loading
       lbImg.src = full.dataUrl;
+      // Set blurred background
+      document.getElementById('lightbox-bg').style.backgroundImage = `url("${full.dataUrl}")`;
       await lbImg.decode();
     } catch (e) {
       console.warn('[Lb] full image load failed, keeping thumbnail:', e);
+      document.getElementById('lightbox-bg').style.backgroundImage = '';
     }
 
     // 7. Done loading (only if still on the same image)
@@ -104,10 +111,31 @@ const Lb = {
     this._applyZoom();
   },
 
+  rotateCw() {
+    S.lbRotation = (S.lbRotation + 90) % 360;
+    S.lbZoom = 1;
+    S.lbPanX = 0;
+    S.lbPanY = 0;
+    this._applyZoom();
+  },
+
+  rotateCcw() {
+    S.lbRotation = (S.lbRotation - 90 + 360) % 360;
+    S.lbZoom = 1;
+    S.lbPanX = 0;
+    S.lbPanY = 0;
+    this._applyZoom();
+  },
+
   _applyZoom() {
     const img = document.getElementById('lightbox-img');
     if (!img) return;
-    img.style.transform = `translate(${S.lbPanX}px, ${S.lbPanY}px) scale(${S.lbZoom})`;
+    const wrap = document.getElementById('lightbox-img-wrap');
+    if (wrap) {
+      const isRotated = S.lbRotation % 180 !== 0;
+      wrap.classList.toggle('rotated-90', isRotated);
+    }
+    img.style.transform = `translate(${S.lbPanX}px, ${S.lbPanY}px) scale(${S.lbZoom}) rotate(${S.lbRotation}deg)`;
     document.getElementById('lightbox-zoom-level').textContent = Math.round(S.lbZoom * 100) + '%';
   },
 
@@ -144,6 +172,8 @@ document.addEventListener('keydown', (e) => {
     case '+': case '=': Lb.zoomIn(); break;
     case '-': Lb.zoomOut(); break;
     case '0': Lb.zoomFit(); break;
+    case 'r': Lb.rotateCw(); break;
+    case 'R': Lb.rotateCcw(); break;
   }
 });
 
@@ -202,3 +232,5 @@ document.getElementById('lightbox-next')?.addEventListener('click', () => Lb.nex
 document.getElementById('lightbox-zoom-in')?.addEventListener('click', () => Lb.zoomIn());
 document.getElementById('lightbox-zoom-out')?.addEventListener('click', () => Lb.zoomOut());
 document.getElementById('lightbox-fit')?.addEventListener('click', () => Lb.zoomFit());
+document.getElementById('lightbox-rotate-cw')?.addEventListener('click', () => Lb.rotateCw());
+document.getElementById('lightbox-rotate-ccw')?.addEventListener('click', () => Lb.rotateCcw());

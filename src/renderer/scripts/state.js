@@ -25,6 +25,7 @@ const State = (() => {
   // Lightbox
   let _lbIdx = -1, _lbZoom = 1, _lbPanX = 0, _lbPanY = 0;
   let _lbDragging = false, _lbDragX = 0, _lbDragY = 0, _lbDidDrag = false;
+  let _lbRotation = 0;
 
   // Random mode
   let _randomTimer = null, _randomPaused = false;
@@ -82,6 +83,8 @@ const State = (() => {
     set lbDragY(v) { _lbDragY = v; },
     get lbDidDrag() { return _lbDidDrag; },
     set lbDidDrag(v) { _lbDidDrag = v; },
+    get lbRotation() { return _lbRotation; },
+    set lbRotation(v) { _lbRotation = v; },
 
     get randomTimer() { return _randomTimer; },
     set randomTimer(v) { _randomTimer = v; },

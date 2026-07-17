@@ -821,6 +821,91 @@ mark {
   margin: 0;
 }
 
+/* Dashboard charts */
+.dashboard-charts {
+  padding: 20px;
+}
+.charts-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+.chart-box {
+  background: rgba(var(--c-card-r,42), var(--c-card-g,42), var(--c-card-b,42), 0.5);
+  border-radius: var(--radius-md);
+  padding: 16px;
+}
+.chart-title {
+  font-size: var(--font-size-sm);
+  color: var(--c-text2);
+  margin-bottom: 12px;
+  font-weight: var(--font-weight-medium);
+}
+.chart-canvas {
+  min-height: 80px;
+}
+.chart-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.chart-bar-label {
+  font-size: 0.75em;
+  color: var(--c-text3);
+  min-width: 36px;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chart-bar-track {
+  flex: 1;
+  height: 16px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.chart-bar-fill {
+  height: 100%;
+  border-radius: 8px;
+  transition: width 0.4s ease;
+  background: linear-gradient(90deg, var(--c-accent), color-mix(in srgb, var(--c-accent) 70%, white));
+}
+.chart-bar-value {
+  font-size: 0.72em;
+  color: var(--c-text3);
+  min-width: 32px;
+  font-variant-numeric: tabular-nums;
+}
+.chart-donut {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+.chart-donut-svg {
+  flex-shrink: 0;
+}
+.chart-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.chart-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72em;
+  color: var(--c-text2);
+}
+.chart-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 /* Multi-select dimming */
 .multiselect-mode .image-card {
   transition: opacity 0.2s, filter 0.2s;
@@ -915,13 +1000,30 @@ mark {
   position: absolute;
   inset: 0;
   background: rgba(0, 0, 0, 0.9);
-  backdrop-filter: blur(12px);
+  background-size: cover;
+  background-position: center;
+  filter: brightness(0.3) blur(20px);
+  transition: background-image 0.3s;
+}
+#lightbox-img-wrap {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 90vw;
+  max-height: 80vh;
+  overflow: hidden;
+  transition: max-width 0.2s, max-height 0.2s;
+}
+#lightbox-img-wrap.rotated-90 {
+  max-width: 80vh;
+  max-height: 90vw;
 }
 #lightbox-img {
   position: relative;
-  z-index: 1;
-  max-width: 90vw;
-  max-height: 80vh;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
   transition: transform 0.1s;
   border-radius: 4px;
