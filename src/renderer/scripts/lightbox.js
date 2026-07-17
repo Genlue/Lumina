@@ -113,15 +113,26 @@ const Lb = {
 
   rotateCw() {
     S.lbRotation = (S.lbRotation + 90) % 360;
-    S.lbZoom = 1;
-    S.lbPanX = 0;
-    S.lbPanY = 0;
-    this._applyZoom();
+    this._fitAfterRotation();
   },
 
   rotateCcw() {
     S.lbRotation = (S.lbRotation - 90 + 360) % 360;
-    S.lbZoom = 1;
+    this._fitAfterRotation();
+  },
+
+  _fitAfterRotation() {
+    const img = document.getElementById('lightbox-img');
+    if (!img) return;
+    const isRotated = S.lbRotation % 180 !== 0;
+    if (isRotated) {
+      const nw = img.naturalWidth || 1;
+      const nh = img.naturalHeight || 1;
+      const fitZoom = Math.min(window.innerWidth / nh, window.innerHeight / nw, 1);
+      S.lbZoom = Math.round(fitZoom * 100) / 100;
+    } else {
+      S.lbZoom = 1;
+    }
     S.lbPanX = 0;
     S.lbPanY = 0;
     this._applyZoom();
@@ -130,11 +141,6 @@ const Lb = {
   _applyZoom() {
     const img = document.getElementById('lightbox-img');
     if (!img) return;
-    const wrap = document.getElementById('lightbox-img-wrap');
-    if (wrap) {
-      const isRotated = S.lbRotation % 180 !== 0;
-      wrap.classList.toggle('rotated-90', isRotated);
-    }
     img.style.transform = `translate(${S.lbPanX}px, ${S.lbPanY}px) scale(${S.lbZoom}) rotate(${S.lbRotation}deg)`;
     document.getElementById('lightbox-zoom-level').textContent = Math.round(S.lbZoom * 100) + '%';
   },
@@ -191,7 +197,7 @@ const lbImg = document.getElementById('lightbox-img');
   let dragStartX = 0, dragStartY = 0, panStartX = 0, panStartY = 0, isDragging = false;
 
   lbImg?.addEventListener('mousedown', (e) => {
-    if (S.lbIdx < 0 || S.lbZoom <= 1) return;
+    if (S.lbIdx < 0) return;
     e.preventDefault();
     isDragging = true;
     dragStartX = e.clientX;
@@ -217,10 +223,14 @@ const lbImg = document.getElementById('lightbox-img');
   });
 })();
 
-// Double click zoom toggle
 lbImg?.addEventListener('dblclick', () => {
-  if (S.lbZoom === 1) S.lbZoom = 2;
-  else Lb._resetZoom();
+  if (S.lbZoom === 1) {
+    S.lbZoom = 2;
+    S.lbPanX = 0;
+    S.lbPanY = 0;
+  } else {
+    Lb._resetZoom();
+  }
   Lb._applyZoom();
 });
 
