@@ -378,6 +378,12 @@ const App = {
         if (homeTitleEl) {
           homeTitleEl.textContent = App._settings.home_title || '我的相册';
         }
+        // Update rescan info on load (v2.13.0)
+        const rescanInfoEl = document.getElementById('rescan-info');
+        if (rescanInfoEl) {
+          const lastScan = App._settings?.last_scan_time;
+          rescanInfoEl.textContent = lastScan ? '上次扫描：' + U.fmtDate(lastScan) : '上次扫描：--';
+        }
       });
 
       // 透明背景同步
@@ -1087,6 +1093,13 @@ const App = {
     if (elAlbums) elAlbums.textContent = S.albumFolders.length;
     if (elFavs) elFavs.textContent = S.favoritesList.length;
 
+    // Update rescan info (v2.13.0)
+    const rescanEl = document.getElementById('rescan-info');
+    if (rescanEl) {
+      const lastScan = App._settings?.last_scan_time;
+      rescanEl.textContent = lastScan ? '上次扫描：' + U.fmtDate(lastScan) : '上次扫描：--';
+    }
+
     // Render charts
     this._renderFormatChart(totalImgs);
     this._renderFolderChart();
@@ -1408,6 +1421,11 @@ document.querySelectorAll('.home-card[data-action="rescan"]').forEach(card => {
       App._updateDashboard();
       if (S.currentPage === 'album') R.renderGrid();
       Toast.show('已刷新', 'success');
+      // Save scan time
+      const now = Date.now();
+      API.saveSettings(S.profileId, { last_scan_time: now }).catch(e => console.warn('[Home] Failed to save scan time:', e));
+      const infoEl = document.getElementById('rescan-info');
+      if (infoEl) infoEl.textContent = '上次扫描：' + U.fmtDate(now);
     } catch (e) {
       Toast.show('刷新失败: ' + e.message, 'error');
     }
@@ -1416,13 +1434,15 @@ document.querySelectorAll('.home-card[data-action="rescan"]').forEach(card => {
   });
 });
 
-document.querySelectorAll('.home-card[data-nav]').forEach(card => {
-  card.addEventListener('click', () => {
-    const nav = card.dataset.nav;
-    if (nav === 'album') { S.currentView = 'albums'; App._switchToAlbumPage(); }
-    else if (nav.startsWith('discover-')) { S.discoverTab = nav.split('-')[1]; App.navPage('discover'); }
+// Quick nav buttons in home toolbar (v2.13.0)
+document.querySelectorAll('.qn-btn[data-nav]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const page = btn.dataset.nav;
+    if (page === 'album') { S.currentView = 'albums'; App._switchToAlbumPage(); }
+    else if (page === 'discover') { App.navPage('discover'); }
   });
 });
+
 
 document.querySelectorAll('.discover-tab').forEach(tab => {
   tab.addEventListener('click', () => App.switchDiscoverTab(tab.dataset.tab));
