@@ -1435,15 +1435,23 @@ const App = {
       if (existingTooltip) existingTooltip.classList.add('hidden');
     }
 
+    // Cache container size to filter spurious ResizeObserver events
+    const curRect = container.getBoundingClientRect();
+    this._treemapLastW = Math.round(curRect.width);
+    this._treemapLastH = Math.round(curRect.height);
+
     // ResizeObserver for responsive redraw
     if (this._treemapResizeObserver) {
       this._treemapResizeObserver.disconnect();
     }
     this._treemapResizeObserver = new ResizeObserver(() => {
-      if (this._treemapHovering) {
-        this._treemapPendingResize = true;
-        return;
-      }
+      // Size cache: only re-render if container size actually changed
+      const roRect = container.getBoundingClientRect();
+      const roW = Math.round(roRect.width);
+      const roH = Math.round(roRect.height);
+      if (roW === this._treemapLastW && roH === this._treemapLastH) return;
+      this._treemapLastW = roW;
+      this._treemapLastH = roH;
       if (this._treemapResizeTimer) clearTimeout(this._treemapResizeTimer);
       this._treemapResizeTimer = setTimeout(() => this._renderTreemap(), 300);
     });
@@ -1490,7 +1498,7 @@ const App = {
       displayEntries = entries.map(([y, c]) => ({ label: y, count: c }));
     }
 
-    this._renderDonutSVG(container, displayEntries, totalWithDates, '时间分布', false);
+    this._renderDonutSVG(container, displayEntries, totalWithDates, '时间', false);
   },
 
   _renderFormatDonut(allImgs, totalImgs) {
@@ -1519,7 +1527,7 @@ const App = {
       .sort((a, b) => b[1] - a[1])
       .map(([label, count]) => ({ label, count }));
 
-    this._renderDonutSVG(container, entries, totalImgs, '格式分布', true);
+    this._renderDonutSVG(container, entries, totalImgs, '格式', true);
   },
 
   _renderDonutSVG(container, entries, total, centerText, clickable = true) {
@@ -1546,8 +1554,7 @@ const App = {
         <div class="donut-svg-wrap">
           <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
             ${segmentsHtml}
-            <text x="${cx}" y="${cy - 4}" text-anchor="middle" dominant-baseline="central" fill="var(--c-text)" font-size="18" font-weight="600" font-family="'JetBrains Mono','Consolas',monospace">${total}</text>
-            <text x="${cx}" y="${cy + 12}" text-anchor="middle" dominant-baseline="central" fill="var(--c-text3)" font-size="12">${centerText}</text>
+            <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" fill="var(--c-text)" font-size="18" font-weight="600" font-family="'JetBrains Mono','Consolas',monospace">${centerText}</text>
           </svg>
         </div>
         <div class="donut-list">

@@ -984,13 +984,6 @@ mark {
 .d3-donut-box:first-child {
   border-bottom: 1px solid var(--c-border);
 }
-.d3-donut-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--c-text);
-  margin: 0;
-  margin-bottom: 4px;
-}
 .donut-container {
   flex: 1;
   display: flex;
