@@ -88,7 +88,7 @@ function squarify(items, cx, cy, cw, ch) {
       let curY = y;
       row.forEach(it => {
         const itemH = (it.area / sum) * h;
-        results.push({ x, y: curY, w: rowW, h: itemH, name: it.name, value: it.value });
+        results.push({ x, y: curY, w: rowW, h: itemH, name: it.name, value: it.value, fullPath: it.fullPath });
         curY += itemH;
       });
     } else {
@@ -96,7 +96,7 @@ function squarify(items, cx, cy, cw, ch) {
       let curX = x;
       row.forEach(it => {
         const itemW = (it.area / sum) * w;
-        results.push({ x: curX, y, w: itemW, h: rowH, name: it.name, value: it.value });
+        results.push({ x: curX, y, w: itemW, h: rowH, name: it.name, value: it.value, fullPath: it.fullPath });
         curX += itemW;
       });
     }
@@ -599,6 +599,8 @@ const App = {
           if (S.currentPage === 'album') R.renderGrid();
           R.renderAlbumList();
           R.updateCount();
+          // 自动刷新 dashboard（仅在首页可见时）
+          App._updateDashboard();
           Toast.show('检测到文件变更，已刷新', 'info', 1500);
         }
       });
@@ -1295,6 +1297,10 @@ const App = {
     const container = document.getElementById('chart-treemap');
     if (!container) return;
 
+    // 重置 hover 标志，防止页面切换后残留
+    this._treemapHovering = false;
+    this._treemapPendingResize = false;
+
     // Bug1: Remove stale tooltip DOM before re-rendering
     document.querySelector('.treemap-tooltip')?.remove();
 
@@ -1344,7 +1350,7 @@ const App = {
       const displayName = r.name.length > 8 ? r.name.slice(0, 7) + '...' : r.name;
       const pct = ((r.value / totalVal) * 100).toFixed(1);
 
-      svg += `<rect class="treemap-rect" x="${r.x + gap/2}" y="${r.y + gap/2}" width="${r.w - gap}" height="${r.h - gap}" rx="${rx}" fill="${color}" data-folder="${r.fullPath}" data-name="${r.name}" data-value="${r.value}" data-pct="${pct}"/>`;
+      svg += `<rect class="treemap-rect" x="${r.x + gap/2}" y="${r.y + gap/2}" width="${r.w - gap}" height="${r.h - gap}" rx="${rx}" fill="${color}" data-folder="${U.esc(r.fullPath)}" data-name="${U.esc(r.name)}" data-value="${r.value}" data-pct="${pct}"/>`;
 
       if (showLabel) {
         const labelX = r.x + r.w / 2;
@@ -1406,6 +1412,23 @@ const App = {
       });
     });
 
+    // Bind hover guards for ResizeObserver (only once)
+    if (!this._treemapHoverBound) {
+        const wrap = container.closest('.d3-treemap-wrap') || container;
+        this._treemapHoverBound = true;
+
+        this._onTreemapEnter = () => { this._treemapHovering = true; };
+        this._onTreemapLeave = () => {
+            this._treemapHovering = false;
+            if (this._treemapPendingResize) {
+                this._treemapPendingResize = false;
+                this._renderTreemap();
+            }
+        };
+        wrap.addEventListener('mouseenter', this._onTreemapEnter);
+        wrap.addEventListener('mouseleave', this._onTreemapLeave);
+    }
+
     // Hide tooltip when home page is not visible
     if (document.getElementById('page-home')?.classList.contains('hidden')) {
       const existingTooltip = document.querySelector('.treemap-tooltip');
@@ -1417,6 +1440,10 @@ const App = {
       this._treemapResizeObserver.disconnect();
     }
     this._treemapResizeObserver = new ResizeObserver(() => {
+      if (this._treemapHovering) {
+        this._treemapPendingResize = true;
+        return;
+      }
       if (this._treemapResizeTimer) clearTimeout(this._treemapResizeTimer);
       this._treemapResizeTimer = setTimeout(() => this._renderTreemap(), 300);
     });
@@ -1497,7 +1524,7 @@ const App = {
 
   _renderDonutSVG(container, entries, total, centerText, clickable = true) {
     const colors = ['var(--c-accent)', '#4CAF50', '#FF9800', '#9C27B0', '#00BCD4', '#F44336', '#607D8B'];
-    const size = 100;
+    const size = 120;
     const cx = size / 2;
     const cy = size / 2;
     const r = 38;
@@ -1519,8 +1546,8 @@ const App = {
         <div class="donut-svg-wrap">
           <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
             ${segmentsHtml}
-            <text x="${cx}" y="${cy - 4}" text-anchor="middle" dominant-baseline="central" fill="var(--c-text)" font-size="9" font-weight="600" font-family="'JetBrains Mono','Consolas',monospace">${total}</text>
-            <text x="${cx}" y="${cy + 10}" text-anchor="middle" dominant-baseline="central" fill="var(--c-text3)" font-size="6">${centerText}</text>
+            <text x="${cx}" y="${cy - 4}" text-anchor="middle" dominant-baseline="central" fill="var(--c-text)" font-size="18" font-weight="600" font-family="'JetBrains Mono','Consolas',monospace">${total}</text>
+            <text x="${cx}" y="${cy + 12}" text-anchor="middle" dominant-baseline="central" fill="var(--c-text3)" font-size="12">${centerText}</text>
           </svg>
         </div>
         <div class="donut-list">

@@ -1016,6 +1016,10 @@ mark {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  border-radius: 6px;
+  padding: 4px;
 }
 .donut-list-item {
   display: flex;
