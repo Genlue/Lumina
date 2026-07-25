@@ -1172,6 +1172,7 @@ const ST = {
       const btn = document.getElementById('btn-clear-cache');
       if (btn) { btn.disabled = true; btn.textContent = '清除中...'; }
       API.clearCache(S.profileId).then(count => {
+        API.clearThumbCache();  // v1.1.2: 同时清空内存缓存
         Toast.show(`已清除 ${count} 个缓存文件`, 'success');
         const label = document.getElementById('cache-size-label');
         if (label) label.textContent = '缓存 0 个文件 (0 B)';
@@ -1295,5 +1296,37 @@ const ST = {
       '</div>',
       [{ label: '知道了', primary: true }]
     );
+  },
+
+  /** 纯视觉重置所有主题/背景/透明状态到系统默认，不写 DB（用于回到 startup 页面） */
+  resetToSystemDefaults() {
+    document.documentElement.classList.remove('bg-transparent-mode');
+
+    // 根据系统偏好确定当前有效主题
+    let effectiveMode = window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light';
+    const theme = THEMES[effectiveMode] ?? THEMES.dark;
+    const root = document.documentElement;
+    const set = (k, v) => root.style.setProperty(k, v);
+    set('--c-bg', theme.bg);
+    set('--c-surface', theme.surface);
+    set('--c-surface2', theme.surface2);
+    set('--c-card', theme.card);
+    set('--c-card-hover', theme.cardHover);
+    set('--c-border', theme.border);
+    set('--c-border-light', theme.borderL);
+    set('--c-text', theme.text);
+    set('--c-text2', theme.text2);
+    set('--c-text3', theme.text3);
+    document.body.style.background = theme.bg;
+    document.body.style.color = theme.text;
+
+    // 清除背景图视觉
+    const bgLayer = document.getElementById('bg-layer');
+    if (bgLayer) { bgLayer.style.backgroundImage = ''; bgLayer.style.opacity = '0'; bgLayer.style.filter = ''; }
+    // 重置覆盖层
+    const overlay = document.getElementById('bg-overlay');
+    if (overlay) { overlay.style.background = ''; overlay.style.opacity = ''; overlay.style.backdropFilter = ''; }
+    // 关闭窗口效果
+    API._invoke('window_set_effect', { enabled: false, effect_type: null }).catch(() => {});
   },
 };

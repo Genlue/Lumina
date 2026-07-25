@@ -340,6 +340,7 @@ const App = {
       setStatus('正在扫描图片...');
       setProgress(35);
       await API.scanAll(profileId);
+      API.clearThumbCache();  // v1.1.2: 清除内存缩略图缓存，避免缓存污染导致黑图
       if (unlistenScan) { unlistenScan(); unlistenScan = null; }
       await API.listFav(profileId);
       console.log('[App] After scanAll - albumFolders:', S.albumFolders);
@@ -1414,6 +1415,7 @@ window._switchFolder = async () => {
     { label: '选择已有' }, { label: '添加新文件夹', primary: true }, { label: '取消' },
   ]);
   if (r.idx === 0) {
+    ST.resetToSystemDefaults();  // 重置所有样式到系统默认（纯视觉，不写 DB）
     const profiles = await API.listProfiles();
     const sp = document.getElementById('startup');
     const spl = document.getElementById('startup-profiles');
@@ -1458,6 +1460,7 @@ document.querySelectorAll('.home-card[data-action="rescan"]').forEach(card => {
     card.style.pointerEvents = 'none';
     try {
       await API.scanAll(S.profileId);
+      API.clearThumbCache();  // v1.1.2: 清除内存缩略图缓存
       R.renderAlbumList();
       R.updateCount();
       App._updateDashboard();

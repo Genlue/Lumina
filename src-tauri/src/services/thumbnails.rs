@@ -69,8 +69,30 @@ pub fn get_or_generate_thumbnail(
         // 16000x12000 → 2000x1500 (1/8 IDCT scale)，内存从 576MB→9MB
         decode_jpeg_scaled(source_path, target.0, target.1)?
     } else if pixel_count > 30_000_000 {
-        // ★ 超大非 JPEG（PNG 等）：无法缩放解码，跳过缩略图
-        return None;
+        // ★ 超大非 JPEG（PNG 等）：尝试正常解码，设更高熔断值防止 OOM
+        if pixel_count > 100_000_000 {
+            return None;
+        }
+        // 正常解码路径（与 else 分支代码重复但可读性更好）
+        let reader = ImageReader::open(source_path)
+            .ok()?
+            .with_guessed_format()
+            .ok()?;
+        if orig_w > 4000 || orig_h > 4000 {
+            let factor = 4000.0 / orig_w.max(orig_h) as f64;
+            let sw = (orig_w as f64 * factor).max(target.0 as f64) as u32;
+            let sh = (orig_h as f64 * factor).max(target.1 as f64) as u32;
+            let step = reader.decode().ok()?
+                .resize_exact(sw, sh, image::imageops::FilterType::Nearest);
+            step.resize_exact(target.0, target.1, image::imageops::FilterType::Triangle)
+        } else {
+            let decoded = reader.decode().ok()?;
+            if decoded.width() != target.0 || decoded.height() != target.1 {
+                decoded.resize_exact(target.0, target.1, image::imageops::FilterType::Triangle)
+            } else {
+                decoded
+            }
+        }
     } else {
         // 正常尺寸：用 image crate 全解码
         let reader = ImageReader::open(source_path)

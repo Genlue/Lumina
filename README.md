@@ -105,6 +105,13 @@ cd src-tauri && cargo tauri build --bundles nsis
 
 ## 旧版本更新日志
 
+### 2026-07-25 — v1.1.2 — Bug 修复：主题重置 + 灯箱关闭 + 黑图处理
+
+- 🎨 **Bug 1：返回初始化页样式污染** — 新增 `ST.resetToSystemDefaults()` 纯视觉重置方法（不写 DB），`_switchFolder()` 回到 startup 时自动重置主题/透明/背景为系统默认
+- 🖱️ **Bug 2：灯箱点击空白关闭** — 给 `#lightbox-img-wrap` 添加 click 处理器，点击图片区域外空白处关闭灯箱（原 `#lightbox-bg` 被 img-wrap 完全遮挡，事件无法到达）
+- 🖼️ **Bug 3：部分图片显示为黑** — 三管齐下：①scanAll/rescan 后调用 `API.clearThumbCache()` 清除内存缓存；②`ST.clearCache()` 增加清内存缓存逻辑；③超大非 JPEG（PNG，30M-100M 像素）改为尝试解码而非直接返回 None
+- 🛡️ **缩略图健壮性** — 为非 JPEG 超大图片设 1 亿像素安全熔断，解码时自动两级缩放优化内存
+
 ### 2026-07-25 — v1.1.1 — Bug 修复：setStatus 作用域 + 健壮性增强
 
 - 🐛 **Bug 修复：setStatus is not defined** — 将 `setStatus`/`setProgress` 从 `init()` 的 `const` 块级作用域提升到模块级 `function`，修复打开图片文件夹时因作用域链无法访问导致的崩溃

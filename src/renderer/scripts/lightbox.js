@@ -244,3 +244,8 @@ document.getElementById('lightbox-zoom-out')?.addEventListener('click', () => Lb
 document.getElementById('lightbox-fit')?.addEventListener('click', () => Lb.zoomFit());
 document.getElementById('lightbox-rotate-cw')?.addEventListener('click', () => Lb.rotateCw());
 document.getElementById('lightbox-rotate-ccw')?.addEventListener('click', () => Lb.rotateCcw());
+
+// v1.1.2: 点击图片区域外空白处关闭灯箱
+document.getElementById('lightbox-img-wrap')?.addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) Lb.close();
+});
