@@ -5,6 +5,16 @@
 // 存储各视图的滚动位置
 const _scrollPos = {};
 
+// module-level helpers — accessible from init() and _doLoad()
+function setStatus(msg) {
+  const el = document.getElementById('startup-status');
+  if (el) el.textContent = msg;
+}
+function setProgress(pct) {
+  const fill = document.getElementById('loading-fill');
+  if (fill) fill.style.width = pct + '%';
+}
+
 const App = {
   _settings: {},
   _eventsBound: false,
@@ -26,12 +36,7 @@ const App = {
       Icons.init();
     } catch (e) { /* ignore */ }
 
-    const statusEl = document.getElementById('startup-status');
-    const setStatus = (msg) => { if (statusEl) statusEl.textContent = msg; };
-    const setProgress = (pct) => {
-      const fill = document.getElementById('loading-fill');
-      if (fill) fill.style.width = pct + '%';
-    };
+    // setStatus/setProgress are now module-level (defined before App)
 
     try {
       if (!window.__TAURI__) {
@@ -285,6 +290,11 @@ const App = {
   },
 
   async _doLoad(profileId, folderPath) {
+    if (this._loading) {
+      console.warn('[App] _doLoad already in progress, ignoring duplicate call');
+      return;
+    }
+    this._loading = true;
     try {
       S.profileId = profileId;
       S.profileFolder = folderPath;
@@ -305,10 +315,15 @@ const App = {
       s.extract_color_dark = s.extract_color_dark || '#4A9EFF';
       s.extract_color_light = s.extract_color_light || '#003D7A';
       s.transparent_accent_mode = s.transparent_accent_mode || 'custom';
-      // v1.1.0: 注册扫描进度监听
+      // v1.1.0: 注册扫描进度监听（带 50ms 节流）
       let unlistenScan = null;
       if (window.__TAURI__?.event) {
+        let lastUpdate = 0;
+        const THROTTLE_MS = 50;
         unlistenScan = await API.onScanProgress((progress) => {
+          const now = Date.now();
+          if (now - lastUpdate < THROTTLE_MS) return;
+          lastUpdate = now;
           if (progress.phase === 'scanning') {
             setStatus('正在扫描: ' + progress.current_dir);
             const pct = 35 + Math.min(progress.files_found / 20, 30);
@@ -452,7 +467,14 @@ const App = {
       Toast.show('已加载: ' + S.profileName, 'success');
     } catch (e) {
       console.error('_doLoad error:', e);
+      // 变更 4：错误状态保留加载条
+      setStatus('加载失败: ' + (e.message || e));
+      const fill = document.getElementById('loading-fill');
+      if (fill) fill.style.background = '#e74c3c';
+      setProgress(100);
       Toast.show('加载失败: ' + (e.message || e), 'error', 5000);
+    } finally {
+      this._loading = false;
     }
   },
 
