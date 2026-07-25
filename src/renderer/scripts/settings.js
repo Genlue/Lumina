@@ -248,6 +248,10 @@ const ST = {
     const parseHex = (h) => [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
     const [r, g, b] = parseHex(color);
     root.style.setProperty('--c-accent-bg', `rgba(${r},${g},${b},0.12)`);
+    // Redraw dashboard charts when accent changes
+    if (typeof App !== 'undefined' && App._updateDashboard) {
+      App._updateDashboard();
+    }
   },
 
   /** Get effective dark/light mode, resolving 'system' */

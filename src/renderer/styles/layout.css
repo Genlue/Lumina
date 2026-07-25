@@ -906,6 +906,159 @@ mark {
   flex-shrink: 0;
 }
 
+/* ===== Dashboard Third Card: Treemap + Donuts ===== */
+.d3-layout {
+  display: flex;
+  height: 320px;
+  width: 100%;
+}
+.d3-treemap-wrap {
+  flex: 7;
+  position: relative;
+  padding: 16px;
+  min-height: 200px;
+}
+.treemap-container {
+  width: 100%;
+  height: 100%;
+}
+.treemap-container svg {
+  width: 100%;
+  height: 100%;
+}
+.treemap-rect {
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.treemap-rect:hover {
+  opacity: 0.85;
+  stroke-width: 2;
+}
+.treemap-label {
+  font-size: 11px;
+  font-weight: 600;
+  pointer-events: none;
+  fill: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+}
+.treemap-label-dark {
+  fill: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+}
+.treemap-label-light {
+  fill: #1a1a1a;
+  text-shadow: 0 1px 2px rgba(255,255,255,0.3);
+}
+.treemap-tooltip {
+  position: fixed;
+  background: rgba(0,0,0,0.85);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  pointer-events: none;
+  z-index: 1000;
+  max-width: 220px;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.treemap-tooltip.hidden {
+  display: none;
+}
+.d3-donuts-wrap {
+  flex: 3;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--c-border);
+}
+.d3-donut-box {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 8px;
+  position: relative;
+}
+.d3-donut-box:first-child {
+  border-bottom: 1px solid var(--c-border);
+}
+.d3-donut-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-text);
+  margin: 0;
+  margin-bottom: 4px;
+}
+.donut-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.donut-container svg {
+  max-width: 120px;
+  max-height: 120px;
+}
+.donut-segment {
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.donut-segment:hover {
+  opacity: 0.7;
+}
+.donut-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  justify-content: center;
+  margin-top: 4px;
+}
+.donut-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--c-text2);
+  cursor: pointer;
+}
+.donut-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+/* Empty state */
+.treemap-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--c-text3);
+  font-size: 14px;
+}
+/* Responsive */
+@media (max-width: 750px) {
+  .d3-layout {
+    flex-direction: column;
+    height: auto;
+  }
+  .d3-treemap-wrap {
+    min-height: 200px;
+  }
+  .d3-donuts-wrap {
+    flex-direction: row;
+    border-left: none;
+    border-top: 1px solid var(--c-border);
+  }
+  .d3-donut-box:first-child {
+    border-bottom: none;
+    border-right: 1px solid var(--c-border);
+  }
+}
+
 /* Multi-select dimming */
 .multiselect-mode .image-card {
   transition: opacity 0.2s, filter 0.2s;

@@ -121,23 +121,20 @@
               <span class="rescan-meta" id="rescan-info">上次扫描：--</span>
             </div>
           </div>
-          <div class="home-card dashboard-charts" style="grid-column:1/-1;cursor:default;padding:20px;">
-  <div class="charts-row">
-    <div class="chart-box">
-      <h4 class="chart-title">格式分布</h4>
-      <div id="chart-format" class="chart-canvas"></div>
+          <div class="home-card dashboard-charts" style="grid-column:1/-1;cursor:default;padding:0;overflow:hidden;">
+  <div class="d3-layout">
+    <div class="d3-treemap-wrap">
+      <div id="chart-treemap" class="treemap-container"></div>
     </div>
-    <div class="chart-box">
-      <h4 class="chart-title">文件夹分布</h4>
-      <div id="chart-folders" class="chart-canvas"></div>
-    </div>
-    <div class="chart-box">
-      <h4 class="chart-title">时间分布</h4>
-      <div id="chart-timeline" class="chart-canvas"></div>
-    </div>
-    <div class="chart-box">
-      <h4 class="chart-title">存储占用</h4>
-      <div id="chart-storage" class="chart-canvas"></div>
+    <div class="d3-donuts-wrap">
+      <div class="d3-donut-box">
+        <h4 class="d3-donut-title">时间分布</h4>
+        <div id="chart-time-donut" class="donut-container"></div>
+      </div>
+      <div class="d3-donut-box">
+        <h4 class="d3-donut-title">格式分布</h4>
+        <div id="chart-format-donut" class="donut-container"></div>
+      </div>
     </div>
   </div>
 </div>

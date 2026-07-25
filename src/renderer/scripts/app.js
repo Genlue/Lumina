@@ -15,6 +15,142 @@ function setProgress(pct) {
   if (fill) fill.style.width = pct + '%';
 }
 
+// ====== Dashboard Third Card: Treemap + Donut Charts ======
+
+// HSL 转换工具
+function hexToHSL(hex) {
+  let r = 0, g = 0, b = 0;
+  if (hex.length === 4) {
+    r = parseInt(hex[1] + hex[1], 16);
+    g = parseInt(hex[2] + hex[2], 16);
+    b = parseInt(hex[3] + hex[3], 16);
+  } else if (hex.length === 7) {
+    r = parseInt(hex[1] + hex[2], 16);
+    g = parseInt(hex[3] + hex[4], 16);
+    b = parseInt(hex[5] + hex[6], 16);
+  }
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s, l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) * 60; break;
+      case g: h = ((b - r) / d + 2) * 60; break;
+      case b: h = ((r - g) / d + 4) * 60; break;
+    }
+  } else {
+    s = 0;
+  }
+  return { h: Math.round(h), s: Math.round(s * 100), l: Math.round(l * 100) };
+}
+
+function hslToHex(h, s, l) {
+  s /= 100; l /= 100;
+  const a = s * Math.min(l, 1 - l);
+  const f = n => {
+    const k = (n + h / 30) % 12;
+    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    return Math.round(255 * color).toString(16).padStart(2, '0');
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
+}
+
+// Squarified Treemap 算法 (Bruls et al. 2000)
+function squarify(items, cx, cy, cw, ch) {
+  if (items.length === 0) return [];
+  const total = items.reduce((s, it) => s + it.value, 0);
+  if (total === 0) return [];
+
+  const normalized = items.map(it => ({ ...it, value: Math.max(it.value, 0.01) }));
+  const totalN = normalized.reduce((s, it) => s + it.value, 0);
+  const scale = (cw * ch) / totalN;
+  const scaled = normalized.map(it => ({ ...it, area: it.value * scale }));
+
+  const results = [];
+  const rows = [];
+  let remaining = [...scaled];
+
+  function worstRatio(row, w) {
+    if (row.length === 0) return Infinity;
+    const sum = row.reduce((s, it) => s + it.area, 0);
+    const maxArea = Math.max(...row.map(it => it.area));
+    const minArea = Math.min(...row.map(it => it.area));
+    const h = sum / w;
+    return Math.max(w * w * maxArea / (sum * sum), sum * sum / (w * w * minArea));
+  }
+
+  function layoutRow(row, x, y, w, h, isVertical) {
+    const sum = row.reduce((s, it) => s + it.area, 0);
+    if (isVertical) {
+      const rowW = Math.max(sum / h, 0.1);
+      let curY = y;
+      row.forEach(it => {
+        const itemH = (it.area / sum) * h;
+        results.push({ x, y: curY, w: rowW, h: itemH, name: it.name, value: it.value });
+        curY += itemH;
+      });
+    } else {
+      const rowH = Math.max(sum / w, 0.1);
+      let curX = x;
+      row.forEach(it => {
+        const itemW = (it.area / sum) * w;
+        results.push({ x: curX, y, w: itemW, h: rowH, name: it.name, value: it.value });
+        curX += itemW;
+      });
+    }
+  }
+
+  let x = cx, y = cy, w = cw, h = ch;
+  let isVertical = w >= h;
+  let currentRow = [];
+
+  for (const item of remaining) {
+    currentRow.push(item);
+    const rowW = isVertical ? w : h;
+    const r = worstRatio(currentRow, rowW);
+    if (currentRow.length > 1) {
+      const prevRow = currentRow.slice(0, -1);
+      const prevR = worstRatio(prevRow, rowW);
+      if (r > prevR) {
+        currentRow.pop();
+        layoutRow(currentRow, x, y, w, h, isVertical);
+        const sum = currentRow.reduce((s, it) => s + it.area, 0);
+        const dim = sum / (isVertical ? h : w);
+        if (isVertical) { x += dim; w -= dim; }
+        else { y += dim; h -= dim; }
+        isVertical = w >= h;
+        currentRow = [item];
+      }
+    }
+  }
+  if (currentRow.length > 0) {
+    const rowW = isVertical ? w : h;
+    layoutRow(currentRow, x, y, w, h, isVertical);
+  }
+
+  return results;
+}
+
+// 从强调色生成色板
+function generatePalette(count, accentHex) {
+  const hsl = hexToHSL(accentHex);
+  const isDark = document.documentElement.classList.contains('dark-mode') ||
+    (!document.documentElement.classList.contains('light-mode') &&
+     window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+  const palette = [];
+  for (let i = 0; i < count; i++) {
+    const hue = (hsl.h + i * 37 + 10) % 360;
+    // Dark mode: higher saturation + lightness; Light mode: lower lightness for contrast
+    const sat = Math.min(85, Math.max(55, hsl.s + (i % 3 - 1) * 10));
+    const light = isDark ? Math.min(70, 45 + i * 5) : Math.max(30, 55 - i * 3);
+    palette.push(hslToHex(hue, sat, light));
+  }
+  return palette;
+}
+
 const App = {
   _settings: {},
   _eventsBound: false,
@@ -420,6 +556,9 @@ const App = {
           const lastScan = App._settings?.last_scan_time;
           rescanInfoEl.textContent = lastScan ? '上次扫描：' + U.fmtDate(lastScan) : '上次扫描：--';
         }
+
+        // Render dashboard after layout is complete
+        App._updateDashboard();
       });
 
       // 透明背景同步
@@ -453,7 +592,6 @@ const App = {
       this._showAlbumList();
       R.renderAlbumList();
       R.updateCount();
-      this._updateDashboard();
 
       API.onFileChange(async payload => {
         if (payload.profileId === profileId) {
@@ -493,7 +631,11 @@ const App = {
   // ====== PAGE ROUTER ======
 
   _pageRoutes: {
-    home: function () { /* nothing */ },
+    home: function () {
+      if (typeof App._updateDashboard === 'function') {
+        App._updateDashboard();
+      }
+    },
     album: function () { App._renderAlbumPageContent(); },
     discover: function () { App.switchDiscoverTab(S.discoverTab); },
     settings: function () { ST.render(); },
@@ -1127,6 +1269,8 @@ const App = {
     const totalImgs = S.rootImages.length + Object.values(S.albumImages).reduce((s, a) => s + a.length, 0);
     const totalSize = S.rootImages.reduce((s, img) => s + (img.size || 0), 0)
         + Object.values(S.albumImages).reduce((s, arr) => s + arr.reduce((s2, img) => s2 + (img.size || 0), 0), 0);
+
+    // Update stats card
     const elImgs = document.getElementById('stat-total-imgs');
     const elSize = document.getElementById('stat-total-size');
     const elAlbums = document.getElementById('stat-albums');
@@ -1136,108 +1280,275 @@ const App = {
     if (elAlbums) elAlbums.textContent = S.albumFolders.length;
     if (elFavs) elFavs.textContent = S.favoritesList.length;
 
-    // Update rescan info (v2.13.0)
     const rescanEl = document.getElementById('rescan-info');
     if (rescanEl) {
       const lastScan = App._settings?.last_scan_time;
       rescanEl.textContent = lastScan ? '上次扫描：' + U.fmtDate(lastScan) : '上次扫描：--';
     }
 
-    // Render charts
-    this._renderFormatChart(totalImgs);
-    this._renderFolderChart();
-    this._renderTimelineChart();
-    this._renderStorageChart(totalSize);
+    // Render third card: Treemap + Dual Donuts
+    this._renderTreemap();
+    this._renderDonutCharts();
   },
 
-  _renderFormatChart(totalImgs) {
-    const container = document.getElementById('chart-format');
+  _renderTreemap() {
+    const container = document.getElementById('chart-treemap');
     if (!container) return;
-    const allImgs = [...S.rootImages, ...Object.values(S.albumImages).flat()];
-    const formats = {};
-    for (const img of allImgs) {
-      const ext = (img.name || '').split('.').pop().toLowerCase() || 'unknown';
-      formats[ext] = (formats[ext] || 0) + 1;
-    }
-    const entries = Object.entries(formats).sort((a, b) => b[1] - a[1]).slice(0, 6);
-    const maxVal = Math.max(...entries.map(e => e[1]), 1);
-    const colors = ['var(--c-accent)', '#4CAF50', '#FF9800', '#9C27B0', '#00BCD4', '#F44336'];
-    container.innerHTML = '<div class="chart-donut">'
-      + `<svg class="chart-donut-svg" width="80" height="80" viewBox="0 0 36 36">`
-      + entries.reduce((acc, [fmt, count], i) => {
-          const pct = count / totalImgs;
-          const dash = pct * 100;
-          const offset = entries.slice(0, i).reduce((s, [_, c]) => s + (c / totalImgs) * 100, 0);
-          return acc + `<circle cx="18" cy="18" r="15.9" fill="none" stroke="${colors[i % colors.length]}" stroke-width="3" stroke-dasharray="${dash} ${100 - dash}" stroke-dashoffset="${-offset}" transform="rotate(-90 18 18)" stroke-linecap="round"/>`;
-        }, '')
-      + `<text x="18" y="18" text-anchor="middle" dominant-baseline="central" fill="var(--c-text)" font-size="4" font-weight="bold">${totalImgs}</text>`
-      + `</svg><div class="chart-legend">`
-      + entries.map(([fmt, count], i) =>
-        `<div class="chart-legend-item"><span class="chart-legend-dot" style="background:${colors[i % colors.length]}"></span>${fmt} <span style="margin-left:auto;color:var(--c-text3)">${count}</span></div>`
-      ).join('')
-      + '</div></div>';
-  },
 
-  _renderFolderChart() {
-    const container = document.getElementById('chart-folders');
-    if (!container) return;
-    const folderCounts = {};
-    for (const [folder, imgs] of Object.entries(S.albumImages)) {
-      const topFolder = folder.split('/')[0];
-      folderCounts[topFolder] = (folderCounts[topFolder] || 0) + imgs.length;
+    // Collect data: each folder + root images
+    const items = [];
+    for (const folder of S.albumFolders) {
+      const count = (S.albumImages[folder] || []).length;
+      if (count > 0) {
+        items.push({ name: folder.split('/').pop(), fullPath: folder, value: count });
+      }
     }
-    folderCounts['根目录'] = (folderCounts['根目录'] || 0) + S.rootImages.length;
-    const entries = Object.entries(folderCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
-    const maxVal = Math.max(...entries.map(e => e[1]), 1);
-    const accent = 'var(--c-accent)';
-    container.innerHTML = entries.map(([name, count]) =>
-      `<div class="chart-bar-row"><span class="chart-bar-label" title="${name}">${name.length > 6 ? name.slice(0, 6) + '…' : name}</span><div class="chart-bar-track"><div class="chart-bar-fill" style="width:${(count / maxVal) * 100}%"></div></div><span class="chart-bar-value">${count}</span></div>`
-    ).join('');
-  },
+    if (S.rootImages.length > 0) {
+      items.push({ name: '根目录', fullPath: '', value: S.rootImages.length });
+    }
 
-  _renderTimelineChart() {
-    const container = document.getElementById('chart-timeline');
-    if (!container) return;
-    const allImgs = [...S.rootImages, ...Object.values(S.albumImages).flat()];
-    const months = {};
-    // Group by year-month
-    for (const img of allImgs) {
-      if (!img.lastModified) continue;
-      const d = new Date(img.lastModified);
-      const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-      months[key] = (months[key] || 0) + 1;
-    }
-    const entries = Object.entries(months).sort().slice(-12); // Last 12 months
-    if (entries.length === 0) {
-      container.innerHTML = '<div style="text-align:center;color:var(--c-text3);font-size:0.75em;padding:16px;">暂无数据</div>';
+    if (items.length === 0) {
+      container.innerHTML = '<div class="treemap-empty">暂无图片数据</div>';
       return;
     }
-    const maxVal = Math.max(...entries.map(e => e[1]), 1);
-    const barColors = ['rgba(var(--c-accent-r,74,158,255),0.15)', 'rgba(var(--c-accent-r,74,158,255),0.3)', 'rgba(var(--c-accent-r,74,158,255),0.5)', 'rgba(var(--c-accent-r,74,158,255),0.7)', 'var(--c-accent)'];
-    container.innerHTML = '<div style="display:flex;align-items:end;gap:4px;height:70px;padding:0 4px;">'
-      + entries.map(([month, count]) => {
-        const pct = (count / maxVal) * 100;
-        const ci = Math.min(Math.floor((count / maxVal) * 4), 4);
-        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;"><div style="width:100%;height:${pct}%;background:${barColors[ci]};border-radius:3px 3px 0 0;transition:height 0.3s;min-height:4px;"></div><span style="font-size:0.6em;color:var(--c-text3);transform:rotate(-30deg);white-space:nowrap;">${month.slice(5)}</span></div>`;
-      }).join('')
-      + '</div>';
+
+    items.sort((a, b) => b.value - a.value);
+
+    // Get container size
+    const rect = container.getBoundingClientRect();
+    const pad = 16;
+    const cw = Math.max(rect.width - pad * 2, 100);
+    const ch = Math.max(rect.height - pad * 2, 100);
+
+    // Get accent color for palette (read CSS var)
+    const accentColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--c-accent').trim() || '#4A9EFF';
+    const palette = generatePalette(items.length, accentColor);
+
+    // Squarified layout
+    const rectangles = squarify(items, 0, 0, cw, ch);
+
+    // Build SVG
+    const totalVal = items.reduce((s, it) => s + it.value, 0);
+    let svg = `<svg width="${cw + pad*2}" height="${ch + pad*2}" viewBox="0 0 ${cw + pad*2} ${ch + pad*2}" xmlns="http://www.w3.org/2000/svg">`;
+    svg += `<g transform="translate(${pad},${pad})">`;
+
+    rectangles.forEach((r, i) => {
+      const color = palette[i % palette.length];
+      const gap = 2;
+      const rx = 3;
+      const showLabel = r.w > 30 && r.h > 24;
+      const displayName = r.name.length > 8 ? r.name.slice(0, 7) + '...' : r.name;
+      const pct = ((r.value / totalVal) * 100).toFixed(1);
+
+      svg += `<rect class="treemap-rect" x="${r.x + gap/2}" y="${r.y + gap/2}" width="${r.w - gap}" height="${r.h - gap}" rx="${rx}" fill="${color}" data-folder="${r.fullPath}" data-name="${r.name}" data-value="${r.value}" data-pct="${pct}"/>`;
+
+      if (showLabel) {
+        const labelX = r.x + r.w / 2;
+        const labelY = r.y + r.h / 2;
+        const isDarkTheme = getComputedStyle(document.documentElement)
+          .getPropertyValue('--c-bg').trim() !== 'rgb(243, 243, 243)';
+        const textCls = isDarkTheme ? 'treemap-label treemap-label-dark' : 'treemap-label treemap-label-light';
+        svg += `<text class="${textCls}" x="${labelX}" y="${labelY - 6}" text-anchor="middle" dominant-baseline="auto" font-size="${Math.min(14, Math.max(9, r.w / 8))}">${displayName}</text>`;
+        svg += `<text class="${textCls}" x="${labelX}" y="${labelY + 10}" text-anchor="middle" dominant-baseline="hanging" font-size="${Math.min(12, Math.max(8, r.w / 10))}" opacity="0.85">${r.value}张</text>`;
+      }
+    });
+
+    svg += '</g></svg>';
+    container.innerHTML = svg;
+
+    // Bind events
+    const rects = container.querySelectorAll('.treemap-rect');
+    const tooltip = document.createElement('div');
+    tooltip.className = 'treemap-tooltip hidden';
+    document.body.appendChild(tooltip);
+
+    rects.forEach(el => {
+      el.addEventListener('mouseenter', (e) => {
+        const rect = e.target;
+        const name = rect.dataset.name;
+        const value = parseInt(rect.dataset.value);
+        const pct = rect.dataset.pct;
+        tooltip.innerHTML = '<strong>' + name + '</strong><br>' + value + ' 张 (' + pct + '%)';
+        tooltip.classList.remove('hidden');
+      });
+      el.addEventListener('mousemove', (e) => {
+        let tx = e.clientX + 14;
+        let ty = e.clientY - 10;
+        const tw = tooltip.offsetWidth || 180;
+        const th = tooltip.offsetHeight || 50;
+        if (tx + tw > window.innerWidth - 10) tx = e.clientX - tw - 14;
+        if (ty + th > window.innerHeight - 10) ty = e.clientY - th - 10;
+        if (ty < 10) ty = e.clientY + 14;
+        tooltip.style.left = tx + 'px';
+        tooltip.style.top = ty + 'px';
+      });
+      el.addEventListener('mouseleave', () => {
+        tooltip.classList.add('hidden');
+      });
+      el.addEventListener('click', (e) => {
+        const folder = e.currentTarget.dataset.folder;
+        if (folder === '') {
+          // Root images -> navigate to 'all'
+          S.currentView = 'all';
+          App._switchToAlbumPage();
+        } else {
+          App.navToAlbum(folder);
+        }
+      });
+    });
+
+    // Clean up tooltip on page leave
+    if (!this._treemapTooltipCleanup) {
+      const observer = new MutationObserver(() => {
+        if (document.getElementById('page-home')?.classList.contains('hidden')) {
+          tooltip.classList.add('hidden');
+        }
+      });
+      observer.observe(document.getElementById('page-home'), { attributes: true, attributeFilter: ['class'] });
+      this._treemapTooltipCleanup = true;
+    }
+
+    // ResizeObserver for responsive redraw
+    if (this._treemapResizeObserver) {
+      this._treemapResizeObserver.disconnect();
+    }
+    this._treemapResizeObserver = new ResizeObserver(() => {
+      if (this._treemapResizeTimer) clearTimeout(this._treemapResizeTimer);
+      this._treemapResizeTimer = setTimeout(() => this._renderTreemap(), 300);
+    });
+    this._treemapResizeObserver.observe(container);
   },
 
-  _renderStorageChart(totalSize) {
-    const container = document.getElementById('chart-storage');
+  _renderDonutCharts() {
+    const allImgs = S.buildAllImgs();
+    const totalImgs = allImgs.length;
+
+    // --- Time Donut (by year) ---
+    this._renderTimeDonut(allImgs, totalImgs);
+    // --- Format Donut ---
+    this._renderFormatDonut(allImgs, totalImgs);
+  },
+
+  _renderTimeDonut(allImgs, totalImgs) {
+    const container = document.getElementById('chart-time-donut');
     if (!container) return;
-    const allImgs = [...S.rootImages, ...Object.values(S.albumImages).flat()];
-    const extSizes = {};
-    for (const img of allImgs) {
-      const ext = (img.name || '').split('.').pop().toLowerCase() || 'unknown';
-      extSizes[ext] = (extSizes[ext] || 0) + (img.size || 0);
+
+    if (totalImgs === 0) {
+      container.innerHTML = '<div style="text-align:center;color:var(--c-text3);font-size:12px;padding:8px;">暂无数据</div>';
+      return;
     }
-    const entries = Object.entries(extSizes).sort((a, b) => b[1] - a[1]).slice(0, 6);
-    const maxVal = Math.max(...entries.map(e => e[1]), 1);
-    const colors = ['var(--c-accent)', '#4CAF50', '#FF9800', '#9C27B0', '#00BCD4', '#F44336'];
-    container.innerHTML = entries.map(([fmt, size], i) =>
-      `<div class="chart-bar-row"><span class="chart-bar-label">${fmt}</span><div class="chart-bar-track"><div class="chart-bar-fill" style="width:${(size / maxVal) * 100}%;background:${colors[i % colors.length]}"></div></div><span class="chart-bar-value">${U.fmtSize(size)}</span></div>`
-    ).join('');
+
+    // Group by year
+    const years = {};
+    for (const img of allImgs) {
+      if (!img.lastModified) continue;
+      const year = new Date(img.lastModified).getFullYear();
+      years[year] = (years[year] || 0) + 1;
+    }
+
+    const entries = Object.entries(years).sort((a, b) => a[0] - b[0]);
+    // Limit to last 10 years, rest as "更早"
+    let displayEntries = entries.slice(-10);
+    const olderCount = entries.slice(0, -10).reduce((s, [, c]) => s + c, 0);
+    if (olderCount > 0 && entries.length > 10) {
+      displayEntries = [{ label: '更早', count: olderCount, year: '更早' }, ...displayEntries.map(([y, c]) => ({ label: y, count: c, year: y }))];
+    } else {
+      displayEntries = entries.map(([y, c]) => ({ label: y, count: c, year: y }));
+    }
+
+    this._renderDonutSVG(container, displayEntries, totalImgs, '时间分布');
+  },
+
+  _renderFormatDonut(allImgs, totalImgs) {
+    const container = document.getElementById('chart-format-donut');
+    if (!container) return;
+
+    if (totalImgs === 0) {
+      container.innerHTML = '<div style="text-align:center;color:var(--c-text3);font-size:12px;padding:8px;">暂无数据</div>';
+      return;
+    }
+
+    // Group by format
+    const formats = {};
+    for (const img of allImgs) {
+      const ext = (img.name || '').split('.').pop().toLowerCase();
+      let category = '其他';
+      if (ext === 'jpg' || ext === 'jpeg') category = 'JPG';
+      else if (ext === 'png') category = 'PNG';
+      else if (ext === 'gif') category = 'GIF';
+      else if (ext === 'webp') category = 'WEBP';
+      else if (ext === 'svg' || ext === 'bmp') category = ext.toUpperCase();
+      formats[category] = (formats[category] || 0) + 1;
+    }
+
+    const entries = Object.entries(formats)
+      .sort((a, b) => b[1] - a[1])
+      .map(([label, count]) => ({ label, count }));
+
+    this._renderDonutSVG(container, entries, totalImgs, '格式分布');
+  },
+
+  _renderDonutSVG(container, entries, total, centerText) {
+    const colors = ['var(--c-accent)', '#4CAF50', '#FF9800', '#9C27B0', '#00BCD4', '#F44336', '#607D8B'];
+    const size = 100;
+    const cx = size / 2;
+    const cy = size / 2;
+    const r = 38;
+    const strokeW = 12;
+    const circumference = 2 * Math.PI * r;
+
+    let segmentsHtml = '';
+    let offset = 0;
+    entries.forEach((entry, i) => {
+      const pct = entry.count / total;
+      const dash = pct * circumference;
+      const color = colors[i % colors.length];
+      segmentsHtml += '<circle class="donut-segment" cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="' + strokeW + '" stroke-dasharray="' + dash + ' ' + (circumference - dash) + '" stroke-dashoffset="' + (-offset) + '" transform="rotate(-90 ' + cx + ' ' + cy + ')" data-label="' + entry.label + '" data-count="' + entry.count + '" data-pct="' + (pct * 100).toFixed(1) + '"/>';
+      offset += dash;
+    });
+
+    const html = `
+      <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+        ${segmentsHtml}
+        <text x="${cx}" y="${cy - 4}" text-anchor="middle" dominant-baseline="central" fill="var(--c-text)" font-size="9" font-weight="600" font-family="'JetBrains Mono','Consolas',monospace">${total}</text>
+        <text x="${cx}" y="${cy + 10}" text-anchor="middle" dominant-baseline="central" fill="var(--c-text3)" font-size="6">${centerText}</text>
+      </svg>
+      <div class="donut-legend">
+        ${entries.map((entry, i) => {
+          const color = colors[i % colors.length];
+          return '<span class="donut-legend-item" data-label="' + entry.label + '" data-count="' + entry.count + '"><span class="donut-legend-dot" style="background:' + color + '"></span>' + entry.label + ' ' + entry.count + '</span>';
+        }).join('')}
+      </div>
+    `;
+    container.innerHTML = html;
+
+    // Click handlers for donut segments
+    container.querySelectorAll('.donut-segment, .donut-legend-item').forEach(el => {
+      el.addEventListener('click', () => {
+        const label = el.dataset.label;
+        if (!label) return;
+        let searchTerm = '';
+        // Determine if this is a year or format
+        if (/^\d{4}$/.test(label)) {
+          searchTerm = label;
+        } else if (label === '更早') {
+          return; // Skip for "earlier"
+        } else {
+          const extMap = { 'JPG': 'jpg', 'PNG': 'png', 'GIF': 'gif', 'WEBP': 'webp' };
+          const ext = extMap[label] || label.toLowerCase();
+          searchTerm = '.' + ext;
+        }
+        // Navigate to album page and set search
+        S.currentView = 'all';
+        App._switchToAlbumPage();
+        const searchInput = document.getElementById('search-input');
+        if (searchInput) {
+          searchInput.value = searchTerm;
+          searchInput.dispatchEvent(new Event('input'));
+        }
+      });
+    });
   },
 
   async deleteFromLb() {
