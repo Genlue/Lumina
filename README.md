@@ -105,6 +105,13 @@ cd src-tauri && cargo tauri build --bundles nsis
 
 ## 旧版本更新日志
 
+### 2026-07-25 — v1.1.1 — Bug 修复：setStatus 作用域 + 健壮性增强
+
+- 🐛 **Bug 修复：setStatus is not defined** — 将 `setStatus`/`setProgress` 从 `init()` 的 `const` 块级作用域提升到模块级 `function`，修复打开图片文件夹时因作用域链无法访问导致的崩溃
+- 🔒 **反重入保护** — 为 `_doLoad()` 添加 `this._loading` 锁标志 + `try/finally` 释放，防止快速点击多个图片文件夹导致的状态竞争和监听器泄漏
+- ⏱️ **进度回调节流** — onScanProgress 回调添加 50ms 防抖节流，避免高频事件 DOM 更新抖动（连续更新时每秒最多 20 次）
+- ❌ **错误状态保留加载条** — 加载失败时进度条变为红色（#e74c3c）+ 填满至 100% + 显示错误文字，用户可清晰看到失败状态
+
 ### 2026-07-25 — v1.1.0 — 灯箱深浅色适配 + 启动加载进度
 
 - 🌓 **灯箱深浅色适配** — 灯箱信息栏和功能栏背景改用 CSS 变量 `--c-card-r/g/b`，文字颜色改用 `--c-text`/`--c-text2`，切换深浅主题时自动适配
