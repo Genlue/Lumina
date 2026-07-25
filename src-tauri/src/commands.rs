@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::Path;
 use tauri::AppHandle;
+use tauri::Emitter;
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
@@ -44,7 +45,7 @@ fn sync_profile_to_db(
     profile_id: &str,
     folder_path: &str,
 ) -> Result<ScanResult, String> {
-    let scan_result = services::scanner::scan_profile_folder(profile_id, folder_path);
+    let scan_result = services::scanner::scan_profile_folder(profile_id, folder_path, &|_| {});
 
     repos::images::sync_images(p_conn, profile_id, None, &scan_result.root_images);
     repos::albums::ensure_albums_for_profile(p_conn, profile_id, &scan_result.album_folders);
@@ -86,6 +87,7 @@ pub fn profiles_create(
     name: Option<String>,
 ) -> Result<Profile, String> {
     // 1. 写入中央 DB（若相同 folder_path 的 profile 已存在则直接返回）
+    let app_handle = app.clone();
     let db = app.state::<DbState>();
     let conn = db.conn.lock().map_err(|e| format!("DB lock: {}", e))?;
     let (profile, is_existing) = repos::profiles::create_profile(&conn, &folder_path, name.as_deref());
@@ -109,8 +111,47 @@ pub fn profiles_create(
         )
         .ok();
 
-    // 4. 扫描并同步
-    sync_profile_to_db(&p_conn, &profile.id, &folder_path)?;
+    // 4. 扫描并同步（带进度事件）
+    let counter = std::sync::atomic::AtomicU32::new(0);
+    let progress = |p: ScanProgress| {
+        let prev = counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if prev % 5 == 0 {
+            let _ = app_handle.emit("scan-progress", &p);
+        }
+    };
+    let scan_result = services::scanner::scan_profile_folder(&profile.id, &folder_path, &progress);
+
+    repos::images::sync_images(&p_conn, &profile.id, None, &scan_result.root_images);
+    repos::albums::ensure_albums_for_profile(&p_conn, &profile.id, &scan_result.album_folders);
+
+    // Clean up defunct albums: remove albums whose folders no longer exist on disk
+    let db_albums = repos::albums::list_albums(&p_conn, &profile.id);
+    for album in &db_albums {
+        if !scan_result.album_folders.contains(&album.folder_name) {
+            p_conn.execute(
+                "DELETE FROM images WHERE profile_id=?1 AND album_id=?2",
+                rusqlite::params![profile.id, album.id],
+            ).ok();
+            repos::albums::delete_album(&p_conn, &profile.id, &album.folder_name);
+        }
+    }
+
+    let albums = repos::albums::list_albums(&p_conn, &profile.id);
+    for album in &albums {
+        let imgs = scan_result
+            .album_images
+            .get(&album.folder_name)
+            .cloned()
+            .unwrap_or_default();
+        repos::images::sync_images(&p_conn, &profile.id, Some(album.id), &imgs);
+    }
+
+    app.emit("scan-progress", &ScanProgress {
+        phase: "done".to_string(),
+        current_dir: "".to_string(),
+        files_found: (scan_result.root_images.len()
+            + scan_result.album_images.values().map(|v| v.len()).sum::<usize>()) as u32,
+    }).ok();
 
     Ok(profile)
 }
@@ -199,8 +240,54 @@ pub fn profiles_relocate(app: AppHandle, id: String) -> Result<Option<Profile>, 
 #[tauri::command]
 pub fn scanner_scan_all(app: AppHandle, profile_id: String) -> Result<ScanResult, String> {
     let (p_conn_arc, folder) = get_profile_db(&app, &profile_id)?;
+
+    let app_handle = app.clone();
+    let counter = std::sync::atomic::AtomicU32::new(0);
+    let progress = |p: ScanProgress| {
+        let prev = counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if prev % 5 == 0 {
+            let _ = app_handle.emit("scan-progress", &p);
+        }
+    };
+
+    let scan_result = services::scanner::scan_profile_folder(&profile_id, &folder, &progress);
+
     let p_conn = p_conn_arc.lock().map_err(|e| format!("Profile DB lock: {}", e))?;
-    sync_profile_to_db(&p_conn, &profile_id, &folder)
+
+    repos::images::sync_images(&p_conn, &profile_id, None, &scan_result.root_images);
+    repos::albums::ensure_albums_for_profile(&p_conn, &profile_id, &scan_result.album_folders);
+
+    // Clean up defunct albums: remove albums whose folders no longer exist on disk
+    let db_albums = repos::albums::list_albums(&p_conn, &profile_id);
+    for album in &db_albums {
+        if !scan_result.album_folders.contains(&album.folder_name) {
+            p_conn.execute(
+                "DELETE FROM images WHERE profile_id=?1 AND album_id=?2",
+                rusqlite::params![profile_id, album.id],
+            ).ok();
+            repos::albums::delete_album(&p_conn, &profile_id, &album.folder_name);
+        }
+    }
+
+    let albums = repos::albums::list_albums(&p_conn, &profile_id);
+    for album in &albums {
+        let imgs = scan_result
+            .album_images
+            .get(&album.folder_name)
+            .cloned()
+            .unwrap_or_default();
+        repos::images::sync_images(&p_conn, &profile_id, Some(album.id), &imgs);
+    }
+
+    // 发射完成事件
+    app.emit("scan-progress", &ScanProgress {
+        phase: "done".to_string(),
+        current_dir: "".to_string(),
+        files_found: (scan_result.root_images.len()
+            + scan_result.album_images.values().map(|v| v.len()).sum::<usize>()) as u32,
+    }).ok();
+
+    Ok(scan_result)
 }
 
 #[tauri::command]
@@ -212,7 +299,17 @@ pub fn scanner_scan_folder(
     let (p_conn_arc, root) = get_profile_db(&app, &profile_id)?;
     let full_path = Path::new(&root).join(&folder_path);
     let full_path_str = full_path.to_string_lossy().to_string();
-    let scan_result = services::scanner::scan_profile_folder(&profile_id, &full_path_str);
+
+    let app_handle = app.clone();
+    let counter = std::sync::atomic::AtomicU32::new(0);
+    let progress = |p: ScanProgress| {
+        let prev = counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if prev % 5 == 0 {
+            let _ = app_handle.emit("scan-progress", &p);
+        }
+    };
+
+    let scan_result = services::scanner::scan_profile_folder(&profile_id, &full_path_str, &progress);
 
     let p_conn = p_conn_arc.lock().map_err(|e| format!("Profile DB lock: {}", e))?;
     repos::images::sync_images(&p_conn, &profile_id, None, &scan_result.root_images);

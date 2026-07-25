@@ -305,7 +305,27 @@ const App = {
       s.extract_color_dark = s.extract_color_dark || '#4A9EFF';
       s.extract_color_light = s.extract_color_light || '#003D7A';
       s.transparent_accent_mode = s.transparent_accent_mode || 'custom';
+      // v1.1.0: 注册扫描进度监听
+      let unlistenScan = null;
+      if (window.__TAURI__?.event) {
+        unlistenScan = await API.onScanProgress((progress) => {
+          if (progress.phase === 'scanning') {
+            setStatus('正在扫描: ' + progress.current_dir);
+            const pct = 35 + Math.min(progress.files_found / 20, 30);
+            setProgress(pct);
+          } else if (progress.phase === 'syncing') {
+            setStatus('正在同步数据库...');
+            setProgress(70);
+          } else if (progress.phase === 'done') {
+            setStatus('扫描完成: ' + progress.files_found + ' 张图片');
+            setProgress(80);
+          }
+        });
+      }
+      setStatus('正在扫描图片...');
+      setProgress(35);
       await API.scanAll(profileId);
+      if (unlistenScan) { unlistenScan(); unlistenScan = null; }
       await API.listFav(profileId);
       console.log('[App] After scanAll - albumFolders:', S.albumFolders);
       console.log('[App] After scanAll - albumImages keys:', Object.keys(S.albumImages));

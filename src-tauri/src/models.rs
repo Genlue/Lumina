@@ -156,3 +156,10 @@ pub struct FavCopyResult {
     pub skipped: i64,
     pub duplicates: Vec<String>,
 }
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ScanProgress {
+    pub phase: String,
+    pub current_dir: String,
+    pub files_found: u32,
+}

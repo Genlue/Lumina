@@ -234,4 +234,15 @@ const API = {
   onWatchError(callback) {
     return () => {};
   },
+
+  // === Scan Progress ===
+  async onScanProgress(callback) {
+    if (!window.__TAURI__?.event) {
+      console.warn('[API] Tauri event API not available');
+      return () => {};
+    }
+    return await window.__TAURI__.event.listen('scan-progress', (event) => {
+      callback(event.payload);
+    });
+  },
 };

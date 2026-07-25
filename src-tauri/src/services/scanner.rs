@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use crate::models::{FileInfo, ScanResult};
+use crate::models::{FileInfo, ScanProgress, ScanResult};
 
 /// Safely extract image dimensions from a file header. Returns (None, None) on failure.
 fn get_image_dimensions(path: &Path) -> (Option<u32>, Option<u32>) {
@@ -36,9 +36,11 @@ pub fn should_exclude(name: &str) -> bool {
 
 /// Recursively scan a directory.
 /// Returns (root_files, all_subfolder_rel_paths, album_images_by_rel_path).
-fn scan_dir_recursive(
+fn scan_dir_recursive<F: Fn(ScanProgress)>(
     dir_path: &Path,
     relative_prefix: &str,
+    progress: &F,
+    total_files: &mut u32,
 ) -> (Vec<FileInfo>, Vec<String>, HashMap<String, Vec<FileInfo>>) {
     let mut root_files = Vec::new();
     let mut subfolders = Vec::new();
@@ -67,8 +69,16 @@ fn scan_dir_recursive(
             // Record this directory as a subfolder
             subfolders.push(rel_path.clone());
 
+            // 发射进度事件（节流：每5个目录）
+            progress(ScanProgress {
+                phase: "scanning".to_string(),
+                current_dir: rel_path.clone(),
+                files_found: *total_files,
+            });
+
             // 1) Scan direct image files in this directory
             if let Ok(file_imgs) = scan_file_list(&entry.path()) {
+                *total_files += file_imgs.len() as u32;
                 if !file_imgs.is_empty() {
                     album_images.insert(rel_path.clone(), file_imgs);
                 }
@@ -76,7 +86,7 @@ fn scan_dir_recursive(
 
             // 2) Recurse into child directories
             let (_child_root, child_subs, child_imgs) =
-                scan_dir_recursive(&entry.path(), &rel_path);
+                scan_dir_recursive(&entry.path(), &rel_path, progress, total_files);
             subfolders.extend(child_subs);
             album_images.extend(child_imgs);
 
@@ -108,7 +118,11 @@ fn scan_dir_recursive(
     (root_files, subfolders, album_images)
 }
 
-pub fn scan_profile_folder(_profile_id: &str, folder_path: &str) -> ScanResult {
+pub fn scan_profile_folder<F: Fn(ScanProgress)>(
+    _profile_id: &str,
+    folder_path: &str,
+    progress: &F,
+) -> ScanResult {
     let path = Path::new(folder_path);
     if !path.exists() || !path.is_dir() {
         return ScanResult {
@@ -118,8 +132,9 @@ pub fn scan_profile_folder(_profile_id: &str, folder_path: &str) -> ScanResult {
         };
     }
 
+    let mut total_files = 0u32;
     let (root_images, mut album_folders, mut album_images) =
-        scan_dir_recursive(path, "");
+        scan_dir_recursive(path, "", progress, &mut total_files);
 
     // Remove backgrounds from album_folders so it doesn't show as an album
     album_folders.retain(|f| f != ".album/backgrounds");
@@ -133,6 +148,12 @@ pub fn scan_profile_folder(_profile_id: &str, folder_path: &str) -> ScanResult {
             }
         }
     }
+
+    progress(ScanProgress {
+        phase: "syncing".to_string(),
+        current_dir: "".to_string(),
+        files_found: total_files,
+    });
 
     ScanResult { root_images, album_folders, album_images }
 }
@@ -172,7 +193,8 @@ pub fn list_all_subfolders(folder_path: &str) -> Vec<String> {
     if !path.exists() {
         return vec![];
     }
-    let (_root, folders, _images) = scan_dir_recursive(path, "");
+    let mut total_files = 0u32;
+    let (_root, folders, _images) = scan_dir_recursive(path, "", &|_: ScanProgress| {}, &mut total_files);
     folders
 }
 
@@ -197,9 +219,7 @@ mod tests {
         fs::write(dir.join("folder2").join("img2.png"), "fake").unwrap();
         fs::write(dir.join("folder1").join("readme.txt"), "not image").unwrap();
 
-        let result = scan_profile_folder("test", &dir.to_string_lossy());
-
-        // Debug print
+        let result = scan_profile_folder("test", &dir.to_string_lossy(), &|_| {});
         println!("root_images: {:?}", result.root_images.iter().map(|f| &f.name).collect::<Vec<_>>());
         println!("album_folders: {:?}", result.album_folders);
         println!("album_images keys: {:?}", result.album_images.keys().collect::<Vec<_>>());
@@ -241,7 +261,7 @@ mod tests {
         println!("\n========== SCANNING DESKTOP FOLDER ==========");
         println!("Path: {}", dir);
 
-        let result = scan_profile_folder("test", dir);
+        let result = scan_profile_folder("test", dir, &|_| {});
 
         println!("\n--- root_images ---");
         for img in &result.root_images {
