@@ -1295,6 +1295,9 @@ const App = {
     const container = document.getElementById('chart-treemap');
     if (!container) return;
 
+    // Bug1: Remove stale tooltip DOM before re-rendering
+    document.querySelector('.treemap-tooltip')?.remove();
+
     // Collect data: each folder + root images
     const items = [];
     for (const folder of S.albumFolders) {
@@ -1369,22 +1372,27 @@ const App = {
         const name = rect.dataset.name;
         const value = parseInt(rect.dataset.value);
         const pct = rect.dataset.pct;
-        tooltip.innerHTML = '<strong>' + name + '</strong><br>' + value + ' 张 (' + pct + '%)';
-        tooltip.classList.remove('hidden');
+        const t = document.querySelector('.treemap-tooltip');
+        if (!t) return;
+        t.innerHTML = '<strong>' + name + '</strong><br>' + value + ' 张 (' + pct + '%)';
+        t.classList.remove('hidden');
       });
       el.addEventListener('mousemove', (e) => {
+        const t = document.querySelector('.treemap-tooltip');
+        if (!t) return;
         let tx = e.clientX + 14;
         let ty = e.clientY - 10;
-        const tw = tooltip.offsetWidth || 180;
-        const th = tooltip.offsetHeight || 50;
+        const tw = t.offsetWidth || 180;
+        const th = t.offsetHeight || 50;
         if (tx + tw > window.innerWidth - 10) tx = e.clientX - tw - 14;
         if (ty + th > window.innerHeight - 10) ty = e.clientY - th - 10;
         if (ty < 10) ty = e.clientY + 14;
-        tooltip.style.left = tx + 'px';
-        tooltip.style.top = ty + 'px';
+        t.style.left = tx + 'px';
+        t.style.top = ty + 'px';
       });
       el.addEventListener('mouseleave', () => {
-        tooltip.classList.add('hidden');
+        const t = document.querySelector('.treemap-tooltip');
+        if (t) t.classList.add('hidden');
       });
       el.addEventListener('click', (e) => {
         const folder = e.currentTarget.dataset.folder;
@@ -1398,15 +1406,10 @@ const App = {
       });
     });
 
-    // Clean up tooltip on page leave
-    if (!this._treemapTooltipCleanup) {
-      const observer = new MutationObserver(() => {
-        if (document.getElementById('page-home')?.classList.contains('hidden')) {
-          tooltip.classList.add('hidden');
-        }
-      });
-      observer.observe(document.getElementById('page-home'), { attributes: true, attributeFilter: ['class'] });
-      this._treemapTooltipCleanup = true;
+    // Hide tooltip when home page is not visible
+    if (document.getElementById('page-home')?.classList.contains('hidden')) {
+      const existingTooltip = document.querySelector('.treemap-tooltip');
+      if (existingTooltip) existingTooltip.classList.add('hidden');
     }
 
     // ResizeObserver for responsive redraw
@@ -1439,25 +1442,28 @@ const App = {
       return;
     }
 
-    // Group by year
-    const years = {};
+    // Group by year-month
+    const months = {};
     for (const img of allImgs) {
       if (!img.lastModified) continue;
-      const year = new Date(img.lastModified).getFullYear();
-      years[year] = (years[year] || 0) + 1;
+      const d = new Date(img.lastModified);
+      const ym = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      months[ym] = (months[ym] || 0) + 1;
     }
 
-    const entries = Object.entries(years).sort((a, b) => a[0] - b[0]);
-    // Limit to last 10 years, rest as "更早"
-    let displayEntries = entries.slice(-10);
-    const olderCount = entries.slice(0, -10).reduce((s, [, c]) => s + c, 0);
-    if (olderCount > 0 && entries.length > 10) {
-      displayEntries = [{ label: '更早', count: olderCount, year: '更早' }, ...displayEntries.map(([y, c]) => ({ label: y, count: c, year: y }))];
+    const totalWithDates = Object.values(months).reduce((s, c) => s + c, 0);
+
+    const entries = Object.entries(months).sort((a, b) => a[0] - b[0]);
+    // Limit to last 24 months, rest as "更早"
+    let displayEntries = entries.slice(-24);
+    const olderCount = entries.slice(0, -24).reduce((s, [, c]) => s + c, 0);
+    if (olderCount > 0 && entries.length > 24) {
+      displayEntries = [{ label: '更早', count: olderCount }, ...displayEntries.map(([y, c]) => ({ label: y, count: c }))];
     } else {
-      displayEntries = entries.map(([y, c]) => ({ label: y, count: c, year: y }));
+      displayEntries = entries.map(([y, c]) => ({ label: y, count: c }));
     }
 
-    this._renderDonutSVG(container, displayEntries, totalImgs, '时间分布');
+    this._renderDonutSVG(container, displayEntries, totalWithDates, '时间分布', false);
   },
 
   _renderFormatDonut(allImgs, totalImgs) {
@@ -1486,10 +1492,10 @@ const App = {
       .sort((a, b) => b[1] - a[1])
       .map(([label, count]) => ({ label, count }));
 
-    this._renderDonutSVG(container, entries, totalImgs, '格式分布');
+    this._renderDonutSVG(container, entries, totalImgs, '格式分布', true);
   },
 
-  _renderDonutSVG(container, entries, total, centerText) {
+  _renderDonutSVG(container, entries, total, centerText, clickable = true) {
     const colors = ['var(--c-accent)', '#4CAF50', '#FF9800', '#9C27B0', '#00BCD4', '#F44336', '#607D8B'];
     const size = 100;
     const cx = size / 2;
@@ -1509,46 +1515,52 @@ const App = {
     });
 
     const html = `
-      <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-        ${segmentsHtml}
-        <text x="${cx}" y="${cy - 4}" text-anchor="middle" dominant-baseline="central" fill="var(--c-text)" font-size="9" font-weight="600" font-family="'JetBrains Mono','Consolas',monospace">${total}</text>
-        <text x="${cx}" y="${cy + 10}" text-anchor="middle" dominant-baseline="central" fill="var(--c-text3)" font-size="6">${centerText}</text>
-      </svg>
-      <div class="donut-legend">
-        ${entries.map((entry, i) => {
-          const color = colors[i % colors.length];
-          return '<span class="donut-legend-item" data-label="' + entry.label + '" data-count="' + entry.count + '"><span class="donut-legend-dot" style="background:' + color + '"></span>' + entry.label + ' ' + entry.count + '</span>';
-        }).join('')}
+      <div class="donut-inner">
+        <div class="donut-svg-wrap">
+          <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+            ${segmentsHtml}
+            <text x="${cx}" y="${cy - 4}" text-anchor="middle" dominant-baseline="central" fill="var(--c-text)" font-size="9" font-weight="600" font-family="'JetBrains Mono','Consolas',monospace">${total}</text>
+            <text x="${cx}" y="${cy + 10}" text-anchor="middle" dominant-baseline="central" fill="var(--c-text3)" font-size="6">${centerText}</text>
+          </svg>
+        </div>
+        <div class="donut-list">
+          ${entries.map((entry, i) => {
+            const color = colors[i % colors.length];
+            return '<div class="donut-list-item" data-label="' + entry.label + '" data-count="' + entry.count + '"><span class="donut-list-dot" style="background:' + color + '"></span><span class="donut-list-label">' + entry.label + '</span><span class="donut-list-count">' + entry.count + '</span></div>';
+          }).join('')}
+        </div>
       </div>
     `;
     container.innerHTML = html;
 
     // Click handlers for donut segments
-    container.querySelectorAll('.donut-segment, .donut-legend-item').forEach(el => {
-      el.addEventListener('click', () => {
-        const label = el.dataset.label;
-        if (!label) return;
-        let searchTerm = '';
-        // Determine if this is a year or format
-        if (/^\d{4}$/.test(label)) {
-          searchTerm = label;
-        } else if (label === '更早') {
-          return; // Skip for "earlier"
-        } else {
-          const extMap = { 'JPG': 'jpg', 'PNG': 'png', 'GIF': 'gif', 'WEBP': 'webp' };
-          const ext = extMap[label] || label.toLowerCase();
-          searchTerm = '.' + ext;
-        }
-        // Navigate to album page and set search
-        S.currentView = 'all';
-        App._switchToAlbumPage();
-        const searchInput = document.getElementById('search-input');
-        if (searchInput) {
-          searchInput.value = searchTerm;
-          searchInput.dispatchEvent(new Event('input'));
-        }
+    if (clickable) {
+      container.querySelectorAll('.donut-segment, .donut-list-item').forEach(el => {
+        el.addEventListener('click', () => {
+          const label = el.dataset.label;
+          if (!label) return;
+          let searchTerm = '';
+          // Determine if this is a year or format
+          if (/^\d{4}$/.test(label)) {
+            searchTerm = label;
+          } else if (label === '更早') {
+            return; // Skip for "earlier"
+          } else {
+            const extMap = { 'JPG': 'jpg', 'PNG': 'png', 'GIF': 'gif', 'WEBP': 'webp' };
+            const ext = extMap[label] || label.toLowerCase();
+            searchTerm = '.' + ext;
+          }
+          // Navigate to album page and set search
+          S.currentView = 'all';
+          App._switchToAlbumPage();
+          const searchInput = document.getElementById('search-input');
+          if (searchInput) {
+            searchInput.value = searchTerm;
+            searchInput.dispatchEvent(new Event('input'));
+          }
+        });
       });
-    });
+    }
   },
 
   async deleteFromLb() {
