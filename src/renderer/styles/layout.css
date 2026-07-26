@@ -931,13 +931,13 @@ mark {
 .settings-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+  gap: 10px;
 }
-.settings-card{background:rgba(var(--c-card-r,42),var(--c-card-g,42),var(--c-card-b,42),var(--card-opacity,1));backdrop-filter:blur(var(--card-blur,0px));-webkit-backdrop-filter:blur(var(--card-blur,0px));border:1px solid var(--c-border);border-radius:var(--radius-md);padding:16px}
+.settings-card{background:rgba(var(--c-card-r,42),var(--c-card-g,42),var(--c-card-b,42),var(--card-opacity,1));backdrop-filter:blur(var(--card-blur,0px));-webkit-backdrop-filter:blur(var(--card-blur,0px));border:1px solid var(--c-border);border-radius:var(--radius-md);padding:12px}
 .settings-card h3 {
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 .settings-card select,
 .settings-card input[type="color"],
@@ -961,18 +961,52 @@ mark {
   backdrop-filter: blur(var(--card-blur,0px));
   -webkit-backdrop-filter: blur(var(--card-blur,0px));
   border-radius: var(--radius-md);
-  padding: 12px 16px;
+  padding: 8px 12px;
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
   color: var(--c-accent);
   border: 1px solid var(--c-border);
-  margin-bottom: 4px;
+  margin-bottom: 0;
+}
+.settings-card.settings-card-range {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.settings-row input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.settings-number {
+  width: 74px;
+  flex: 0 0 74px;
+  padding: 6px 8px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-size: 0.9em;
+  text-align: center;
+  outline: none;
+}
+.settings-number:focus {
+  border-color: var(--c-accent);
 }
 .settings-card span[id$="-val"] {
-  font-size: 1.1em;
+  min-width: 46px;
+  text-align: right;
+  font-size: 0.92em;
   font-weight: var(--font-weight-semibold);
   color: var(--c-text);
-  margin-left: 8px;
+  margin-left: 2px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Dashboard card - 4块布局 */

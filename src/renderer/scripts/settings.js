@@ -12,21 +12,37 @@ const ST = {
       if (!s) return;
       this._setVal('set-theme', null); // Button-based, handled separately
       this._setVal('set-bg-blur', s.bg_blur ?? 0);
+      this._setVal('set-bg-blur-input', s.bg_blur ?? 0);
       this._setVal('set-bg-opacity', Math.round((s.bg_opacity ?? 1.0) * 100));
+      this._setVal('set-bg-opacity-input', Math.round((s.bg_opacity ?? 1.0) * 100));
       this._setVal('set-thumb-size', s.thumbnail_size ?? 400);
+      this._setVal('set-thumb-size-input', s.thumbnail_size ?? 400);
       this._setVal('set-draw-count', s.draw_count ?? 10);
+      this._setVal('set-draw-count-input', s.draw_count ?? 10);
       this._setVal('set-random-interval', s.random_interval ?? 3);
+      this._setVal('set-random-interval-input', s.random_interval ?? 3);
       this._setVal('set-sidebar-w', s.sidebar_width ?? 150);
+      this._setVal('set-sidebar-w-input', s.sidebar_width ?? 150);
       this._setVal('set-sidebar-opacity', Math.round((s.sidebar_opacity ?? 0.7) * 100));
+      this._setVal('set-sidebar-opacity-input', Math.round((s.sidebar_opacity ?? 0.7) * 100));
       this._setVal('set-sidebar-font', s.sidebar_font ?? 20);
+      this._setVal('set-sidebar-font-input', s.sidebar_font ?? 20);
       this._setVal('set-sidebar-blur', s.sidebar_blur ?? 16);
+      this._setVal('set-sidebar-blur-input', s.sidebar_blur ?? 16);
       this._setVal('set-card-opacity', Math.round((s.card_opacity ?? 0.7) * 100));
+      this._setVal('set-card-opacity-input', Math.round((s.card_opacity ?? 0.7) * 100));
       this._setVal('set-card-blur', s.card_blur ?? 16);
+      this._setVal('set-card-blur-input', s.card_blur ?? 16);
       this._setVal('set-toolbar-h', s.toolbar_height ?? 56);
+      this._setVal('set-toolbar-h-input', s.toolbar_height ?? 56);
       this._setVal('set-toolbar-blur', s.toolbar_blur ?? 16);
+      this._setVal('set-toolbar-blur-input', s.toolbar_blur ?? 16);
       this._setVal('set-toolbar-opacity', Math.round((s.toolbar_opacity ?? 0.7) * 100));
+      this._setVal('set-toolbar-opacity-input', Math.round((s.toolbar_opacity ?? 0.7) * 100));
       this._setVal('set-overlay-opacity', Math.round((s.select_overlay_opacity ?? 0.2) * 100));
+      this._setVal('set-overlay-opacity-input', Math.round((s.select_overlay_opacity ?? 0.2) * 100));
       this._setVal('set-list-cols', s.list_columns ?? 3);
+      this._setVal('set-list-cols-input', s.list_columns ?? 3);
 
       this._setText('bg-blur-val', (s.bg_blur ?? 0) + 'px');
       this._setText('bg-opacity-val', Math.round((s.bg_opacity ?? 1.0) * 100) + '%');
@@ -1028,17 +1044,20 @@ const ST = {
 
 
   applyBlur(val) {
+    val = this._clampNumber(val, 0, 50, App._settings.bg_blur ?? 0);
     const bgLayer = document.getElementById('bg-layer');
     if (bgLayer) bgLayer.style.filter = val > 0 ? `blur(${val}px)` : '';
-    this._setText('bg-blur-val', val + 'px');
+    this._syncRangePair('set-bg-blur', 'set-bg-blur-input', 'bg-blur-val', val, v => v + 'px');
     API.saveSettings(S.profileId, { bg_blur: val });
     App._settings.bg_blur = val;
   },
 
   applyOpacity(val) {
+    val = this._clampNumber(val, 0, 1, App._settings.bg_opacity ?? 1.0);
     const bgLayer = document.getElementById('bg-layer');
     if (bgLayer) bgLayer.style.opacity = String(val);
-    this._setText('bg-opacity-val', Math.round(val * 100) + '%');
+    const pct = Math.round(val * 100);
+    this._syncRangePair('set-bg-opacity', 'set-bg-opacity-input', 'bg-opacity-val', pct, v => v + '%');
     API.saveSettings(S.profileId, { bg_opacity: val });
     App._settings.bg_opacity = val;
   },
@@ -1122,50 +1141,60 @@ const ST = {
   // === Card ===
 
   applyCardOpacity(val) {
+    val = this._clampNumber(val, 0, 1, App._settings.card_opacity ?? 0.7);
     document.documentElement.style.setProperty('--card-opacity', String(val));
-    this._setText('card-opacity-val', Math.round(val * 100) + '%');
+    const pct = Math.round(val * 100);
+    this._syncRangePair('set-card-opacity', 'set-card-opacity-input', 'card-opacity-val', pct, v => v + '%');
     API.saveSettings(S.profileId, { card_opacity: val });
     App._settings.card_opacity = val;
   },
 
   applyCardBlur(val) {
+    val = this._clampNumber(val, 0, 30, App._settings.card_blur ?? 16);
     document.documentElement.style.setProperty('--card-blur', val + 'px');
-    this._setText('card-blur-val', val + 'px');
+    this._syncRangePair('set-card-blur', 'set-card-blur-input', 'card-blur-val', val, v => v + 'px');
     API.saveSettings(S.profileId, { card_blur: val });
     App._settings.card_blur = val;
   },
 
   applyToolbarHeight(val) {
+    val = this._clampNumber(val, 56, 80, App._settings.toolbar_height ?? 56);
     document.documentElement.style.setProperty('--toolbar-h', val + 'px');
-    this._setText('toolbar-h-val', val + 'px');
+    this._syncRangePair('set-toolbar-h', 'set-toolbar-h-input', 'toolbar-h-val', val, v => v + 'px');
     API.saveSettings(S.profileId, { toolbar_height: val });
     App._settings.toolbar_height = val;
   },
 
   applyListColumns(val) {
+    val = this._clampNumber(val, 1, 5, App._settings.list_columns ?? 3);
     document.documentElement.style.setProperty('--list-columns', val);
     App._settings.list_columns = val;
-    this._setText('list-cols-val', val);
+    this._syncRangePair('set-list-cols', 'set-list-cols-input', 'list-cols-val', val, v => v);
     API.saveSettings(S.profileId, { list_columns: val });
   },
 
   applyToolbarBlur(val) {
+    val = this._clampNumber(val, 0, 50, App._settings.toolbar_blur ?? 16);
     document.documentElement.style.setProperty('--toolbar-blur', val + 'px');
-    this._setText('toolbar-blur-val', val + 'px');
+    this._syncRangePair('set-toolbar-blur', 'set-toolbar-blur-input', 'toolbar-blur-val', val, v => v + 'px');
     API.saveSettings(S.profileId, { toolbar_blur: val });
     App._settings.toolbar_blur = val;
   },
 
   applyToolbarOpacity(val) {
+    val = this._clampNumber(val, 0, 1, App._settings.toolbar_opacity ?? 0.7);
     document.documentElement.style.setProperty('--toolbar-opacity', String(val));
-    this._setText('toolbar-opacity-val', Math.round(val * 100) + '%');
+    const pct = Math.round(val * 100);
+    this._syncRangePair('set-toolbar-opacity', 'set-toolbar-opacity-input', 'toolbar-opacity-val', pct, v => v + '%');
     API.saveSettings(S.profileId, { toolbar_opacity: val });
     App._settings.toolbar_opacity = val;
   },
 
   applyOverlayOpacity(val) {
+    val = this._clampNumber(val, 0, 0.6, App._settings.select_overlay_opacity ?? 0.2);
     document.documentElement.style.setProperty('--overlay-opacity', String(val));
-    this._setText('overlay-opacity-val', Math.round(val * 100) + '%');
+    const pct = Math.round(val * 100);
+    this._syncRangePair('set-overlay-opacity', 'set-overlay-opacity-input', 'overlay-opacity-val', pct, v => v + '%');
     API.saveSettings(S.profileId, { select_overlay_opacity: val });
     App._settings.select_overlay_opacity = val;
   },
@@ -1189,49 +1218,57 @@ const ST = {
   },
 
   applySidebarWidth(val) {
+    val = this._clampNumber(val, 150, 500, App._settings.sidebar_width ?? 150);
     document.documentElement.style.setProperty('--sidebar-w', val + 'px');
     const sb = document.getElementById('sidebar');
     if (sb) { sb.style.width = val + 'px'; sb.style.minWidth = val + 'px'; }
-    this._setText('sidebar-w-val', val + 'px');
+    this._syncRangePair('set-sidebar-w', 'set-sidebar-w-input', 'sidebar-w-val', val, v => v + 'px');
     API.saveSettings(S.profileId, { sidebar_width: val });
     App._settings.sidebar_width = val;
   },
 
   applySidebarFont(val) {
+    val = this._clampNumber(val, 10, 30, App._settings.sidebar_font ?? 20);
     document.documentElement.style.setProperty('--sidebar-font', val + 'px');
-    this._setText('sidebar-font-val', val + 'px');
+    this._syncRangePair('set-sidebar-font', 'set-sidebar-font-input', 'sidebar-font-val', val, v => v + 'px');
     API.saveSettings(S.profileId, { sidebar_font: val });
     App._settings.sidebar_font = val;
   },
 
   applySidebarBlur(val) {
+    val = this._clampNumber(val, 0, 50, App._settings.sidebar_blur ?? 16);
     document.documentElement.style.setProperty('--sidebar-blur', val + 'px');
-    this._setText('sidebar-blur-val', val + 'px');
+    this._syncRangePair('set-sidebar-blur', 'set-sidebar-blur-input', 'sidebar-blur-val', val, v => v + 'px');
     API.saveSettings(S.profileId, { sidebar_blur: val });
     App._settings.sidebar_blur = val;
   },
 
   applySidebarOpacity(val) {
+    val = this._clampNumber(val, 0, 1, App._settings.sidebar_opacity ?? 0.7);
     document.documentElement.style.setProperty('--sidebar-opacity', String(val));
-    this._setText('sidebar-opacity-val', Math.round(val * 100) + '%');
+    const pct = Math.round(val * 100);
+    this._syncRangePair('set-sidebar-opacity', 'set-sidebar-opacity-input', 'sidebar-opacity-val', pct, v => v + '%');
     API.saveSettings(S.profileId, { sidebar_opacity: val });
     App._settings.sidebar_opacity = val;
   },
 
   applyThumbnailSize(val) {
-    this._setText('thumb-size-val', val + 'px');
+    val = this._clampNumber(val, 100, 800, App._settings.thumbnail_size ?? 400);
+    this._syncRangePair('set-thumb-size', 'set-thumb-size-input', 'thumb-size-val', val, v => v + 'px');
     API.saveSettings(S.profileId, { thumbnail_size: val });
     App._settings.thumbnail_size = val;
   },
 
   applyDrawCount(val) {
-    this._setText('draw-count-val', val);
+    val = this._clampNumber(val, 1, 30, App._settings.draw_count ?? 10);
+    this._syncRangePair('set-draw-count', 'set-draw-count-input', 'draw-count-val', val, v => v);
     API.saveSettings(S.profileId, { draw_count: val });
     App._settings.draw_count = val;
   },
 
   applyRandomInterval(val) {
-    this._setText('random-interval-val', val + 's');
+    val = this._clampNumber(val, 1, 30, App._settings.random_interval ?? 3);
+    this._syncRangePair('set-random-interval', 'set-random-interval-input', 'random-interval-val', val, v => v + 's');
     API.saveSettings(S.profileId, { random_interval: val });
     App._settings.random_interval = val;
   },
@@ -1276,6 +1313,20 @@ const ST = {
   _setText(id, val) {
     const el = document.getElementById(id);
     if (el) el.textContent = val;
+  },
+
+  _clampNumber(val, min, max, fallback) {
+    const num = Number(val);
+    if (!Number.isFinite(num)) return fallback;
+    return Math.min(max, Math.max(min, num));
+  },
+
+  _syncRangePair(rangeId, numberId, displayId, val, format) {
+    const rangeEl = document.getElementById(rangeId);
+    const numberEl = document.getElementById(numberId);
+    if (rangeEl) rangeEl.value = String(val);
+    if (numberEl) numberEl.value = String(val);
+    if (displayId) this._setText(displayId, format ? format(val) : String(val));
   },
 
   // === 使用指南 ===
