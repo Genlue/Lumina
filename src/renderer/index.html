@@ -81,7 +81,7 @@
       </div>
     </nav>
     <main id="main">
-      <section id="page-home" class="page-panel hidden" style="padding:0;display:flex;flex-direction:column;overflow:hidden;">
+      <section id="page-home" class="page-panel hidden home-page-shell" style="padding:0;display:flex;flex-direction:column;overflow:hidden;">
         <div id="home-toolbar">
           <span id="home-title" class="home-title">我的相册</span>
           <div class="home-quick-nav">
@@ -89,53 +89,89 @@
             <button class="qn-btn" data-nav="discover"><span data-icon="compass" data-size="14"></span> 发现</button>
           </div>
         </div>
-        <div class="page-scroll">
-          <div class="home-grid" style="margin-top:24px;">
-          <div class="home-card dashboard-card" style="cursor:default;">
-            <div class="dash-left">
-              <span class="dash-main-num" id="stat-total-imgs">0</span>
-              <span class="dash-main-label"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> 图片总数</span>
-            </div>
-            <div class="dash-right">
-              <div class="dash-right-row">
-                <span class="dash-right-label"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg> 占用空间</span>
-                <span class="dash-right-num" id="stat-total-size">0 B</span>
+        <div class="page-scroll home-scroll">
+          <div class="home-grid home-grid-top" style="margin-top:24px;">
+            <div class="home-card home-overview-card" style="cursor:default;">
+              <div class="home-card-head">
+                <div>
+                  <h3>概览</h3>
+                  <p>当前图片库的核心状态</p>
+                </div>
+                <span class="home-card-chip" id="home-scope-label">总览</span>
               </div>
-              <div class="dash-divider"></div>
-              <div class="dash-right-row">
-                <span class="dash-right-label"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><path d="M2 21h20"/></svg> 相册数</span>
-                <span class="dash-right-num" id="stat-albums">0</span>
+              <div class="metric-grid">
+                <div class="metric-tile">
+                  <span class="metric-label"><span data-icon="images" data-size="14"></span> 图片总数</span>
+                  <span class="metric-value" id="stat-total-imgs">0</span>
+                </div>
+                <div class="metric-tile">
+                  <span class="metric-label"><span data-icon="hard-drive" data-size="14"></span> 占用空间</span>
+                  <span class="metric-value" id="stat-total-size">0 B</span>
+                </div>
+                <div class="metric-tile">
+                  <span class="metric-label"><span data-icon="layout-grid" data-size="14"></span> 相册数</span>
+                  <span class="metric-value" id="stat-albums">0</span>
+                </div>
+                <div class="metric-tile">
+                  <span class="metric-label"><span data-icon="star" data-size="14"></span> 收藏数</span>
+                  <span class="metric-value" id="stat-favs">0</span>
+                </div>
               </div>
-              <div class="dash-divider"></div>
-              <div class="dash-right-row">
-                <span class="dash-right-label"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> 收藏数</span>
-                <span class="dash-right-num" id="stat-favs">0</span>
+              <div class="home-meta-row">
+                <span id="home-current-folder">未选择文件夹</span>
               </div>
             </div>
-          </div>
-          <div class="home-card rescan-card" data-action="rescan">
-            <div class="rescan-inner">
-              <div class="rescan-icon"><span data-icon="refresh-cw" data-size="36"></span></div>
-              <h3>刷新图片</h3>
-              <p>重新扫描文件夹，同步新增与删除的图片</p>
-              <span class="rescan-meta" id="rescan-info">上次扫描：--</span>
+
+            <div class="home-card home-actions-card" style="cursor:default;">
+              <div class="home-card-head">
+                <div>
+                  <h3>快捷操作</h3>
+                  <p>常用动作直接放这里</p>
+                </div>
+              </div>
+              <div class="home-action-grid">
+                <button class="home-action-btn home-action-primary" data-action="refresh"><span data-icon="refresh-cw" data-size="16"></span> 刷新图片</button>
+                <button class="home-action-btn" data-action="album"><span data-icon="folder-open" data-size="16"></span> 相册</button>
+                <button class="home-action-btn" data-action="discover"><span data-icon="compass" data-size="16"></span> 发现</button>
+                <button class="home-action-btn" data-action="favorites"><span data-icon="star" data-size="16"></span> 收藏</button>
+                <button class="home-action-btn" data-action="trash"><span data-icon="trash" data-size="16"></span> 回收站</button>
+                <button class="home-action-btn" data-action="settings"><span data-icon="settings" data-size="16"></span> 设置</button>
+              </div>
             </div>
-          </div>
-          <div class="home-card dashboard-charts" style="grid-column:1/-1;cursor:default;padding:0;overflow:hidden;">
-  <div class="d3-layout">
-    <div class="d3-treemap-wrap">
-      <div id="chart-treemap" class="treemap-container"></div>
-    </div>
-    <div class="d3-donuts-wrap">
-      <div class="d3-donut-box">
-        <div id="chart-time-donut" class="donut-container"></div>
-      </div>
-      <div class="d3-donut-box">
-        <div id="chart-format-donut" class="donut-container"></div>
-      </div>
-    </div>
-  </div>
-</div>
+
+            <div class="home-card home-recents-card" style="cursor:default;">
+              <div class="home-card-head">
+                <div>
+                  <h3>最近相册</h3>
+                  <p>最近访问过的文件夹</p>
+                </div>
+              </div>
+              <div id="recent-album-list" class="recent-album-list"></div>
+            </div>
+
+            <div class="home-card home-analytics-card" style="grid-column:1/-1;cursor:default;">
+              <div class="home-card-head home-analytics-head">
+                <div>
+                  <h3>概览分析</h3>
+                  <p>从文件夹、格式和时间三个角度看当前相册库</p>
+                </div>
+                <span class="home-card-chip">自动更新</span>
+              </div>
+              <div class="home-analytics-grid">
+                <section class="mini-chart-panel">
+                  <div class="mini-chart-title"><span data-icon="folder-tree" data-size="14"></span> 文件夹分布</div>
+                  <div id="chart-folders" class="mini-chart-list"></div>
+                </section>
+                <section class="mini-chart-panel">
+                  <div class="mini-chart-title"><span data-icon="palette" data-size="14"></span> 格式分布</div>
+                  <div id="chart-formats" class="mini-chart-list"></div>
+                </section>
+                <section class="mini-chart-panel">
+                  <div class="mini-chart-title"><span data-icon="calendar-range" data-size="14"></span> 时间趋势</div>
+                  <div id="chart-trend" class="mini-chart-list"></div>
+                </section>
+              </div>
+            </div>
           </div>
         </div>
       </section>
