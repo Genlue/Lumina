@@ -92,7 +92,7 @@ bash scripts/build-installer.sh
 cd src-tauri && cargo tauri build --bundles nsis
 ```
 
-安装器位于: `src-tauri/target/release/bundle/nsis/Lumina_2.2.0_x64-setup.exe`
+安装器位于: `src-tauri/target/release/bundle/nsis/Lumina_2.2.1_x64-setup.exe`
 
 ## 安装说明
 
@@ -104,6 +104,13 @@ cd src-tauri && cargo tauri build --bundles nsis
 - **数据隔离**: 应用数据存储在图片文件夹下的 `.album/` 目录，卸载时不会删除用户数据
 
 ## 旧版本更新日志
+
+### 2026-07-31 — v2.2.1 — 原生窗口顶栏与稳定瀑布流
+
+- 🪟 **Windows 原生顶栏** — 启用系统原生窗口装饰，移除自绘标题栏和窗口控制按钮，保留透明背景及 Acrylic/Blur 效果
+- 🖼️ **瀑布流稳定布局** — 改用固定位置的 JS 瀑布流布局，按图片尺寸预留高度，避免启动时重新排列和滚动时跳动
+- ⚡ **瀑布流加载优化** — 使用 IntersectionObserver、批量缩略图请求和受控并发，滚动时只加载临近图片
+- 🛠️ **批量缩略图修复** — 统一 `dataUrl` 字段映射，修复批量缩略图响应无法被前端识别的问题
 
 ### 2026-07-26 — v2.2.0 — 设置页紧凑化与数值输入
 

@@ -452,6 +452,7 @@ pub struct ThumbReq {
 pub struct ThumbBatchResult {
     filename: String,
     folder: Option<String>,
+    #[serde(rename = "dataUrl")]
     data_url: Option<String>,
 }
 

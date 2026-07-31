@@ -1,6 +1,6 @@
 {
   "productName": "Lumina",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "identifier": "com.lumina.album",
   "build": {
     "frontendDist": "../src/renderer"
@@ -14,7 +14,7 @@
         "height": 860,
         "minWidth": 900,
         "minHeight": 600,
-        "decorations": false,
+        "decorations": true,
         "resizable": true,
         "transparent": true,
         "center": true

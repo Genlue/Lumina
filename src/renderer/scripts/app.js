@@ -231,7 +231,6 @@ const App = {
       this._bindNav();
       this._bindToolbar();
       this._bindSettings();
-      this._bindTitleBar();
 
       // Global handlers: browser contextmenu prevention
       document.addEventListener('contextmenu', (e) => {
@@ -940,18 +939,6 @@ const App = {
   },
 
   _bindSettings() { /* All settings use inline HTML handlers */ },
-
-  _bindTitleBar() {
-    const win = window.__TAURI__?.window?.getCurrentWindow();
-    document.getElementById('btn-min')?.addEventListener('click', () => win?.minimize());
-    document.getElementById('btn-max')?.addEventListener('click', () => win?.toggleMaximize());
-    document.getElementById('btn-close')?.addEventListener('click', () => win?.close());
-    // 透明模式下 data-tauri-drag-region 不生效，手动拖拽
-    document.getElementById('title-bar')?.addEventListener('mousedown', (e) => {
-      if (e.target.closest('#title-btns')) return;
-      win?.startDragging();
-    });
-  },
 
   // ====== IMAGE OPERATIONS ======
 

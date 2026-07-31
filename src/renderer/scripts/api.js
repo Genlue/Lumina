@@ -90,6 +90,8 @@ const API = {
       const batch = await this._invoke('files_get_thumbnails_batch', { profileId, requests: uncached, size });
       for (let j = 0; j < batch.length; j++) {
         const r = batch[j];
+        // Accept the legacy snake_case field while new builds return dataUrl.
+        if (!r.dataUrl && r.data_url) r.dataUrl = r.data_url;
         const key = `${profileId}|${r.folder||''}|${r.filename}|${size||'full'}`;
         if (r.dataUrl) {
           try { r.dataUrl = window.__TAURI__.core.convertFileSrc(r.dataUrl); } catch(e) {}
