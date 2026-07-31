@@ -1,6 +1,6 @@
 {
   "productName": "Lumina",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "identifier": "com.lumina.album",
   "build": {
     "frontendDist": "../src/renderer"
@@ -35,6 +35,7 @@
       "../README.md": "README.md",
       "../.gitignore": ".gitignore",
       "../Lumina.bat": "Lumina.bat",
+      "resources/libheif/**/*": "libheif/",
       "Cargo.toml": "src-tauri/Cargo.toml",
       "Cargo.lock": "src-tauri/Cargo.lock",
       "src/**/*": "src-tauri/src/",

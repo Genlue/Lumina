@@ -1,11 +1,17 @@
-use std::collections::HashMap;
 use crate::models::ThemeColors;
+use super::image_compat;
+use std::collections::HashMap;
+use std::path::Path;
 
 /// Extract dominant accent color from an image file using proper image decoding.
 /// Samples ~2500 pixels (50×50 grid), filters by vividness, returns top 5 by score.
 pub fn extract_theme_colors(image_path: &str) -> ThemeColors {
-    match image::open(image_path) {
-        Ok(img) => {
+    let decoded = image::open(image_path)
+        .ok()
+        .or_else(|| image_compat::decode_scaled(Path::new(image_path), 1000, 1000));
+
+    match decoded {
+        Some(img) => {
             let rgba = img.to_rgba8();
             let colors = sample_pixels(&rgba);
             if !colors.is_empty() && colors[0] != "#000000" {
@@ -20,8 +26,8 @@ pub fn extract_theme_colors(image_path: &str) -> ThemeColors {
                 }
             }
         }
-        Err(e) => {
-            eprintln!("[Theme] Failed to open {}: {}", image_path, e);
+        None => {
+            eprintln!("[Theme] Failed to decode {}", image_path);
             ThemeColors {
                 dominant: "#60CDFF".to_string(),
                 palette: vec!["#60CDFF".to_string()],

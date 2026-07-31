@@ -12,4 +12,4 @@ data/
 photo-album.exe.WebView2/
 photo-album.exe
 *.exe
-
+!src-tauri/resources/libheif/heif-convert.exe

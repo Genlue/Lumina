@@ -389,6 +389,40 @@ pub async fn files_get_thumbnail(
 
     // Full-size mode (lightbox / background): return original path with dimensions from DB
     if max_dim == 0 {
+        // WebView2 cannot render HEIF/HEIC directly even when Windows Explorer can.
+        // Convert unsupported containers to a cached JPEG while preserving native originals.
+        if image::image_dimensions(&file_path).is_err() {
+            if let Some((width, height)) = services::image_compat::dimensions(&file_path) {
+                let cache_dir = Path::new(&root).join(".album").join("cache").join("thumbnails");
+                let full_dim = width.max(height);
+                let cache_key = format!(
+                    "{:x}_full_compat_v3",
+                    simple_hash(&file_path.to_string_lossy())
+                );
+                let fp = file_path.clone();
+                let cache_dir_c = cache_dir.clone();
+                let converted = tauri::async_runtime::spawn_blocking(move || {
+                    services::thumbnails::get_or_generate_thumbnail(
+                        &fp,
+                        &cache_dir_c,
+                        &cache_key,
+                        full_dim,
+                        92,
+                    )
+                })
+                .await
+                .map_err(|e| format!("Full image conversion error: {}", e))?;
+
+                if let Some(converted_path) = converted {
+                    return Ok(ThumbnailResult {
+                        data_url: converted_path.to_string_lossy().to_string(),
+                        width,
+                        height,
+                    });
+                }
+            }
+        }
+
         let (width, height) = {
             let (p_conn_arc, _) = get_profile_db(&app, &profile_id)?;
             let p_conn = p_conn_arc.lock().map_err(|e| format!("Profile DB lock: {}", e))?;

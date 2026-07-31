@@ -92,7 +92,7 @@ bash scripts/build-installer.sh
 cd src-tauri && cargo tauri build --bundles nsis
 ```
 
-安装器位于: `src-tauri/target/release/bundle/nsis/Lumina_2.2.1_x64-setup.exe`
+安装器位于: `src-tauri/target/release/bundle/nsis/Lumina_2.2.2_x64-setup.exe`
 
 ## 安装说明
 
@@ -104,6 +104,10 @@ cd src-tauri && cargo tauri build --bundles nsis
 - **数据隔离**: 应用数据存储在图片文件夹下的 `.album/` 目录，卸载时不会删除用户数据
 
 ## 旧版本更新日志
+
+### 2026-07-31 — v2.2.2 — HEIF 修复静默后台执行
+
+- 🖼️ **HEIF/HEIC 兼容修复** — 内置转换器以后台无窗口方式运行，修复图片时不再弹出命令行窗口
 
 ### 2026-07-31 — v2.2.1 — 原生窗口顶栏与稳定瀑布流
 

@@ -2,16 +2,31 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use crate::models::{FileInfo, ScanProgress, ScanResult};
+use super::image_compat;
 
 /// Safely extract image dimensions from a file header. Returns (None, None) on failure.
 fn get_image_dimensions(path: &Path) -> (Option<u32>, Option<u32>) {
     match image::image_dimensions(path) {
         Ok((w, h)) => (Some(w), Some(h)),
-        Err(_) => (None, None),
+        Err(_) => image_compat::dimensions(path)
+            .map(|(w, h)| (Some(w), Some(h)))
+            .unwrap_or((None, None)),
     }
 }
 
-const IMG_EXTS: &[&str] = &["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp"];
+fn get_scan_dimensions(path: &Path, file_size: u64) -> (Option<u32>, Option<u32>) {
+    if file_size > 20_000_000 {
+        // HEIF dimensions live in metadata, so probing remains cheap for large files.
+        return image_compat::dimensions(path)
+            .map(|(w, h)| (Some(w), Some(h)))
+            .unwrap_or((None, None));
+    }
+    get_image_dimensions(path)
+}
+
+const IMG_EXTS: &[&str] = &[
+    "jpg", "jpeg", "png", "gif", "webp", "svg", "bmp", "heic", "heif", "avif",
+];
 const EXCLUDE_DIRS: &[&str] = &[
     ".album", "backgrounds",
     ".git", "node_modules", ".reasonix", ".vscode", ".idea",
@@ -96,11 +111,7 @@ fn scan_dir_recursive<F: Fn(ScanProgress)>(
             }
             if let Ok(meta) = fs::metadata(&entry.path()) {
                 let file_size = meta.len();
-                let (width, height) = if file_size > 20_000_000 {
-                    (None, None) // >20MB 跳过尺寸读取加速扫描
-                } else {
-                    get_image_dimensions(&entry.path())
-                };
+                let (width, height) = get_scan_dimensions(&entry.path(), file_size);
                 root_files.push(FileInfo {
                     name: entry_name,
                     size: file_size,
@@ -169,11 +180,7 @@ fn scan_file_list(dir_path: &Path) -> Result<Vec<FileInfo>, std::io::Error> {
         if should_exclude(&name) || !is_image_file(&name) { continue; }
         let meta = entry.metadata()?;
         let file_size = meta.len();
-        let (width, height) = if file_size > 20_000_000 {
-            (None, None)
-        } else {
-            get_image_dimensions(&entry.path())
-        };
+        let (width, height) = get_scan_dimensions(&entry.path(), file_size);
         results.push(FileInfo {
             name,
             size: file_size,

@@ -7,6 +7,7 @@ use image::ImageReader;
 use image::DynamicImage;
 // jpeg_decoder 用于超大 JPEG 的 IDCT 缩放解码
 use jpeg_decoder as jd;
+use super::image_compat;
 
 /// Generate or retrieve a cached thumbnail for the given source image.
 ///
@@ -40,8 +41,11 @@ pub fn get_or_generate_thumbnail(
         let _ = fs::remove_file(&cache_path);
     }
 
-    // 快速读取文件头获取尺寸
-    let (orig_w, orig_h) = image::image_dimensions(source_path).ok()?;
+    // Fast header read for native formats, followed by Windows WIC for HEIF/HEIC.
+    let (orig_w, orig_h) = match image::image_dimensions(source_path) {
+        Ok(dimensions) => dimensions,
+        Err(_) => image_compat::dimensions(source_path)?,
+    };
     if orig_w > 65535 || orig_h > 65535 || orig_w == 0 || orig_h == 0 {
         return None;
     }
@@ -59,64 +63,7 @@ pub fn get_or_generate_thumbnail(
         (w.max(1), h)
     };
 
-    // 判断解码策略
-    let pixel_count = (orig_w as u64) * (orig_h as u64);
-    let is_jpeg = is_jpeg_file(source_path);
-
-    // 解码为 DynamicImage
-    let img = if pixel_count > 30_000_000 && is_jpeg {
-        // ★ 超大 JPEG：使用 jpeg-decoder 的 IDCT 缩放解码，不解全图
-        // 16000x12000 → 2000x1500 (1/8 IDCT scale)，内存从 576MB→9MB
-        decode_jpeg_scaled(source_path, target.0, target.1)?
-    } else if pixel_count > 30_000_000 {
-        // ★ 超大非 JPEG（PNG 等）：尝试正常解码，设更高熔断值防止 OOM
-        if pixel_count > 100_000_000 {
-            return None;
-        }
-        // 正常解码路径（与 else 分支代码重复但可读性更好）
-        let reader = ImageReader::open(source_path)
-            .ok()?
-            .with_guessed_format()
-            .ok()?;
-        if orig_w > 4000 || orig_h > 4000 {
-            let factor = 4000.0 / orig_w.max(orig_h) as f64;
-            let sw = (orig_w as f64 * factor).max(target.0 as f64) as u32;
-            let sh = (orig_h as f64 * factor).max(target.1 as f64) as u32;
-            let step = reader.decode().ok()?
-                .resize_exact(sw, sh, image::imageops::FilterType::Nearest);
-            step.resize_exact(target.0, target.1, image::imageops::FilterType::Triangle)
-        } else {
-            let decoded = reader.decode().ok()?;
-            if decoded.width() != target.0 || decoded.height() != target.1 {
-                decoded.resize_exact(target.0, target.1, image::imageops::FilterType::Triangle)
-            } else {
-                decoded
-            }
-        }
-    } else {
-        // 正常尺寸：用 image crate 全解码
-        let reader = ImageReader::open(source_path)
-            .ok()?
-            .with_guessed_format()
-            .ok()?;
-
-        // 保留 v2.4.2 的两级缩放优化：>4000px 先 Nearest 缩小再 Triangle
-        if orig_w > 4000 || orig_h > 4000 {
-            let factor = 4000.0 / orig_w.max(orig_h) as f64;
-            let sw = (orig_w as f64 * factor).max(target.0 as f64) as u32;
-            let sh = (orig_h as f64 * factor).max(target.1 as f64) as u32;
-            let step = reader.decode().ok()?
-                .resize_exact(sw, sh, image::imageops::FilterType::Nearest);
-            step.resize_exact(target.0, target.1, image::imageops::FilterType::Triangle)
-        } else {
-            let decoded = reader.decode().ok()?;
-            if decoded.width() != target.0 || decoded.height() != target.1 {
-                decoded.resize_exact(target.0, target.1, image::imageops::FilterType::Triangle)
-            } else {
-                decoded
-            }
-        }
-    };
+    let img = decode_thumbnail_with_fallback(source_path, orig_w, orig_h, target)?;
 
     // 转换为 RGB8 用于 JPEG 编码
     let rgb = img.to_rgb8();
@@ -135,6 +82,65 @@ pub fn get_or_generate_thumbnail(
     fs::rename(&tmp, &cache_path).ok()?;
 
     Some(cache_path)
+}
+
+/// Decode a thumbnail using the existing fast paths, then fall back to the
+/// the bundled libheif helper for formats such as HEIF/HEIC.
+fn decode_thumbnail_with_fallback(
+    source_path: &Path,
+    orig_w: u32,
+    orig_h: u32,
+    target: (u32, u32),
+) -> Option<DynamicImage> {
+    let pixel_count = (orig_w as u64) * (orig_h as u64);
+    let is_jpeg = is_jpeg_file(source_path);
+
+    let decoded = if pixel_count > 30_000_000 && is_jpeg {
+        // Large JPEGs use decoder-level IDCT scaling to avoid full-resolution allocation.
+        decode_jpeg_scaled(source_path, target.0, target.1)
+    } else if pixel_count > 100_000_000 {
+        // Keep the existing OOM guard for very large non-JPEG files.
+        None
+    } else {
+        decode_with_image_crate(source_path, orig_w, orig_h, target)
+    };
+
+    decoded.or_else(|| image_compat::decode_scaled(source_path, target.0, target.1))
+}
+
+fn decode_with_image_crate(
+    source_path: &Path,
+    orig_w: u32,
+    orig_h: u32,
+    target: (u32, u32),
+) -> Option<DynamicImage> {
+    let reader = ImageReader::open(source_path)
+        .ok()?
+        .with_guessed_format()
+        .ok()?;
+
+    // Keep the two-stage resize optimization for large native images.
+    if orig_w > 4000 || orig_h > 4000 {
+        let factor = 4000.0 / orig_w.max(orig_h) as f64;
+        let sw = (orig_w as f64 * factor).max(target.0 as f64) as u32;
+        let sh = (orig_h as f64 * factor).max(target.1 as f64) as u32;
+        let step = reader
+            .decode()
+            .ok()?
+            .resize_exact(sw, sh, image::imageops::FilterType::Nearest);
+        Some(step.resize_exact(
+            target.0,
+            target.1,
+            image::imageops::FilterType::Triangle,
+        ))
+    } else {
+        let decoded = reader.decode().ok()?;
+        Some(if decoded.width() != target.0 || decoded.height() != target.1 {
+            decoded.resize_exact(target.0, target.1, image::imageops::FilterType::Triangle)
+        } else {
+            decoded
+        })
+    }
 }
 
 /// Get the modification time of a file as seconds since UNIX epoch.
