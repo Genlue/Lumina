@@ -9,7 +9,12 @@ use std::path::Path;
 
 /// Read dimensions from the container without decoding all image pixels.
 pub fn dimensions(path: &Path) -> Option<(u32, u32)> {
-    parse_heif_dimensions(path).ok()
+    // Content sniffing handles files whose extension does not match their bytes.
+    image::ImageReader::open(path)
+        .ok()
+        .and_then(|reader| reader.with_guessed_format().ok())
+        .and_then(|reader| reader.into_dimensions().ok())
+        .or_else(|| parse_heif_dimensions(path).ok())
 }
 
 fn parse_heif_dimensions(path: &Path) -> io::Result<(u32, u32)> {
@@ -357,5 +362,15 @@ mod tests {
         let decoded = decode_scaled(path, 400, 400).expect("bundled decoder should decode HEIF");
         assert!(decoded.width() > 0 && decoded.height() > 0);
         assert!(decoded.width() <= 400 && decoded.height() <= 400);
+    }
+
+    #[test]
+    fn test_dimensions_ignore_file_extension() {
+        let Some(path) = std::env::var_os("LUMINA_DIMENSIONS_TEST_IMAGE") else {
+            return;
+        };
+        let (width, height) = dimensions(Path::new(&path))
+            .expect("content sniffing should read image dimensions");
+        assert!(width > 0 && height > 0);
     }
 }

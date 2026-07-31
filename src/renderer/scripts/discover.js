@@ -240,13 +240,48 @@ const D = {
           const entry = key ? this._wfCards.get(key) : null;
           if (!entry) return;
 
-          if (thumb?.dataUrl) {
-            entry.image.src = thumb.dataUrl;
-            entry.image.style.opacity = '1';
-            entry.card.dataset.wfState = 'loaded';
-          } else {
+          const markFailed = () => {
             entry.card.dataset.wfState = 'failed';
             entry.card.classList.add('waterfall-failed');
+          };
+
+          if (thumb?.dataUrl) {
+            let fallbackTried = false;
+            entry.image.onload = () => {
+              if (generation !== this._wfGeneration) return;
+              entry.image.style.opacity = '1';
+              entry.card.dataset.wfState = 'loaded';
+            };
+            entry.image.onerror = () => {
+              if (generation !== this._wfGeneration) return;
+              if (fallbackTried) {
+                markFailed();
+                return;
+              }
+
+              // Retry through the single-image path, which can fall back to the
+              // original file when a batch thumbnail cannot be generated.
+              fallbackTried = true;
+              const item = entry.item;
+              API.getThumbnail(
+                S.profileId,
+                item.name,
+                item._folder ?? null,
+                thumbSize,
+              )
+                .then(fallback => {
+                  if (generation !== this._wfGeneration) return;
+                  if (fallback?.dataUrl) {
+                    entry.image.src = fallback.dataUrl;
+                  } else {
+                    markFailed();
+                  }
+                })
+                .catch(markFailed);
+            };
+            entry.image.src = thumb.dataUrl;
+          } else {
+            markFailed();
           }
         });
       })
@@ -373,15 +408,17 @@ const D = {
     if (!area) return;
 
     area.innerHTML = `
-      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;">
-        <img id="random-img" style="max-width:90%;max-height:70vh;object-fit:contain;border-radius:8px;cursor:pointer;" src="">
-        <div style="width:100%;max-width:400px;margin-top:16px;background:rgba(var(--c-card-r,42),var(--c-card-g,42),var(--c-card-b,42),var(--card-opacity,0.85));backdrop-filter:blur(var(--card-blur,0px));-webkit-backdrop-filter:blur(var(--card-blur,0px));border:1px solid var(--c-border);border-radius:var(--radius-md);padding:16px;">
+      <div class="random-view">
+        <div class="random-controls">
           <div id="random-info" style="text-align:center;color:var(--c-text2);font-size:0.9em;font-weight:var(--font-weight-medium);margin-bottom:12px;"></div>
           <div style="display:flex;gap:12px;justify-content:center;">
             <button class="toolbar-btn" id="random-prev">${Icons.icon('chevron-left', 16)}</button>
             <button class="toolbar-btn" id="random-pause">${Icons.icon('pause', 16)}</button>
             <button class="toolbar-btn" id="random-next">${Icons.icon('chevron-right', 16)}</button>
           </div>
+        </div>
+        <div class="random-stage">
+          <img id="random-img" src="" alt="">
         </div>
       </div>
     `;

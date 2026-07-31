@@ -511,9 +511,20 @@ pub async fn files_get_thumbnails_batch(
                 _ => Path::new(&root_c).join(&req.filename),
             };
             let cache_key = format!("{:x}_{}_v2", simple_hash(&fp.to_string_lossy()), max_dim);
+            // Match the single-thumbnail command: when conversion is unavailable,
+            // let WebView2 try the original file instead of returning an empty URL.
             let data_url = services::thumbnails::get_or_generate_thumbnail(
-                &fp, &cache_dir_c, &cache_key, max_dim, 75
-            ).map(|p| p.to_string_lossy().to_string());
+                &fp,
+                &cache_dir_c,
+                &cache_key,
+                max_dim,
+                75,
+            )
+            .map(|p| p.to_string_lossy().to_string())
+            .or_else(|| {
+                fp.is_file()
+                    .then(|| fp.to_string_lossy().to_string())
+            });
             ThumbBatchResult {
                 filename: req.filename,
                 folder: req.folder,

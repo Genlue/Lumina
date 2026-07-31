@@ -92,7 +92,7 @@ bash scripts/build-installer.sh
 cd src-tauri && cargo tauri build --bundles nsis
 ```
 
-安装器位于: `src-tauri/target/release/bundle/nsis/Lumina_2.2.2_x64-setup.exe`
+安装器位于: `src-tauri/target/release/bundle/nsis/Lumina_2.2.3_x64-setup.exe`
 
 ## 安装说明
 
@@ -104,6 +104,11 @@ cd src-tauri && cargo tauri build --bundles nsis
 - **数据隔离**: 应用数据存储在图片文件夹下的 `.album/` 目录，卸载时不会删除用户数据
 
 ## 旧版本更新日志
+
+### 2026-07-31 — v2.2.3 — 发现页图片加载与随机欣赏布局
+
+- 🖼️ **瀑布流加载修复** — 批量缩略图生成失败时回退到原图，并增加单图加载重试，兼容更多 JPEG/PNG 等图片
+- 🎞️ **随机欣赏布局稳定** — 控制器卡片固定在图片展示区上方，图片比例变化不再推动控制器上下跳动
 
 ### 2026-07-31 — v2.2.2 — HEIF 修复静默后台执行
 
