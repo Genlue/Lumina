@@ -31,17 +31,7 @@
   "bundle": {
     "icon": ["icons/icon.ico"],
     "resources": {
-      "../src/renderer/**/*": "src/renderer/",
-      "../README.md": "README.md",
-      "../.gitignore": ".gitignore",
-      "../Lumina.bat": "Lumina.bat",
-      "resources/libheif/**/*": "libheif/",
-      "Cargo.toml": "src-tauri/Cargo.toml",
-      "Cargo.lock": "src-tauri/Cargo.lock",
-      "src/**/*": "src-tauri/src/",
-      "icons/**/*": "src-tauri/icons/",
-      "build.rs": "src-tauri/build.rs",
-      "tauri.conf.json": "src-tauri/tauri.conf.json"
+      "resources/libheif/**/*": "libheif/"
     },
     "windows": {
       "nsis": {

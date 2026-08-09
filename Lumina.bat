@@ -1,2 +1,2 @@
 @echo off
-start "" "%~dp0photo-album.exe"
+start "" "%~dp0lumina.exe"
