@@ -93,7 +93,7 @@ bash scripts/build-installer.sh
 cd src-tauri && cargo tauri build --bundles nsis
 ```
 
-安装器位于: `src-tauri/target/release/bundle/nsis/Lumina_2.3.0_x64-setup.exe`
+安装器位于: `src-tauri/target/release/bundle/nsis/Lumina_2.3.1_x64-setup.exe`
 
 ## 安装说明
 
@@ -105,6 +105,10 @@ cd src-tauri && cargo tauri build --bundles nsis
 - **数据隔离**: 应用数据存储在图片文件夹下的 `.album/` 目录，卸载时不会删除用户数据
 
 ## 旧版本更新日志
+
+### 2026-08-22 — v2.3.1 — 卡片面板联动修复
+
+- 🐛 **修复卡片未跟随面板设置** — 移除 `settings.js` 中残留的旧版 `applyPanelBlur`/`applyPanelOpacity`（重复定义导致 `--card-*` 变量从未写入），卡片恢复毛玻璃半透明并实时跟随「面板模糊/面板透明度」滑条
 
 ### 2026-08-22 — v2.3.0 — 红绿灯并入顶栏行 + 卡片合并进面板
 

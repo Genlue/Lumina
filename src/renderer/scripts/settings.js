@@ -1191,29 +1191,6 @@ const ST = {
     API.saveSettings(S.profileId, { list_columns: val });
   },
 
-  // === Panel（侧边栏 / 顶栏 / 标题栏 共用模糊与透明度）===
-
-  applyPanelBlur(val) {
-    val = this._clampNumber(val, 0, 50, App._settings.sidebar_blur ?? 16);
-    document.documentElement.style.setProperty('--sidebar-blur', val + 'px');
-    document.documentElement.style.setProperty('--toolbar-blur', val + 'px');
-    this._syncRangePair('set-panel-blur', 'set-panel-blur-input', 'panel-blur-val', val, v => v + 'px');
-    API.saveSettings(S.profileId, { sidebar_blur: val, toolbar_blur: val });
-    App._settings.sidebar_blur = val;
-    App._settings.toolbar_blur = val;
-  },
-
-  applyPanelOpacity(val) {
-    val = this._clampNumber(val, 0, 1, App._settings.sidebar_opacity ?? 0.7);
-    document.documentElement.style.setProperty('--sidebar-opacity', String(val));
-    document.documentElement.style.setProperty('--toolbar-opacity', String(val));
-    const pct = Math.round(val * 100);
-    this._syncRangePair('set-panel-opacity', 'set-panel-opacity-input', 'panel-opacity-val', pct, v => v + '%');
-    API.saveSettings(S.profileId, { sidebar_opacity: val, toolbar_opacity: val });
-    App._settings.sidebar_opacity = val;
-    App._settings.toolbar_opacity = val;
-  },
-
   // === Titlebar Mode ===
 
   /** 切换到指定顶栏模式: 'native'(Windows 原生) | 'macos'(macOS 红绿灯) */
