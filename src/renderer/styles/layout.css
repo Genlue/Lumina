@@ -130,6 +130,45 @@ img {
   font-weight: var(--font-weight-bold);
 }
 
+/* ============================
+   macOS 模式：红绿灯行（标题栏模式 = macos 时显示）
+   位于侧边栏顶部，高度固定 40px（与启动页红绿灯行一致），不随顶栏高度变化；
+   整行可拖动窗口、双击最大化
+   ============================ */
+#sidebar-titlebar{display:none;height:40px;align-items:center;gap:8px;padding:0 14px;cursor:default;user-select:none;-webkit-user-select:none;flex:none;}
+body.titlebar-macos #sidebar-titlebar{display:flex;}
+/* 启动页红绿灯行（与主界面红绿灯行同款；仅 macOS 模式显示） */
+#startup-titlebar{position:absolute;top:0;left:0;right:0;height:40px;display:none;align-items:center;gap:8px;padding:0 14px;cursor:default;user-select:none;-webkit-user-select:none;z-index:1;}
+body.titlebar-macos #startup-titlebar{display:flex;}
+/* macOS 模式：主界面不再整体下移（顶栏行即窗口最顶行） */
+body.titlebar-macos #app{margin-top:0;}
+/* macOS 模式：侧边栏右侧无描边（3 与 2/4 的交界处干净） */
+body.titlebar-macos #sidebar{border-right:none;}
+/* macOS 模式：内容区（顶栏下方的滚动区）左边缘 + 顶边缘 L 形描边，直角交汇 */
+body.titlebar-macos .page-scroll{
+  border-top:1px solid var(--c-border);
+  border-left:1px solid var(--c-border);
+}
+/* macOS 模式：顶栏自身无描边线（分隔线由内容区顶边描边承担） */
+body.titlebar-macos #toolbar,
+body.titlebar-macos #home-toolbar,
+body.titlebar-macos #settings-toolbar,
+body.titlebar-macos .discover-tabs{border-bottom:none;}
+.tl-btn{width:12px;height:12px;border-radius:50%;border:none;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;transition:filter 0.1s;}
+.tl-close{background:#ff5f57;}
+.tl-min{background:#febc2e;}
+.tl-max{background:#28c840;}
+.tl-btn:hover{filter:brightness(0.9);}
+.tl-btn:active{filter:brightness(0.8);}
+.tl-glyph{opacity:0;pointer-events:none;}
+#sidebar-titlebar:hover .tl-glyph{opacity:1;}
+/* 红灯：× 符号 */
+.tl-close .tl-glyph{font-size:8px;line-height:1;font-weight:700;color:rgba(0,0,0,0.55);}
+/* 黄灯：加长横线，垂直水平居中（无偏移） */
+.tl-min .tl-glyph{width:8.5px;height:1.5px;background:rgba(0,0,0,0.55);border-radius:1px;}
+/* 绿灯：空心方框（比旧实心略大），居中 */
+.tl-max .tl-glyph{width:6.5px;height:6.5px;border:1.2px solid rgba(0,0,0,0.55);border-radius:1.5px;background:transparent;box-sizing:border-box;}
+
 #folder-info{padding:0 14px 8px;color:var(--c-text3);font-size:0.75em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 #folder-info span {
   color: var(--c-text2);
@@ -224,8 +263,8 @@ img {
   padding: 24px;
 }
 
-/* #page-album and #page-display use flex column, no padding, no self-scroll */
-#page-album, #page-discover {
+/* #page-album / #page-discover / #page-settings use flex column, no padding, no self-scroll */
+#page-album, #page-discover, #page-settings {
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -533,7 +572,7 @@ img {
 /* ============================
    Toolbar
    ============================ */
-#toolbar {
+#toolbar, #settings-toolbar {
   position: sticky;
   top: 0;
   z-index: 10;
@@ -548,6 +587,12 @@ img {
   -webkit-backdrop-filter: blur(var(--toolbar-blur,16px));
   border-bottom: 1px solid var(--c-border);
   min-height: var(--toolbar-h, 48px);
+}
+#settings-toolbar > span {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--c-accent);
+  line-height: 1;
 }
 #home-toolbar {
   position: sticky;
@@ -1025,7 +1070,12 @@ mark {
 .settings-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
+  gap: 12px;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+@media (max-width: 860px) {
+  .settings-grid { grid-template-columns: 1fr; }
 }
 .settings-card{background:rgba(var(--c-card-r,42),var(--c-card-g,42),var(--c-card-b,42),var(--card-opacity,1));backdrop-filter:blur(var(--card-blur,0px));-webkit-backdrop-filter:blur(var(--card-blur,0px));border:1px solid var(--c-border);border-radius:var(--radius-md);padding:12px}
 .settings-card h3 {

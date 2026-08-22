@@ -37,10 +37,7 @@ const API = {
   // === Scanner ===
   async scanAll(profileId) {
     const result = await this._invoke('scanner_scan_all', { profileId });
-    console.log('[scanAll] result:', JSON.stringify(result, null, 2));
-    console.log('[scanAll] albumFolders count:', result.albumFolders?.length);
-    console.log('[scanAll] albumFolders:', JSON.stringify(result.albumFolders));
-    console.log('[scanAll] albumImages keys:', Object.keys(result.albumImages || {}));
+    console.log('[scanAll] albumFolders:', result.albumFolders?.length, 'albumImages keys:', Object.keys(result.albumImages || {}));
     if (profileId === S.profileId) {
       // 将 .album/backgrounds 从 albumImages 分离到独立的 bgImages，
       // 避免背景图出现在图片网格中（buildAllImgs 遍历所有 albumImages 条目）
@@ -52,6 +49,11 @@ const API = {
       S.rootImages = result.rootImages;
     }
     return result;
+  },
+
+  /** 轻量读取背景图列表（只扫描 .album/backgrounds，不触发全量扫描） */
+  async bgList(profileId) {
+    return this._invoke('bg_list', { profileId });
   },
 
   // === Files ===

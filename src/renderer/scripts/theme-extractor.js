@@ -1,5 +1,7 @@
 // ============================================================
-// Lumina — Adaptive Theme Color Extraction (Canvas + WCAG)
+// Lumina — WCAG Color Utilities (shared by settings.js)
+// 说明：强调色实际提取由 Rust 端 theme_extract_colors 完成；
+//       本文件仅提供 WCAG 对比度 / HSL 调整等纯色值工具。
 // ============================================================
 
 /**
@@ -75,114 +77,4 @@ function hslToRgb(h, s, l) {
     return p;
   };
   return { r: Math.round(hue2rgb(h + 1/3) * 255), g: Math.round(hue2rgb(h) * 255), b: Math.round(hue2rgb(h - 1/3) * 255) };
-}
-
-/**
- * Adaptive accent extraction
- * - Samples pixels from a Canvas-rendered image
- * - Scores by vividness (saturation × count)
- * - Tests top 5 candidates against current theme background contrast
- * - If none pass, adjusts lightness via HSL while preserving hue
- */
-async function extractAccentFromImage(dataUrl) {
-  try {
-    // Fetch as blob → blob URL to avoid canvas tainting.
-    // Tauri asset protocol URLs (https://asset.localhost/…) are cross-origin
-    // and would taint the canvas, causing getImageData() to throw SecurityError.
-    const response = await fetch(dataUrl);
-    const blob = await response.blob();
-    const blobUrl = URL.createObjectURL(blob);
-
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        URL.revokeObjectURL(blobUrl);
-        try {
-          // Step 1: sample pixels
-          const canvas = document.createElement('canvas');
-          canvas.width = canvas.height = 100;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, 100, 100);
-          const pixels = ctx.getImageData(0, 0, 100, 100).data;
-
-          const colorMap = new Map();
-          for (let i = 0; i < pixels.length; i += 16) {
-            const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2], a = pixels[i + 3];
-            if (a < 128) continue;
-            const maxC = Math.max(r, g, b), minC = Math.min(r, g, b);
-            const bright = (r + g + b) / 3;
-            if (bright < 25 || bright > 230) continue;
-            const sat = maxC === 0 ? 0 : (maxC - minC) / maxC;
-            if (sat < 0.2) continue;
-
-            const qr = Math.round(r / 8) * 8, qg = Math.round(g / 8) * 8, qb = Math.round(b / 8) * 8;
-            const key = `${qr},${qg},${qb}`;
-            const ex = colorMap.get(key);
-            if (ex) ex.count++; else colorMap.set(key, { r: qr, g: qg, b: qb, count: 1 });
-          }
-
-          const scored = [...colorMap.values()].map(c => {
-            const maxC = Math.max(c.r, c.g, c.b), minC = Math.min(c.r, c.g, c.b);
-            return { ...c, score: (maxC === 0 ? 0 : (maxC - minC) / maxC) * c.count };
-          });
-          scored.sort((a, b) => b.score - a.score);
-
-          if (scored.length === 0) {
-            resolve({ dominant: '#60CDFF', palette: ['#60CDFF'] });
-            return;
-          }
-
-          const palette = scored.slice(0, 5).map(c => rgbToHex(c.r, c.g, c.b));
-
-          // Step 2: determine current theme background for contrast comparison
-          const isDark = (App?._settings?.theme_mode ?? 'dark') === 'dark';
-          const bgHex = isDark ? '#1c1c1c' : '#f3f3f3';
-          const bgRgb = hexToRgb(bgHex);
-
-          // Step 3: find first candidate with sufficient contrast (≥ 3.0 for accent)
-          const MIN_CONTRAST = 5.0; // WCAG AAA for large text, ~AA for normal text
-          let bestColor = null;
-          for (const hex of palette) {
-            const rgb = hexToRgb(hex);
-            if (contrastRatio(rgb.r, rgb.g, rgb.b, bgRgb.r, bgRgb.g, bgRgb.b) >= MIN_CONTRAST) {
-              bestColor = hex;
-              break;
-            }
-          }
-
-          // Step 4: if none pass, HSL-adapt the top candidate
-          if (!bestColor) {
-            const top = hexToRgb(palette[0]);
-            const hsl = rgbToHsl(top.r, top.g, top.b);
-
-            // Boost saturation slightly
-            hsl.s = Math.min(1, hsl.s + 0.15);
-
-            // Adjust lightness for contrast against background
-            if (isDark) {
-              // On dark bg: lighten to at least 55% for good contrast
-              hsl.l = Math.max(0.55, hsl.l);
-            } else {
-              // On light bg: darken to at most 40% for good contrast
-              hsl.l = Math.min(0.40, hsl.l);
-            }
-
-            const adapted = hslToRgb(hsl.h, hsl.s, hsl.l);
-            bestColor = rgbToHex(adapted.r, adapted.g, adapted.b);
-          }
-
-          resolve({ dominant: bestColor, palette: [bestColor, ...palette.slice(0, 4)] });
-        } catch (e) {
-          resolve({ dominant: '#60CDFF', palette: ['#60CDFF'] });
-        }
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(blobUrl);
-        resolve({ dominant: '#60CDFF', palette: ['#60CDFF'] });
-      };
-      img.src = blobUrl;
-    });
-  } catch (e) {
-    return { dominant: '#60CDFF', palette: ['#60CDFF'] };
-  }
 }

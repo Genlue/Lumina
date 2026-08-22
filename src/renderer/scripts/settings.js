@@ -23,22 +23,14 @@ const ST = {
       this._setVal('set-random-interval-input', s.random_interval ?? 3);
       this._setVal('set-sidebar-w', s.sidebar_width ?? 150);
       this._setVal('set-sidebar-w-input', s.sidebar_width ?? 150);
-      this._setVal('set-sidebar-opacity', Math.round((s.sidebar_opacity ?? 0.7) * 100));
-      this._setVal('set-sidebar-opacity-input', Math.round((s.sidebar_opacity ?? 0.7) * 100));
       this._setVal('set-sidebar-font', s.sidebar_font ?? 20);
       this._setVal('set-sidebar-font-input', s.sidebar_font ?? 20);
-      this._setVal('set-sidebar-blur', s.sidebar_blur ?? 16);
-      this._setVal('set-sidebar-blur-input', s.sidebar_blur ?? 16);
-      this._setVal('set-card-opacity', Math.round((s.card_opacity ?? 0.7) * 100));
-      this._setVal('set-card-opacity-input', Math.round((s.card_opacity ?? 0.7) * 100));
-      this._setVal('set-card-blur', s.card_blur ?? 16);
-      this._setVal('set-card-blur-input', s.card_blur ?? 16);
+      this._setVal('set-panel-blur', s.sidebar_blur ?? 16);
+      this._setVal('set-panel-blur-input', s.sidebar_blur ?? 16);
+      this._setVal('set-panel-opacity', Math.round((s.sidebar_opacity ?? 0.7) * 100));
+      this._setVal('set-panel-opacity-input', Math.round((s.sidebar_opacity ?? 0.7) * 100));
       this._setVal('set-toolbar-h', s.toolbar_height ?? 56);
       this._setVal('set-toolbar-h-input', s.toolbar_height ?? 56);
-      this._setVal('set-toolbar-blur', s.toolbar_blur ?? 16);
-      this._setVal('set-toolbar-blur-input', s.toolbar_blur ?? 16);
-      this._setVal('set-toolbar-opacity', Math.round((s.toolbar_opacity ?? 0.7) * 100));
-      this._setVal('set-toolbar-opacity-input', Math.round((s.toolbar_opacity ?? 0.7) * 100));
       this._setVal('set-overlay-opacity', Math.round((s.select_overlay_opacity ?? 0.2) * 100));
       this._setVal('set-overlay-opacity-input', Math.round((s.select_overlay_opacity ?? 0.2) * 100));
       this._setVal('set-list-cols', s.list_columns ?? 3);
@@ -47,14 +39,10 @@ const ST = {
       this._setText('bg-blur-val', (s.bg_blur ?? 0) + 'px');
       this._setText('bg-opacity-val', Math.round((s.bg_opacity ?? 1.0) * 100) + '%');
       this._setText('sidebar-w-val', (s.sidebar_width ?? 150) + 'px');
-      this._setText('sidebar-opacity-val', Math.round((s.sidebar_opacity ?? 0.7) * 100) + '%');
       this._setText('sidebar-font-val', (s.sidebar_font ?? 20) + 'px');
-      this._setText('sidebar-blur-val', (s.sidebar_blur ?? 16) + 'px');
-      this._setText('card-opacity-val', Math.round((s.card_opacity ?? 0.7) * 100) + '%');
-      this._setText('card-blur-val', (s.card_blur ?? 16) + 'px');
+      this._setText('panel-blur-val', (s.sidebar_blur ?? 16) + 'px');
+      this._setText('panel-opacity-val', Math.round((s.sidebar_opacity ?? 0.7) * 100) + '%');
       this._setText('toolbar-h-val', (s.toolbar_height ?? 56) + 'px');
-      this._setText('toolbar-blur-val', (s.toolbar_blur ?? 16) + 'px');
-      this._setText('toolbar-opacity-val', Math.round((s.toolbar_opacity ?? 0.7) * 100) + '%');
       this._setText('overlay-opacity-val', Math.round((s.select_overlay_opacity ?? 0.2) * 100) + '%');
       this._setText('thumb-size-val', (s.thumbnail_size ?? 400) + 'px');
       this._setText('draw-count-val', s.draw_count ?? 10);
@@ -62,6 +50,7 @@ const ST = {
       this._setText('list-cols-val', s.list_columns ?? 3);
 
       this._highlightThemeBtns(s.theme_mode ?? 'dark');
+      this._highlightTitlebarBtns(s.titlebar_mode ?? 'native');
       this._loadBgList();
 
       // 同步背景模式
@@ -860,36 +849,39 @@ const ST = {
       if (bgLayer) { bgLayer.style.backgroundImage = ''; bgLayer.style.opacity = '0'; }
       await API.saveSettings(S.profileId, { bg_image: null });
       App._settings.bg_image = null;
-      this._loadBgList();
+      await this._loadBgList();
       return;
     }
     if (!bgLayer || !S.profileId) return;
+    // 透明模式下 #bg-layer 被 CSS 隐藏，跳过加载（保持透明背景）
+    if (App._settings.bg_transparent) return;
 
     // Update state synchronously to avoid race
     App._settings.bg_image = filename;
-    this._loadBgList();
+    await this._loadBgList();
 
     try {
       const thumb = await API.getThumbnail(S.profileId, filename, BG_DIR);
-      if (thumb && thumb.dataUrl) {
-        bgLayer.style.backgroundImage = `url(${thumb.dataUrl})`;
-        bgLayer.style.backgroundSize = 'cover';
-        bgLayer.style.backgroundPosition = 'center';
-        const savedOp = (App._settings.bg_opacity != null && App._settings.bg_opacity > 0) ? App._settings.bg_opacity : 0.5;
-        bgLayer.style.opacity = String(savedOp);
-        await API.saveSettings(S.profileId, { bg_image: filename, bg_opacity: savedOp });
-        App._settings.bg_opacity = savedOp;
+      if (!thumb || !thumb.dataUrl) throw new Error('背景图数据为空');
+      bgLayer.style.backgroundImage = `url(${thumb.dataUrl})`;
+      bgLayer.style.backgroundSize = 'cover';
+      bgLayer.style.backgroundPosition = 'center';
+      // 只应用当前透明度设置，不修改/落库 bg_opacity（透明度由滑条独占控制）
+      const op = (App._settings.bg_opacity == null) ? 1.0 : App._settings.bg_opacity;
+      bgLayer.style.opacity = String(op);
+      await API.saveSettings(S.profileId, { bg_image: filename });
 
-        // If accent_mode is 'extract', auto-extract
-        if (App._settings?.accent_mode === 'extract') {
-          this.extractAccent();
-        }
+      // If accent_mode is 'extract', auto-extract
+      if (App._settings?.accent_mode === 'extract') {
+        this.extractAccent();
       }
     } catch (e) {
       Toast.show('背景图加载失败', 'error');
-      if (bgLayer) bgLayer.style.backgroundImage = '';
+      if (bgLayer) { bgLayer.style.backgroundImage = ''; bgLayer.style.opacity = '0'; }
       App._settings.bg_image = null;
-      this._loadBgList();
+      // 落库清理失效引用，避免下次启动重复加载失败
+      await API.saveSettings(S.profileId, { bg_image: null }).catch(() => {});
+      await this._loadBgList();
     }
   },
 
@@ -951,8 +943,8 @@ const ST = {
       // 应用当前强调色
       this.applyCurrentAccent();
       this._updateAccentSwatches();
-      // 刷新状态
-      await API.scanAll(S.profileId);
+      // 刷新背景图列表（轻量，不触发全量扫描）
+      await this._loadBgList();
     } else {
       // === 保存透明模式的强调色 ===
       App._settings.transparent_accent_color_dark = App._settings.accent_color_dark;
@@ -971,15 +963,16 @@ const ST = {
 
       // === 关闭透明背景效果 ===
       this.applyBgTransparent(false);
-      // 刷新数据
-      await API.scanAll(S.profileId);
+      // 提前设置，确保 applyBgImage 的透明守卫与 _renderAccentUI 能看到最新状态
+      App._settings.bg_transparent = false;
+
+      // 刷新背景图列表（轻量，不触发全量扫描；含失效引用自愈）
+      await this._loadBgList();
 
       // 恢复背景图
       this.applyBgImage(App._settings.bg_image || null);
       this.applyBlur(App._settings.bg_blur ?? 0);
       this.applyOpacity(App._settings.bg_opacity ?? 1.0);
-
-      App._settings.bg_transparent = false;  // 提前设置，确保 _renderAccentUI 能看到
 
       // === UI 控件恢复 ===
       const bgCard = document.getElementById('bg-image-card');
@@ -1064,11 +1057,28 @@ const ST = {
 
   // === Background Thumbnail Grid ===
 
-  _loadBgList() {
+  async _loadBgList() {
     const grid = document.getElementById('bg-thumb-grid');
     if (!grid) return;
+    let bgImgs = [];
+    try {
+      // 轻量读取背景图列表（只扫描 .album/backgrounds），不依赖全量扫描结果
+      bgImgs = await API.bgList(S.profileId);
+    } catch (e) {
+      Toast.show('背景图列表加载失败: ' + (e.message || e), 'error');
+      return;
+    }
+    // 同步状态，避免与全量扫描结果不一致
+    S.bgImages = bgImgs;
+
     const currentBg = App._settings.bg_image || '';
-    const bgImgs = S.bgImages ?? [];
+
+    // 自愈：保存的背景图已不存在时清理引用，避免每次启动都加载失败
+    if (currentBg && !bgImgs.some(img => img.name === currentBg)) {
+      await this.applyBgImage(null);
+      return;
+    }
+
     grid.innerHTML = '';
 
     // "None" option
@@ -1121,40 +1131,48 @@ const ST = {
   _deleteBg(filename) {
     Modal.show('删除背景图', `确定删除 ${filename}？`, [{ label: '取消' }, { label: '删除', danger: true }]).then(r => {
       if (r.idx !== 1) return;
-      API._invoke('bg_delete', { profileId: S.profileId, filename }).then(() => {
-        API.scanAll(S.profileId).then(() => {
-          this._loadBgList();
-          if (App._settings.bg_image === filename) this.applyBgImage(null);
-          Toast.show('已删除', 'success');
-        });
+      API._invoke('bg_delete', { profileId: S.profileId, filename }).then(async () => {
+        await this._loadBgList();
+        if (App._settings.bg_image === filename) this.applyBgImage(null);
+        Toast.show('已删除', 'success');
       }).catch(() => Toast.show('删除失败', 'error'));
     });
   },
 
-  _refreshBgList() {
-    API.scanAll(S.profileId).then(() => {
-      this._loadBgList();
+  async _refreshBgList() {
+    try {
+      await this._loadBgList();
       Toast.show('已刷新', 'info');
-    });
+    } catch (e) {
+      Toast.show('刷新失败: ' + (e.message || e), 'error');
+    }
   },
 
-  // === Card ===
+  // === Panel（侧边栏 / 顶栏 / 标题栏 / 卡片 共用模糊与透明度）===
 
-  applyCardOpacity(val) {
-    val = this._clampNumber(val, 0, 1, App._settings.card_opacity ?? 0.7);
+  applyPanelBlur(val) {
+    val = this._clampNumber(val, 0, 50, App._settings.sidebar_blur ?? 16);
+    document.documentElement.style.setProperty('--sidebar-blur', val + 'px');
+    document.documentElement.style.setProperty('--toolbar-blur', val + 'px');
+    document.documentElement.style.setProperty('--card-blur', val + 'px');
+    this._syncRangePair('set-panel-blur', 'set-panel-blur-input', 'panel-blur-val', val, v => v + 'px');
+    API.saveSettings(S.profileId, { sidebar_blur: val, toolbar_blur: val, card_blur: val });
+    App._settings.sidebar_blur = val;
+    App._settings.toolbar_blur = val;
+    App._settings.card_blur = val;
+  },
+
+  applyPanelOpacity(val) {
+    val = this._clampNumber(val, 0, 1, App._settings.sidebar_opacity ?? 0.7);
+    document.documentElement.style.setProperty('--sidebar-opacity', String(val));
+    document.documentElement.style.setProperty('--toolbar-opacity', String(val));
     document.documentElement.style.setProperty('--card-opacity', String(val));
     const pct = Math.round(val * 100);
-    this._syncRangePair('set-card-opacity', 'set-card-opacity-input', 'card-opacity-val', pct, v => v + '%');
-    API.saveSettings(S.profileId, { card_opacity: val });
+    this._syncRangePair('set-panel-opacity', 'set-panel-opacity-input', 'panel-opacity-val', pct, v => v + '%');
+    API.saveSettings(S.profileId, { sidebar_opacity: val, toolbar_opacity: val, card_opacity: val });
+    App._settings.sidebar_opacity = val;
+    App._settings.toolbar_opacity = val;
     App._settings.card_opacity = val;
-  },
-
-  applyCardBlur(val) {
-    val = this._clampNumber(val, 0, 30, App._settings.card_blur ?? 16);
-    document.documentElement.style.setProperty('--card-blur', val + 'px');
-    this._syncRangePair('set-card-blur', 'set-card-blur-input', 'card-blur-val', val, v => v + 'px');
-    API.saveSettings(S.profileId, { card_blur: val });
-    App._settings.card_blur = val;
   },
 
   applyToolbarHeight(val) {
@@ -1173,21 +1191,55 @@ const ST = {
     API.saveSettings(S.profileId, { list_columns: val });
   },
 
-  applyToolbarBlur(val) {
-    val = this._clampNumber(val, 0, 50, App._settings.toolbar_blur ?? 16);
+  // === Panel（侧边栏 / 顶栏 / 标题栏 共用模糊与透明度）===
+
+  applyPanelBlur(val) {
+    val = this._clampNumber(val, 0, 50, App._settings.sidebar_blur ?? 16);
+    document.documentElement.style.setProperty('--sidebar-blur', val + 'px');
     document.documentElement.style.setProperty('--toolbar-blur', val + 'px');
-    this._syncRangePair('set-toolbar-blur', 'set-toolbar-blur-input', 'toolbar-blur-val', val, v => v + 'px');
-    API.saveSettings(S.profileId, { toolbar_blur: val });
+    this._syncRangePair('set-panel-blur', 'set-panel-blur-input', 'panel-blur-val', val, v => v + 'px');
+    API.saveSettings(S.profileId, { sidebar_blur: val, toolbar_blur: val });
+    App._settings.sidebar_blur = val;
     App._settings.toolbar_blur = val;
   },
 
-  applyToolbarOpacity(val) {
-    val = this._clampNumber(val, 0, 1, App._settings.toolbar_opacity ?? 0.7);
+  applyPanelOpacity(val) {
+    val = this._clampNumber(val, 0, 1, App._settings.sidebar_opacity ?? 0.7);
+    document.documentElement.style.setProperty('--sidebar-opacity', String(val));
     document.documentElement.style.setProperty('--toolbar-opacity', String(val));
     const pct = Math.round(val * 100);
-    this._syncRangePair('set-toolbar-opacity', 'set-toolbar-opacity-input', 'toolbar-opacity-val', pct, v => v + '%');
-    API.saveSettings(S.profileId, { toolbar_opacity: val });
+    this._syncRangePair('set-panel-opacity', 'set-panel-opacity-input', 'panel-opacity-val', pct, v => v + '%');
+    API.saveSettings(S.profileId, { sidebar_opacity: val, toolbar_opacity: val });
+    App._settings.sidebar_opacity = val;
     App._settings.toolbar_opacity = val;
+  },
+
+  // === Titlebar Mode ===
+
+  /** 切换到指定顶栏模式: 'native'(Windows 原生) | 'macos'(macOS 红绿灯) */
+  applyTitlebarMode(mode, skipSave = false) {
+    mode = mode === 'macos' ? 'macos' : 'native';
+    App._settings.titlebar_mode = mode;
+    // 本地缓存用于启动时提前恢复，避免原生标题栏闪烁
+    try { localStorage.setItem('pa_titlebar_mode', mode); } catch (e) { /* ignore */ }
+    if (!skipSave) {
+      API.saveSettings(S.profileId, { titlebar_mode: mode });
+    }
+    this._applyTitlebarModeDom(mode);
+    this._highlightTitlebarBtns(mode);
+  },
+
+  /** 应用顶栏模式的 DOM 与窗口效果（不写 DB，供启动/加载 profile 时同步） */
+  _applyTitlebarModeDom(mode) {
+    document.body.classList.toggle('titlebar-macos', mode === 'macos');
+    API._invoke('window_set_titlebar', { mode }).catch(e => console.warn('[Titlebar] set titlebar mode failed:', e));
+  },
+
+  _highlightTitlebarBtns(mode) {
+    const nativeBtn = document.getElementById('btn-titlebar-native');
+    const macosBtn = document.getElementById('btn-titlebar-macos');
+    if (nativeBtn) nativeBtn.style.borderColor = mode === 'native' ? 'var(--c-accent)' : 'transparent';
+    if (macosBtn) macosBtn.style.borderColor = mode === 'macos' ? 'var(--c-accent)' : 'transparent';
   },
 
   applyOverlayOpacity(val) {
@@ -1233,23 +1285,6 @@ const ST = {
     this._syncRangePair('set-sidebar-font', 'set-sidebar-font-input', 'sidebar-font-val', val, v => v + 'px');
     API.saveSettings(S.profileId, { sidebar_font: val });
     App._settings.sidebar_font = val;
-  },
-
-  applySidebarBlur(val) {
-    val = this._clampNumber(val, 0, 50, App._settings.sidebar_blur ?? 16);
-    document.documentElement.style.setProperty('--sidebar-blur', val + 'px');
-    this._syncRangePair('set-sidebar-blur', 'set-sidebar-blur-input', 'sidebar-blur-val', val, v => v + 'px');
-    API.saveSettings(S.profileId, { sidebar_blur: val });
-    App._settings.sidebar_blur = val;
-  },
-
-  applySidebarOpacity(val) {
-    val = this._clampNumber(val, 0, 1, App._settings.sidebar_opacity ?? 0.7);
-    document.documentElement.style.setProperty('--sidebar-opacity', String(val));
-    const pct = Math.round(val * 100);
-    this._syncRangePair('set-sidebar-opacity', 'set-sidebar-opacity-input', 'sidebar-opacity-val', pct, v => v + '%');
-    API.saveSettings(S.profileId, { sidebar_opacity: val });
-    App._settings.sidebar_opacity = val;
   },
 
   applyThumbnailSize(val) {

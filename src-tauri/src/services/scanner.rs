@@ -28,7 +28,7 @@ const IMG_EXTS: &[&str] = &[
     "jpg", "jpeg", "png", "gif", "webp", "svg", "bmp", "heic", "heif", "avif",
 ];
 const EXCLUDE_DIRS: &[&str] = &[
-    ".album", "backgrounds",
+    ".album",
     ".git", "node_modules", ".reasonix", ".vscode", ".idea",
     "__pycache__", ".cache", "AppData",
 ];
@@ -169,7 +169,7 @@ pub fn scan_profile_folder<F: Fn(ScanProgress)>(
     ScanResult { root_images, album_folders, album_images }
 }
 
-fn scan_file_list(dir_path: &Path) -> Result<Vec<FileInfo>, std::io::Error> {
+pub fn scan_file_list(dir_path: &Path) -> Result<Vec<FileInfo>, std::io::Error> {
     let mut results: Vec<FileInfo> = vec![];
     if !dir_path.exists() { return Ok(results); }
 
@@ -203,6 +203,53 @@ pub fn list_all_subfolders(folder_path: &str) -> Vec<String> {
     let mut total_files = 0u32;
     let (_root, folders, _images) = scan_dir_recursive(path, "", &|_: ScanProgress| {}, &mut total_files);
     folders
+}
+
+#[cfg(test)]
+mod probe_tests {
+    use super::*;
+    use std::fs;
+
+    /// 回归测试：确保 `.album/backgrounds` 被完整特殊处理：
+    /// 1) 不出现在 album_folders（不会显示成相册）
+    /// 2) 出现在 album_images（设置页可读）
+    /// 3) 不混入 root_images
+    /// 4) 用户自己名为 `backgrounds` 的普通文件夹应作为正常相册出现（不做全局排除）
+    #[test]
+    fn test_album_backgrounds_special_handling() {
+        let dir = std::env::temp_dir().join(format!("lumina_scan_bg_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join(".album").join("backgrounds")).unwrap();
+        fs::create_dir_all(dir.join("backgrounds")).unwrap();
+
+        // `.album/backgrounds` 中的背景图
+        fs::write(dir.join(".album").join("backgrounds").join("wallpaper.png"), "fake").unwrap();
+        // 用户自定义的 `backgrounds` 相册（包含图片）
+        fs::write(dir.join("backgrounds").join("user_album.jpg"), "fake").unwrap();
+
+        let result = scan_profile_folder("test", &dir.to_string_lossy(), &|_| {});
+
+        // .album/backgrounds：不是相册，但出现在 album_images（供设置页）
+        assert!(
+            !result.album_folders.iter().any(|f| f == ".album/backgrounds"),
+            ".album/backgrounds must not appear as an album folder"
+        );
+        assert!(
+            result.album_images.contains_key(".album/backgrounds"),
+            ".album/backgrounds must be in album_images for the settings page"
+        );
+        assert!(result.root_images.is_empty(), "backgrounds must not leak into root_images");
+
+        // 用户自己的 `backgrounds` 文件夹：是正常相册
+        assert!(
+            result.album_folders.iter().any(|f| f == "backgrounds"),
+            "A user folder literally named 'backgrounds' must remain a normal album"
+        );
+        let bg_album = result.album_images.get("backgrounds");
+        assert_eq!(bg_album.map(|v| v.len()).unwrap_or(0), 1);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
 }
 
 #[cfg(test)]
@@ -254,8 +301,8 @@ mod tests {
         assert_eq!(sub1_imgs.len(), 1);
         assert_eq!(sub1_imgs[0].name, "deep.jpg");
 
-        // backgrounds should NOT be in album_folders but should be in album_images
-        assert!(!result.album_folders.contains(&"backgrounds".to_string()), "backgrounds should NOT be in album_folders");
+        // 用户自定义目录 `backgrounds` 是普通相册（仅 .album/backgrounds 是特殊目录）
+        assert!(result.album_folders.contains(&"backgrounds".to_string()), "backgrounds should be a normal album folder");
 
         // Cleanup
         let _ = fs::remove_dir_all(&dir);

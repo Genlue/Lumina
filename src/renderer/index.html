@@ -14,6 +14,11 @@
   <div id="bg-overlay"></div>
 
   <div id="startup">
+    <div id="startup-titlebar">
+      <button id="st-close" class="tl-btn tl-close" title="关闭" aria-label="关闭"><span class="tl-glyph">&#10005;</span></button>
+      <button id="st-min" class="tl-btn tl-min" title="最小化" aria-label="最小化"><span class="tl-glyph"></span></button>
+      <button id="st-max" class="tl-btn tl-max" title="最大化/还原" aria-label="最大化/还原"><span class="tl-glyph"></span></button>
+    </div>
     <div id="startup-config" style="text-align:center;">
       <img src="assets/icons/icon-128.png" alt="" style="width:80px;height:80px;border-radius:20px;display:block;margin:-60px auto 0 auto;">
       <h1>Lumina</h1>
@@ -52,6 +57,11 @@
 
   <div id="app" class="hidden">
     <nav id="sidebar">
+      <div id="sidebar-titlebar">
+        <button id="tl-close" class="tl-btn tl-close" title="关闭" aria-label="关闭"><span class="tl-glyph">&#10005;</span></button>
+        <button id="tl-min" class="tl-btn tl-min" title="最小化" aria-label="最小化"><span class="tl-glyph"></span></button>
+        <button id="tl-max" class="tl-btn tl-max" title="最大化/还原" aria-label="最大化/还原"><span class="tl-glyph"></span></button>
+      </div>
       <div id="sidebar-logo"><img src="assets/icons/icon-32.png" alt="" style="width:28px;height:28px;border-radius:6px;"><span>Lumina</span></div>
       <div id="folder-info"><span></span></div>
       <div class="nav-section">
@@ -194,6 +204,8 @@
         </div>
       </section>
       <section id="page-settings" class="page-panel hidden">
+        <div id="settings-toolbar"><span>设置</span></div>
+        <div class="page-scroll">
         <div class="settings-grid">
 <div class="settings-group-label">背景</div>
 <div class="settings-card" style="grid-column:1/-1;" id="bg-image-card"><h3>背景图片</h3><div id="bg-thumb-grid" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;"></div><button id="btn-import-bg" onclick="window._importBg()" style="margin-top:8px;padding:6px 12px;background:var(--c-accent-bg);color:var(--c-accent);border-radius:6px;font-size:0.85em;cursor:pointer;">+ 导入背景图</button> <button id="btn-open-bg-folder" onclick="window._openBgFolder()" style="margin-top:8px;padding:6px 12px;background:var(--c-card);color:var(--c-text2);border:1px solid var(--c-border);border-radius:6px;font-size:0.85em;cursor:pointer;">打开文件夹</button> <button id="btn-refresh-bg" onclick="ST._refreshBgList()" style="margin-top:8px;padding:6px 12px;background:var(--c-card);color:var(--c-text2);border:1px solid var(--c-border);border-radius:6px;font-size:0.85em;cursor:pointer;">刷新</button></div>
@@ -208,17 +220,16 @@
 <div class="settings-group-label">侧边栏</div>
 <div class="settings-card settings-card-range"><h3>侧边栏宽度</h3><div class="settings-row"><input type="range" id="set-sidebar-w" oninput="ST.applySidebarWidth(parseInt(this.value,10))" min="150" max="500" value="150"><input class="settings-number" type="number" id="set-sidebar-w-input" onchange="ST.applySidebarWidth(parseInt(this.value,10))" min="150" max="500" step="1" value="150"><span id="sidebar-w-val">150px</span></div></div>
 <div class="settings-card settings-card-range"><h3>侧边栏字体</h3><div class="settings-row"><input type="range" id="set-sidebar-font" oninput="ST.applySidebarFont(parseInt(this.value,10))" min="10" max="30" value="20"><input class="settings-number" type="number" id="set-sidebar-font-input" onchange="ST.applySidebarFont(parseInt(this.value,10))" min="10" max="30" step="1" value="20"><span id="sidebar-font-val">20px</span></div></div>
-<div class="settings-card settings-card-range"><h3>侧边栏模糊</h3><div class="settings-row"><input type="range" id="set-sidebar-blur" oninput="ST.applySidebarBlur(parseInt(this.value,10))" min="0" max="50" value="16"><input class="settings-number" type="number" id="set-sidebar-blur-input" onchange="ST.applySidebarBlur(parseInt(this.value,10))" min="0" max="50" step="1" value="16"><span id="sidebar-blur-val">16px</span></div></div>
-<div class="settings-card settings-card-range"><h3>侧边栏透明度</h3><div class="settings-row"><input type="range" id="set-sidebar-opacity" oninput="ST.applySidebarOpacity(parseInt(this.value,10)/100)" min="0" max="100" value="70"><input class="settings-number" type="number" id="set-sidebar-opacity-input" onchange="ST.applySidebarOpacity(parseInt(this.value,10)/100)" min="0" max="100" step="1" value="70"><span id="sidebar-opacity-val">70%</span></div></div>
 
-<div class="settings-group-label">卡片</div>
-<div class="settings-card settings-card-range"><h3>卡片透明度</h3><div class="settings-row"><input type="range" id="set-card-opacity" oninput="ST.applyCardOpacity(parseInt(this.value,10)/100)" min="0" max="100" value="70"><input class="settings-number" type="number" id="set-card-opacity-input" onchange="ST.applyCardOpacity(parseInt(this.value,10)/100)" min="0" max="100" step="1" value="70"><span id="card-opacity-val">70%</span></div></div>
-<div class="settings-card settings-card-range"><h3>卡片模糊</h3><div class="settings-row"><input type="range" id="set-card-blur" oninput="ST.applyCardBlur(parseInt(this.value,10))" min="0" max="30" value="16"><input class="settings-number" type="number" id="set-card-blur-input" onchange="ST.applyCardBlur(parseInt(this.value,10))" min="0" max="30" step="1" value="16"><span id="card-blur-val">16px</span></div></div>
+<div class="settings-group-label">面板</div>
+<div class="settings-card settings-card-range"><h3>面板模糊 <small style="font-weight:normal;color:var(--c-text3);">侧边栏 · 顶栏 · 标题栏 · 卡片</small></h3><div class="settings-row"><input type="range" id="set-panel-blur" oninput="ST.applyPanelBlur(parseInt(this.value,10))" min="0" max="50" value="16"><input class="settings-number" type="number" id="set-panel-blur-input" onchange="ST.applyPanelBlur(parseInt(this.value,10))" min="0" max="50" step="1" value="16"><span id="panel-blur-val">16px</span></div></div>
+<div class="settings-card settings-card-range"><h3>面板透明度 <small style="font-weight:normal;color:var(--c-text3);">侧边栏 · 顶栏 · 标题栏 · 卡片</small></h3><div class="settings-row"><input type="range" id="set-panel-opacity" oninput="ST.applyPanelOpacity(parseInt(this.value,10)/100)" min="0" max="100" value="70"><input class="settings-number" type="number" id="set-panel-opacity-input" onchange="ST.applyPanelOpacity(parseInt(this.value,10)/100)" min="0" max="100" step="1" value="70"><span id="panel-opacity-val">70%</span></div></div>
 
 <div class="settings-group-label">顶栏</div>
 <div class="settings-card settings-card-range"><h3>顶栏高度</h3><div class="settings-row"><input type="range" id="set-toolbar-h" oninput="ST.applyToolbarHeight(parseInt(this.value,10))" min="56" max="80" value="56"><input class="settings-number" type="number" id="set-toolbar-h-input" onchange="ST.applyToolbarHeight(parseInt(this.value,10))" min="56" max="80" step="1" value="56"><span id="toolbar-h-val">56px</span></div></div>
-<div class="settings-card settings-card-range"><h3>顶栏模糊</h3><div class="settings-row"><input type="range" id="set-toolbar-blur" oninput="ST.applyToolbarBlur(parseInt(this.value,10))" min="0" max="50" value="16"><input class="settings-number" type="number" id="set-toolbar-blur-input" onchange="ST.applyToolbarBlur(parseInt(this.value,10))" min="0" max="50" step="1" value="16"><span id="toolbar-blur-val">16px</span></div></div>
-<div class="settings-card settings-card-range"><h3>顶栏透明度</h3><div class="settings-row"><input type="range" id="set-toolbar-opacity" oninput="ST.applyToolbarOpacity(parseInt(this.value,10)/100)" min="0" max="100" value="70"><input class="settings-number" type="number" id="set-toolbar-opacity-input" onchange="ST.applyToolbarOpacity(parseInt(this.value,10)/100)" min="0" max="100" step="1" value="70"><span id="toolbar-opacity-val">70%</span></div></div>
+
+<div class="settings-group-label">标题栏</div>
+<div class="settings-card"><h3>标题栏模式</h3><div style="display:flex;gap:8px;"><button id="btn-titlebar-native" class="theme-btn" onclick="ST.applyTitlebarMode('native')">Windows 原生</button><button id="btn-titlebar-macos" class="theme-btn" onclick="ST.applyTitlebarMode('macos')">MacOS</button></div></div>
 
 <div class="settings-group-label">其他</div>
 <div class="settings-card"><h3>主题</h3><div style="display:flex;gap:8px;"><button id="btn-theme-dark" onclick="ST.applyTheme('dark')" class="theme-btn">深色</button><button id="btn-theme-light" onclick="ST.applyTheme('light')" class="theme-btn">浅色</button><button id="btn-theme-system" onclick="ST.applyTheme('system')" class="theme-btn">跟随系统</button></div></div>
@@ -275,6 +286,7 @@
 .accent-swatch:hover { border-color:var(--c-accent); }
 .theme-btn { flex:1; padding:10px; border-radius:8px; background:var(--c-card); color:var(--c-text); border:2px solid transparent; cursor:pointer; font-size:14px; }
 </style>
+        </div>
         </div>
       </section>
     </main>

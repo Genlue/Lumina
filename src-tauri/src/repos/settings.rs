@@ -15,7 +15,7 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
                 bg_image_accent_mode, bg_image_accent_color_dark, bg_image_accent_color_light,
                 transparent_accent_color_dark, transparent_accent_color_light,
                 extract_color_dark, extract_color_light,
-                transparent_accent_mode
+                transparent_accent_mode, titlebar_mode
          FROM settings WHERE profile_id = ?1",
         params![profile_id],
         |row| Ok(Settings {
@@ -49,6 +49,7 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
             extract_color_dark: row.get(34).unwrap_or_else(|_| "#4A9EFF".to_string()),
             extract_color_light: row.get(35).unwrap_or_else(|_| "#003D7A".to_string()),
             transparent_accent_mode: row.get(36).unwrap_or_else(|_| "custom".to_string()),
+            titlebar_mode: row.get(37).unwrap_or_else(|_| "native".to_string()),
         }),
     ) {
         Ok(s) => s,
@@ -64,7 +65,7 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
                  bg_image_accent_mode, bg_image_accent_color_dark, bg_image_accent_color_light,
                  transparent_accent_color_dark, transparent_accent_color_light,
                  extract_color_dark, extract_color_light,
-                 transparent_accent_mode)
+                 transparent_accent_mode, titlebar_mode)
                  VALUES (?1, 'grid', 'name-asc', 'dark', '#6D79F6',
                  NULL, 0, 1.0, 150, 0.7, 10, 0.7, 16, 20, 3, 400,
                  56, 16, 0.7, 0.2, 1, NULL, 3,
@@ -72,7 +73,7 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
                  0, 16, 'acrylic',
                  'custom', '#4A9EFF', '#003D7A',
                  '#4A9EFF', '#003D7A',
-                 '#4A9EFF', '#003D7A', 'custom')",
+                 '#4A9EFF', '#003D7A', 'custom', 'native')",
                 params![profile_id],
             ).ok();
             Settings {
@@ -106,6 +107,7 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
                 extract_color_dark: "#4A9EFF".to_string(),
                 extract_color_light: "#003D7A".to_string(),
                 transparent_accent_mode: "custom".to_string(),
+                titlebar_mode: "native".to_string(),
             }
         }
     }
@@ -163,6 +165,9 @@ pub fn save_settings(conn: &Connection, profile_id: &str, updates: serde_json::V
     let transparent_accent_mode = updates["transparent_accent_mode"].as_str()
         .map(|s| s.to_string())
         .unwrap_or(current.transparent_accent_mode);
+    let titlebar_mode = updates["titlebar_mode"].as_str()
+        .map(|s| s.to_string())
+        .unwrap_or(current.titlebar_mode);
 
     conn.execute(
         "UPDATE settings SET view_mode=?1, sort_by=?2, theme_mode=?3, accent_color=?4,
@@ -175,8 +180,8 @@ pub fn save_settings(conn: &Connection, profile_id: &str, updates: serde_json::V
          bg_image_accent_mode=?29, bg_image_accent_color_dark=?30, bg_image_accent_color_light=?31,
          transparent_accent_color_dark=?32, transparent_accent_color_light=?33,
          extract_color_dark=?34, extract_color_light=?35,
-         transparent_accent_mode=?36
-         WHERE profile_id=?37",
+         transparent_accent_mode=?36, titlebar_mode=?37
+         WHERE profile_id=?38",
         params![view_mode, sort_by, theme_mode, accent_color,
                 bg_image, bg_blur, bg_opacity, sidebar_width, sidebar_opacity,
                 draw_count, card_opacity, card_blur, sidebar_font, random_interval,
@@ -187,7 +192,7 @@ pub fn save_settings(conn: &Connection, profile_id: &str, updates: serde_json::V
                 bg_image_accent_mode, bg_image_accent_color_dark, bg_image_accent_color_light,
                 transparent_accent_color_dark, transparent_accent_color_light,
                 extract_color_dark, extract_color_light,
-                transparent_accent_mode, profile_id],
+                transparent_accent_mode, titlebar_mode, profile_id],
     ).ok();
 }
 
@@ -236,7 +241,8 @@ mod tests {
                 transparent_accent_color_light TEXT NOT NULL DEFAULT '#003D7A',
                 extract_color_dark TEXT NOT NULL DEFAULT '#4A9EFF',
                 extract_color_light TEXT NOT NULL DEFAULT '#003D7A',
-                transparent_accent_mode TEXT NOT NULL DEFAULT 'custom'
+                transparent_accent_mode TEXT NOT NULL DEFAULT 'custom',
+                titlebar_mode TEXT NOT NULL DEFAULT 'native'
             );"
         ).unwrap();
         conn
@@ -359,5 +365,18 @@ mod tests {
         save_settings(&conn, "p1", serde_json::Value::Object(json));
         let s = get_settings(&conn, "p1");
         assert_eq!(s.transparent_accent_mode, "system");
+    }
+
+    #[test]
+    fn test_titlebar_mode_default_and_save() {
+        let conn = setup();
+        let s = get_settings(&conn, "p1");
+        assert_eq!(s.titlebar_mode, "native", "Default should be native");
+
+        let mut json = serde_json::Map::new();
+        json.insert("titlebar_mode".to_string(), serde_json::Value::String("macos".to_string()));
+        save_settings(&conn, "p1", serde_json::Value::Object(json));
+        let s = get_settings(&conn, "p1");
+        assert_eq!(s.titlebar_mode, "macos");
     }
 }

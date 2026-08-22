@@ -172,6 +172,16 @@ const App = {
       Icons.init();
     } catch (e) { /* ignore */ }
 
+    // 顶栏模式：启动时先从本地缓存恢复（减少启动时原生标题栏闪烁）
+    try {
+      const savedTitlebar = localStorage.getItem('pa_titlebar_mode');
+      if (savedTitlebar === 'macos') {
+        document.body.classList.add('titlebar-macos');
+        if (window.__TAURI__) API._invoke('window_set_titlebar', { mode: 'macos' }).catch(() => {});
+      }
+    } catch (e) { /* ignore */ }
+    this._bindTitlebarControls(); // 尽早绑定拖拽/按钮，启动页即可拖动
+
     // setStatus/setProgress are now module-level (defined before App)
 
     try {
@@ -487,13 +497,6 @@ const App = {
       const imgCount = S.buildAllImgs().length;
       Toast.show(`扫描完成: ${albumCount} 个相册, ${imgCount} 张图片 (根${rootCount})`, 'info', 5000);
 
-      // Background
-      if (App._settings.bg_image) {
-        ST.applyBgImage(App._settings.bg_image);
-      } else {
-        ST.applyBgImage(null);
-      }
-
       // Theme (from profile DB settings)
       ST.applyTheme(App._settings.theme_mode ?? 'system');
       // Apply accent - store both modes, then apply current visual
@@ -512,17 +515,15 @@ const App = {
       // Apply layout settings in rAF — ensures browser has performed layout after un-hiding
       requestAnimationFrame(() => {
         ST.applySidebarWidth(App._settings.sidebar_width ?? 150);
-        ST.applySidebarOpacity(App._settings.sidebar_opacity ?? 0.7);
+        ST.applyPanelOpacity(App._settings.sidebar_opacity ?? 0.7);
         ST.applySidebarFont(App._settings.sidebar_font ?? 20);
-        ST.applySidebarBlur(App._settings.sidebar_blur ?? 16);
-        ST.applyCardOpacity(App._settings.card_opacity ?? 0.7);
-        ST.applyCardBlur(App._settings.card_blur ?? 16);
+        ST.applyPanelBlur(App._settings.sidebar_blur ?? 16);
         ST.applyToolbarHeight(App._settings.toolbar_height ?? 56);
-        ST.applyToolbarBlur(App._settings.toolbar_blur ?? 16);
-        ST.applyToolbarOpacity(App._settings.toolbar_opacity ?? 0.7);
         document.documentElement.style.setProperty('--overlay-opacity', String(App._settings.select_overlay_opacity ?? 0.2));
         ST.applyReverseSearch(App._settings.reverse_search_enabled ?? false);
         ST.applyListColumns(App._settings.list_columns ?? 3);
+        // 顶栏模式（native = Windows 原生 / macos = 红绿灯），skipSave 避免重复写库
+        ST.applyTitlebarMode(App._settings.titlebar_mode ?? 'native', true);
 
         // Sync view mode toolbar buttons
         const currViewMode = App._settings.view_mode ?? 'grid';
@@ -560,7 +561,7 @@ const App = {
         App._updateDashboard();
       });
 
-      // 透明背景同步
+      // 透明背景同步（先处理模式，避免透明模式下白加载背景图）
       if (App._settings.bg_transparent) {
         // 使用保存的透明模式强调色模式（custom/system），不强制自定义
         App._settings.accent_mode = App._settings.transparent_accent_mode || 'custom';
@@ -571,11 +572,20 @@ const App = {
         API._invoke('window_set_effect', { enabled: true, effect_type: efType }).catch(() => {});
       } else {
         document.documentElement.classList.remove('bg-transparent-mode');
+        // 先刷新背景图列表（轻量；含失效引用自愈：bg_image 指向不存在文件时自动清理）
+        await ST._loadBgList();
+        if (App._settings.bg_image) {
+          await ST.applyBgImage(App._settings.bg_image);
+        } else {
+          await ST.applyBgImage(null);
+        }
       }
 
-      // Restore bg settings AFTER DOM is visible
-      ST.applyBlur(App._settings.bg_blur ?? 0);
-      ST.applyOpacity(App._settings.bg_opacity ?? 1.0);
+      // Restore bg settings AFTER DOM is visible（仅背景图模式有意义）
+      if (!App._settings.bg_transparent) {
+        ST.applyBlur(App._settings.bg_blur ?? 0);
+        ST.applyOpacity(App._settings.bg_opacity ?? 1.0);
+      }
 
       // Initialize system theme listener
       ST.initSystemThemeListener();
@@ -939,6 +949,56 @@ const App = {
   },
 
   _bindSettings() { /* All settings use inline HTML handlers */ },
+
+  /** macOS 风格红绿灯按钮与窗口拖拽（透明窗口下 data-tauri-drag-region 不可用）
+      拖拽区域：侧边栏顶部红绿灯行、各页面顶栏行（空白处）、启动页 */
+  _bindTitlebarControls() {
+    const DRAG_INTERACTIVE = '.tl-btn, button, input, select, a, .qn-btn, .discover-tab, .home-quick-nav';
+    const setupDrag = (el) => {
+      if (!el) return;
+      el.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        if (e.target.closest(DRAG_INTERACTIVE)) return;
+        const win = window.__TAURI__?.window?.getCurrentWindow?.();
+        if (win && typeof win.startDragging === 'function') {
+          win.startDragging().catch(() => {});
+        }
+      });
+      el.addEventListener('dblclick', (e) => {
+        if (e.target.closest(DRAG_INTERACTIVE)) return;
+        const win = window.__TAURI__?.window?.getCurrentWindow?.();
+        if (win && typeof win.toggleMaximize === 'function') {
+          win.toggleMaximize().catch(() => {});
+        }
+      });
+    };
+    // 红绿灯行（侧边栏顶部）+ 启动页红绿灯行（仅这两行可拖动，避免劫持页面点击）
+    setupDrag(document.getElementById('sidebar-titlebar'));
+    setupDrag(document.getElementById('startup-titlebar'));
+    // 各页面顶栏行（macOS 模式下为窗口最顶行，空白处可拖；交互元素排除）
+    ['#home-toolbar', '#toolbar', '#settings-toolbar', '.discover-tabs'].forEach(sel => {
+      document.querySelectorAll(sel).forEach(setupDrag);
+    });
+    const bindBtn = (id, action) => {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      btn.addEventListener('click', () => {
+        const win = window.__TAURI__?.window?.getCurrentWindow?.();
+        if (!win) return;
+        try {
+          if (action === 'close') win.close().catch(() => {});
+          else if (action === 'min') win.minimize().catch(() => {});
+          else if (action === 'max') win.toggleMaximize().catch(() => {});
+        } catch (e) { /* ignore */ }
+      });
+    };
+    bindBtn('tl-close', 'close');
+    bindBtn('tl-min', 'min');
+    bindBtn('tl-max', 'max');
+    bindBtn('st-close', 'close');
+    bindBtn('st-min', 'min');
+    bindBtn('st-max', 'max');
+  },
 
   // ====== IMAGE OPERATIONS ======
 
@@ -1468,12 +1528,15 @@ window._openBgFolder = async () => {
 };
 
 window._importBg = async () => {
-  const imported = await API._invoke('bg_import', { profileId: S.profileId });
-  if (imported) {
-    await API.scanAll(S.profileId);
-    ST._loadBgList();
-    ST.applyBgImage(imported);
+  try {
+    const imported = await API._invoke('bg_import', { profileId: S.profileId });
+    if (!imported) return;
+    // 轻量刷新背景图列表（即时显示，无需等待全量扫描）
+    await ST._loadBgList();
+    await ST.applyBgImage(imported);
     Toast.show('背景图已导入', 'success');
+  } catch (e) {
+    Toast.show('导入失败: ' + (e.message || e), 'error');
   }
 };
 
@@ -1579,7 +1642,6 @@ window._favToBg = async () => {
       if (choice.idx === 2) { Toast.show('已取消', 'info'); return; }
       if (choice.idx === 1) {
         const overwriteResult = await API._invoke('favorites_copy_to_backgrounds', { profileId: S.profileId, overwriteExisting: true });
-        await API.scanAll(S.profileId);
         await ST._loadBgList();
         const total = overwriteResult.copied + overwriteResult.overwritten;
         Toast.show(`已复制 ${total} 张（覆盖 ${overwriteResult.overwritten} 张）`, 'success');
@@ -1587,7 +1649,6 @@ window._favToBg = async () => {
       }
     }
     if (result.copied > 0) {
-      await API.scanAll(S.profileId);
       await ST._loadBgList();
       Toast.show(`已复制 ${result.copied} 张收藏图片到背景图`, 'success');
     } else if (result.skipped > 0 && dupLen > 0) {

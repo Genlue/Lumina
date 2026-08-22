@@ -1198,12 +1198,22 @@ pub fn theme_extract_colors(
 // Background（不变）
 // ============================================================
 
+/// 轻量读取背景图列表：只扫描 `.album/backgrounds`，不做全量扫描。
+/// 供设置页导入/刷新/删除后即时刷新背景图网格。
+#[tauri::command]
+pub fn bg_list(app: AppHandle, profile_id: String) -> Result<Vec<FileInfo>, String> {
+    let root = get_profile_folder(&app, &profile_id)?;
+    let bg_dir = Path::new(&root).join(".album").join("backgrounds");
+    fs::create_dir_all(&bg_dir).map_err(|e| format!("Create bg dir: {}", e))?;
+    services::scanner::scan_file_list(&bg_dir).map_err(|e| format!("Scan bg dir: {}", e))
+}
+
 #[tauri::command]
 pub fn bg_import(app: AppHandle, profile_id: String) -> Result<Option<String>, String> {
     let file = app
         .dialog()
         .file()
-        .add_filter("Images", &["jpg", "jpeg", "png", "bmp", "webp"])
+        .add_filter("Images", &["jpg", "jpeg", "png", "bmp", "webp", "heic", "heif", "avif"])
         .blocking_pick_file();
 
     let src_path = match file {
@@ -1363,6 +1373,22 @@ pub fn window_set_effect(app: AppHandle, enabled: bool, effect_type: Option<Stri
             }
         } else {
             let _: Result<_, _> = window.set_effects(None::<tauri::utils::config::WindowEffectsConfig>);
+        }
+    }
+    Ok(())
+}
+
+// ============================================================
+// Titlebar Mode ('native' = Windows decorations, 'macos' = frameless + traffic lights)
+// ============================================================
+
+#[tauri::command]
+pub fn window_set_titlebar(app: AppHandle, mode: String) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        let decorated = mode != "macos";
+        // 透明窗口切换装饰时短暂重绘属正常现象
+        if let Err(e) = window.set_decorations(decorated) {
+            return Err(format!("set_decorations failed: {}", e));
         }
     }
     Ok(())

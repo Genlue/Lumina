@@ -330,6 +330,14 @@ fn init_profile_db_schema(conn: &Connection) -> rusqlite::Result<()> {
         println!("[DB] Profile DB migration V14 applied (transparent_accent_mode)");
     }
 
+    if version < 15 {
+        conn.execute_batch(
+            "ALTER TABLE settings ADD COLUMN titlebar_mode TEXT NOT NULL DEFAULT 'native';"
+        )?;
+        conn.execute("INSERT INTO _schema_version (version) VALUES (15)", [])?;
+        println!("[DB] Profile DB migration V15 applied (titlebar_mode)");
+    }
+
     Ok(())
 }
 
