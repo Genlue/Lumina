@@ -1,6 +1,6 @@
 {
   "productName": "Lumina",
-  "version": "2.3.1",
+  "version": "2.4.0",
   "identifier": "com.lumina.album",
   "build": {
     "frontendDist": "../src/renderer"
@@ -17,7 +17,8 @@
         "decorations": true,
         "resizable": true,
         "transparent": true,
-        "center": true
+        "center": true,
+        "visible": false
       }
     ],
     "security": {

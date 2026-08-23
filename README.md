@@ -93,7 +93,7 @@ bash scripts/build-installer.sh
 cd src-tauri && cargo tauri build --bundles nsis
 ```
 
-安装器位于: `src-tauri/target/release/bundle/nsis/Lumina_2.3.1_x64-setup.exe`
+安装器位于: `src-tauri/target/release/bundle/nsis/Lumina_2.4.0_x64-setup.exe`
 
 ## 安装说明
 
@@ -105,6 +105,13 @@ cd src-tauri && cargo tauri build --bundles nsis
 - **数据隔离**: 应用数据存储在图片文件夹下的 `.album/` 目录，卸载时不会删除用户数据
 
 ## 旧版本更新日志
+
+### 2026-08-23 — v2.4.0 — 红绿灯按 IconForge 规范重绘 + 启动页标题栏跟随
+
+- 🔴 **红绿灯重绘（IconForge 复刻）** — 12px 圆点改为含 1px 描边（红 `#E0443E`/黄 `#D89E24`/绿 `#1FAD30`，`box-sizing:border-box` 内径 10px）；图标换为 lucide SVG：红色 ×（8px·线宽1px）、黄色 −（8px）、绿色 ⤢（7.5px 向外对角箭头）——悬停/键盘聚焦时**仅对应按钮** 0.08s 渐显（不再整行全亮），按下整圆变暗 18%，窗口失焦时三圆变灰 + 55% 不透明度（macOS 行为）
+- 🟢 **最大/还原图标联动** — 绿钮随窗口真实最大化状态在 ⤢（Maximize2）/⤡（Minimize2）间切换（初始 `isMaximized()` + `onResized` 监听，含 Win+↑、拖到屏幕顶部等系统方式），title/aria-label 同步「最大化/还原窗口」
+- 🪟 **启动页标题栏跟随上次打开的文件夹** — 启动页不再依赖全局 localStorage 缓存；Rust 在窗口显示前读取 last_access 最新 profile 的 `titlebar_mode` 并预先应用 decorations（无启动时原生标题栏闪烁、无跨文件夹模式错位），窗口先隐藏、装饰应用后再显示
+- 🛠️ **修复启动页红绿灯符号不显示** — 旧规则只对侧边栏行 hover 显符，启动页从未显符；新规则按按钮自身 hover，两处行均正常
 
 ### 2026-08-22 — v2.3.1 — 卡片面板联动修复
 

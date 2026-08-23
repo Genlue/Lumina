@@ -172,12 +172,12 @@ const App = {
       Icons.init();
     } catch (e) { /* ignore */ }
 
-    // 顶栏模式：启动时先从本地缓存恢复（减少启动时原生标题栏闪烁）
+    // 顶栏模式：启动页跟随“最后一次打开的图片文件夹”的设置（Rust 侧已在窗口显示前
+    // 按该设置应用了 decorations，此处同步 DOM，无原生标题栏闪烁）
     try {
-      const savedTitlebar = localStorage.getItem('pa_titlebar_mode');
-      if (savedTitlebar === 'macos') {
-        document.body.classList.add('titlebar-macos');
-        if (window.__TAURI__) API._invoke('window_set_titlebar', { mode: 'macos' }).catch(() => {});
+      if (window.__TAURI__) {
+        const startupMode = await API._invoke('startup_get_titlebar_mode').catch(() => 'native');
+        document.body.classList.toggle('titlebar-macos', startupMode === 'macos');
       }
     } catch (e) { /* ignore */ }
     this._bindTitlebarControls(); // 尽早绑定拖拽/按钮，启动页即可拖动
@@ -998,6 +998,28 @@ const App = {
     bindBtn('st-close', 'close');
     bindBtn('st-min', 'min');
     bindBtn('st-max', 'max');
+    // 红绿灯状态同步（IconForge 复刻）：绿钮随真实最大化状态在 ⤢/⤡ 间切换（含系统方式最大化），
+    // 窗口失焦时三圆变灰（macOS 行为）
+    const w = window.__TAURI__?.window?.getCurrentWindow?.();
+    if (w) {
+      const setMaxState = (isMax) => {
+        ['tl-max', 'st-max'].forEach(id => {
+          const b = document.getElementById(id);
+          if (!b) return;
+          b.classList.toggle('maximized', !!isMax);
+          b.title = isMax ? '还原' : '最大化';
+          b.setAttribute('aria-label', isMax ? '还原窗口' : '最大化窗口');
+        });
+      };
+      const syncMax = () => {
+        if (typeof w.isMaximized === 'function') w.isMaximized().then(setMaxState).catch(() => {});
+      };
+      syncMax(); // 初值
+      if (typeof w.onResized === 'function') w.onResized(syncMax).catch(() => {});
+      const syncFocus = (focused) => document.body.classList.toggle('window-unfocused', !focused);
+      if (typeof w.isFocused === 'function') w.isFocused().then(syncFocus).catch(() => {});
+      if (typeof w.onFocusChanged === 'function') w.onFocusChanged((e) => syncFocus(!!(e && e.payload))).catch(() => {});
+    }
   },
 
   // ====== IMAGE OPERATIONS ======

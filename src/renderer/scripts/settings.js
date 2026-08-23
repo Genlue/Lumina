@@ -1197,8 +1197,7 @@ const ST = {
   applyTitlebarMode(mode, skipSave = false) {
     mode = mode === 'macos' ? 'macos' : 'native';
     App._settings.titlebar_mode = mode;
-    // 本地缓存用于启动时提前恢复，避免原生标题栏闪烁
-    try { localStorage.setItem('pa_titlebar_mode', mode); } catch (e) { /* ignore */ }
+    // 顶栏模式现在按 profile 持久化于 DB；启动页由 Rust 按“最后打开的文件夹”读取
     if (!skipSave) {
       API.saveSettings(S.profileId, { titlebar_mode: mode });
     }

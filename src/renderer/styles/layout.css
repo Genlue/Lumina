@@ -154,20 +154,24 @@ body.titlebar-macos #toolbar,
 body.titlebar-macos #home-toolbar,
 body.titlebar-macos #settings-toolbar,
 body.titlebar-macos .discover-tabs{border-bottom:none;}
-.tl-btn{width:12px;height:12px;border-radius:50%;border:none;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;transition:filter 0.1s;}
-.tl-close{background:#ff5f57;}
-.tl-min{background:#febc2e;}
-.tl-max{background:#28c840;}
-.tl-btn:hover{filter:brightness(0.9);}
-.tl-btn:active{filter:brightness(0.8);}
-.tl-glyph{opacity:0;pointer-events:none;}
-#sidebar-titlebar:hover .tl-glyph{opacity:1;}
-/* 红灯：× 符号 */
-.tl-close .tl-glyph{font-size:8px;line-height:1;font-weight:700;color:rgba(0,0,0,0.55);}
-/* 黄灯：加长横线，垂直水平居中（无偏移） */
-.tl-min .tl-glyph{width:8.5px;height:1.5px;background:rgba(0,0,0,0.55);border-radius:1px;}
-/* 绿灯：空心方框（比旧实心略大），居中 */
-.tl-max .tl-glyph{width:6.5px;height:6.5px;border:1.2px solid rgba(0,0,0,0.55);border-radius:1.5px;background:transparent;box-sizing:border-box;}
+/* 红绿灯按钮（IconForge v1.4.4 复刻版）：12px 含 1px 描边（box-sizing:border-box），内径 10px */
+.tl-btn{width:12px;height:12px;box-sizing:border-box;border:1px solid rgba(0,0,0,0.18);border-radius:50%;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;color:rgba(0,0,0,0.55);}
+.tl-close{background:#ff5f57;border-color:#e0443e;}
+.tl-min{background:#febc2e;border-color:#d89e24;}
+.tl-max{background:#28c840;border-color:#1fad30;}
+/* 按下反馈：整圆变暗 18% */
+.tl-btn:active{filter:brightness(0.82);}
+/* 图标：默认隐藏；悬停/键盘聚焦时各自渐显（0.08s），仅被悬停/聚焦的按钮自身显示 */
+.tl-glyph{opacity:0;pointer-events:none;display:flex;align-items:center;justify-content:center;transition:opacity 0.08s ease;}
+.tl-glyph svg{display:block;}
+.tl-btn:hover .tl-glyph,
+.tl-btn:focus-visible .tl-glyph{opacity:1;}
+/* 绿灯：未最大化 ⤢（Maximize2）/ 已最大化 ⤡（Minimize2）切换 */
+.tl-max .tl-glyph-restore{display:none;}
+.tl-max.maximized .tl-glyph-max{display:none;}
+.tl-max.maximized .tl-glyph-restore{display:flex;}
+/* 窗口失焦：三圆变灰（grayscale）+ 55% 不透明度（聚焦状态由 body.window-unfocused 控制） */
+body.window-unfocused .tl-btn{filter:grayscale(1);opacity:0.55;}
 
 #folder-info{padding:0 14px 8px;color:var(--c-text3);font-size:0.75em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 #folder-info span {

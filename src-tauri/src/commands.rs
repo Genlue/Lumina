@@ -1382,6 +1382,50 @@ pub fn window_set_effect(app: AppHandle, enabled: bool, effect_type: Option<Stri
 // Titlebar Mode ('native' = Windows decorations, 'macos' = frameless + traffic lights)
 // ============================================================
 
+/// 读取“最后一次打开的图片文件夹”（last_access 最新的 profile）对应的标题栏模式。
+/// 纯读取，不创建 .album/data.db；任何异常一律回退 'native'。
+pub fn resolve_startup_titlebar_mode(db_state: &DbState) -> String {
+    let last: Option<(String, String)> = {
+        let central = match db_state.conn.lock() {
+            Ok(c) => c,
+            Err(_) => return "native".to_string(),
+        };
+        central
+            .query_row(
+                "SELECT id, folder_path FROM profiles
+                 WHERE unavailable = 0 AND last_access IS NOT NULL
+                 ORDER BY last_access DESC LIMIT 1",
+                [],
+                |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
+            )
+            .ok()
+    };
+    let (profile_id, folder_path) = match last {
+        Some(x) => x,
+        None => return "native".to_string(),
+    };
+    let db_path = Path::new(&folder_path).join(".album").join("data.db");
+    if !db_path.exists() {
+        return "native".to_string();
+    }
+    let conn = match rusqlite::Connection::open(&db_path) {
+        Ok(c) => c,
+        Err(_) => return "native".to_string(),
+    };
+    conn.query_row(
+        "SELECT titlebar_mode FROM settings WHERE profile_id = ?1 LIMIT 1",
+        [&profile_id],
+        |r| r.get::<_, String>(0),
+    )
+    .unwrap_or_else(|_| "native".to_string())
+}
+
+#[tauri::command]
+pub fn startup_get_titlebar_mode(app: AppHandle) -> Result<String, String> {
+    let db_state = app.state::<DbState>();
+    Ok(resolve_startup_titlebar_mode(&db_state))
+}
+
 #[tauri::command]
 pub fn window_set_titlebar(app: AppHandle, mode: String) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("main") {

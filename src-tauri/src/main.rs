@@ -28,6 +28,18 @@ pub fn run() {
             let db_state = db::init_central_database(&path)
                 .expect("Failed to initialize central database");
             app.manage(db_state);
+            // 启动页标题栏模式：在窗口显示前按“最后一次打开的图片文件夹”的设置
+            // 预先应用 decorations（macos = 无边框，避免启动时原生标题栏闪烁）
+            let state = app.state::<db::DbState>();
+            let tb_mode = commands::resolve_startup_titlebar_mode(&state);
+            if tb_mode == "macos" {
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.set_decorations(false);
+                }
+            }
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.show();
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -78,6 +90,7 @@ pub fn run() {
             commands::cache_clear,
             commands::window_set_effect,
             commands::window_set_titlebar,
+            commands::startup_get_titlebar_mode,
             commands::favorites_export,
             commands::favorites_import,
             commands::favorites_copy_to_backgrounds,
