@@ -97,6 +97,7 @@ pub struct Settings {
     pub extract_color_light: String,               // 自动提取的浅色（不覆盖自定义）
     pub transparent_accent_mode: String,  // 透明模式下的强调色模式: 'custom' | 'system' | 'extract'
     pub titlebar_mode: String,            // 顶栏模式: 'native'(Windows 原生) | 'macos'(macOS 风格)
+    pub font_family: String,              // 界面字体族（空字符串 = 跟随系统默认）
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

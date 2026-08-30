@@ -1821,3 +1821,145 @@ pub fn system_get_accent_color() -> Result<String, String> {
         Err("System accent color is only supported on Windows".to_string())
     }
 }
+
+// ============================================================
+// 系统字体枚举（界面字体选择）
+// ============================================================
+
+/// 将 Windows 字体注册表中的条目名规范化为「字体族」名。
+///
+/// 规则（按用户需求：不同粗细/样式算同一个字体）：
+/// 1. 去掉尾部说明后缀，如 "(TrueType)" / "(OpenType)" / "(All res)" / "(VGA res)"
+/// 2. 反复去掉末尾的粗细/样式词（Bold / Italic / Light / Medium / Semibold / Black …
+///    及其组合 "Bold Italic" 等），使 "Segoe UI Bold" → "Segoe UI"
+/// 3. 去掉旧式位图字体末尾的 "8,10,12,14,18,24" 字号列表
+#[allow(dead_code)]
+fn normalize_font_family(raw: &str) -> String {
+    let mut name = raw.trim();
+    // 1. 去掉尾部 "(...)" 说明后缀
+    if let Some(open) = name.rfind('(') {
+        if name.ends_with(')') {
+            name = name[..open].trim_end();
+        }
+    }
+    // 分词并清洗词内两侧的标点（保留中文、字母数字、·、-、&、,）
+    let mut words: Vec<String> = name
+        .split_whitespace()
+        .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric() && c != '·' && c != '-' && c != '&' && c != ','))
+        .filter(|w| !w.is_empty())
+        .map(|w| w.to_string())
+        .collect();
+    if words.len() < 2 {
+        // 单字（如 "Arial"）或空 → 不做粗细剥离，避免误伤真实字体名
+        return words.join(" ");
+    }
+
+    // 2. 反复剥离末尾粗细/样式词（大小写不敏感，支持 "Bold Italic" 组合）
+    let weight_tokens = [
+        "thin", "extralight", "ultralight", "semilight", "light", "regular",
+        "medium", "semibold", "demibold", "bold", "extrabold", "ultrabold",
+        "heavy", "black", "demi",
+    ];
+    let style_tokens = [
+        "italic", "oblique", "condensed", "semicondensed", "expanded", "narrow",
+    ];
+    loop {
+        let last = words.last().map(|w| w.to_lowercase());
+        let last_bare = last.as_ref().map(|w| {
+            w.trim_end_matches(|c: char| !c.is_ascii_alphabetic()).to_string()
+        });
+        let is_weight = last_bare.as_deref().map(|w| weight_tokens.contains(&w)).unwrap_or(false);
+        let is_style = last_bare.as_deref().map(|w| style_tokens.contains(&w)).unwrap_or(false);
+        if words.len() > 1 && (is_weight || is_style) {
+            words.pop();
+        } else {
+            break;
+        }
+    }
+
+    // 3. 去掉旧式位图字体末尾的 "8,10,12,14..." 字号列表
+    while words.len() > 1 {
+        let last = words.last().unwrap();
+        if last.chars().all(|c| c.is_ascii_digit() || c == ',') {
+            words.pop();
+        } else {
+            break;
+        }
+    }
+
+    words.join(" ")
+}
+
+/// 枚举 Windows 已安装字体，返回去重（按字体族）且忽略粗细变体的字体族名列表。
+#[tauri::command]
+pub fn system_list_fonts() -> Result<Vec<String>, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use winreg::enums::*;
+        use winreg::RegKey;
+
+        // key: 小写族名（用于去重）; value: 展示名（保留首次出现的写法）
+        let mut families: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+
+        for hive in [HKEY_LOCAL_MACHINE, HKEY_CURRENT_USER] {
+            let root = RegKey::predef(hive);
+            let key = match root.open_subkey(r"Software\Microsoft\Windows NT\CurrentVersion\Fonts") {
+                Ok(k) => k,
+                Err(_) => continue,
+            };
+            for entry in key.enum_values() {
+                let Ok((raw_name, _value)) = entry else { continue };
+                let family = normalize_font_family(&raw_name);
+                if family.is_empty() {
+                    continue;
+                }
+                let lower = family.to_lowercase();
+                families.entry(lower).or_insert(family);
+            }
+        }
+
+        // BTreeMap 按小写键自然排序 → 大小写不敏感字母序
+        let list: Vec<String> = families.into_values().collect();
+        Ok(list)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("System font listing is only supported on Windows".to_string())
+    }
+}
+
+#[cfg(test)]
+mod font_tests {
+    use super::normalize_font_family;
+
+    #[test]
+    fn strip_suffix_and_weight() {
+        assert_eq!(normalize_font_family("Segoe UI (TrueType)"), "Segoe UI");
+        assert_eq!(normalize_font_family("Segoe UI Bold (TrueType)"), "Segoe UI");
+        assert_eq!(normalize_font_family("Segoe UI Bold Italic (TrueType)"), "Segoe UI");
+        assert_eq!(normalize_font_family("Segoe UI Semibold (TrueType)"), "Segoe UI");
+        assert_eq!(normalize_font_family("Segoe UI Semilight (TrueType)"), "Segoe UI");
+        assert_eq!(normalize_font_family("Arial Italic (TrueType)"), "Arial");
+        assert_eq!(normalize_font_family("Microsoft YaHei UI (TrueType)"), "Microsoft YaHei UI");
+        assert_eq!(normalize_font_family("Times New Roman (TrueType)"), "Times New Roman");
+    }
+
+    #[test]
+    fn single_word_untouched() {
+        // 单词字体名不做剥离，避免误伤
+        assert_eq!(normalize_font_family("Symbol (TrueType)"), "Symbol");
+        assert_eq!(normalize_font_family("Marlett (TrueType)"), "Marlett");
+    }
+
+    #[test]
+    fn legacy_bitmap_fonts() {
+        assert_eq!(normalize_font_family("MS Serif 8,10,12,14,18,24 (VGA res)"), "MS Serif");
+        assert_eq!(normalize_font_family("Courier 10,12,15 (VGA res)"), "Courier");
+    }
+
+    #[test]
+    fn empty_and_garbage() {
+        assert_eq!(normalize_font_family("(TrueType)"), "");
+        assert_eq!(normalize_font_family("  "), "");
+    }
+}

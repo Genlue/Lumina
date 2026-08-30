@@ -227,6 +227,15 @@ const API = {
       return null;
     }
   },
+  /** 枚举系统已安装字体（已按字体族去重，不同粗细/样式归为同一字体） */
+  async listSystemFonts() {
+    try {
+      return await this._invoke('system_list_fonts');
+    } catch (e) {
+      console.warn('[API] list system fonts failed:', e);
+      return [];
+    }
+  },
 
   // === Dialog ===
   async openFolder(title) {

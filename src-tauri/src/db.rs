@@ -338,6 +338,14 @@ fn init_profile_db_schema(conn: &Connection) -> rusqlite::Result<()> {
         println!("[DB] Profile DB migration V15 applied (titlebar_mode)");
     }
 
+    if version < 16 {
+        conn.execute_batch(
+            "ALTER TABLE settings ADD COLUMN font_family TEXT NOT NULL DEFAULT '';"
+        )?;
+        conn.execute("INSERT INTO _schema_version (version) VALUES (16)", [])?;
+        println!("[DB] Profile DB migration V16 applied (font_family)");
+    }
+
     Ok(())
 }
 
@@ -657,6 +665,7 @@ pub fn get_profile_conn(
             extract_color_dark: Option<String>,
             extract_color_light: Option<String>,
             transparent_accent_mode: Option<String>,
+            font_family: String,
         }
 
         let old = conn.query_row(
@@ -670,7 +679,7 @@ pub fn get_profile_conn(
                     bg_image_accent_mode, bg_image_accent_color_dark,
                     bg_image_accent_color_light, transparent_accent_color_dark,
                     transparent_accent_color_light, extract_color_dark, extract_color_light,
-                    transparent_accent_mode
+                    transparent_accent_mode, font_family
              FROM settings WHERE profile_id != ?1 LIMIT 1",
             rusqlite::params![profile_id],
             |row| Ok(OldSettings {
@@ -699,6 +708,7 @@ pub fn get_profile_conn(
                 extract_color_dark: row.get(33).ok().flatten(),
                 extract_color_light: row.get(34).ok().flatten(),
                 transparent_accent_mode: row.get(35).ok().flatten(),
+                font_family: row.get(36).unwrap_or_default(),
             }),
         ).ok();
 
@@ -725,8 +735,8 @@ pub fn get_profile_conn(
                  bg_image_accent_mode, bg_image_accent_color_dark, bg_image_accent_color_light,
                  transparent_accent_color_dark, transparent_accent_color_light,
                  extract_color_dark, extract_color_light,
-                 transparent_accent_mode)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34, ?35, ?36, ?37)",
+                 transparent_accent_mode, font_family)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34, ?35, ?36, ?37, ?38)",
                 rusqlite::params![profile_id, s.view_mode, s.sort_by, s.theme_mode, s.accent_color,
                         s.bg_image, s.bg_blur, s.bg_opacity, s.sidebar_width, s.sidebar_opacity,
                         s.draw_count, s.card_opacity, s.card_blur, s.sidebar_font, s.random_interval,
@@ -737,7 +747,7 @@ pub fn get_profile_conn(
                         s.bg_image_accent_mode, s.bg_image_accent_color_dark, s.bg_image_accent_color_light,
                         s.transparent_accent_color_dark, s.transparent_accent_color_light,
                         s.extract_color_dark, s.extract_color_light,
-                        s.transparent_accent_mode],
+                        s.transparent_accent_mode, s.font_family],
             ).map_err(|e| format!("Migration INSERT settings: {}", e))?;
         }
 

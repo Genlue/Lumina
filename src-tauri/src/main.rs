@@ -101,6 +101,7 @@ pub fn run() {
             commands::write_text_file,
             commands::read_text_file,
             commands::system_get_accent_color,
+            commands::system_list_fonts,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -51,6 +51,9 @@ const ST = {
 
       this._highlightThemeBtns(s.theme_mode ?? 'dark');
       this._highlightTitlebarBtns(s.titlebar_mode ?? 'native');
+      // 界面字体：异步加载系统字体下拉 + 同步当前值
+      this._loadFontList();
+      this._syncFontSelect(s.font_family ?? '');
       this._loadBgList();
 
       // 同步背景模式
@@ -1183,6 +1186,59 @@ const ST = {
     const macosBtn = document.getElementById('btn-titlebar-macos');
     if (nativeBtn) nativeBtn.style.borderColor = mode === 'native' ? 'var(--c-accent)' : 'transparent';
     if (macosBtn) macosBtn.style.borderColor = mode === 'macos' ? 'var(--c-accent)' : 'transparent';
+  },
+
+  // === 界面字体 ===
+
+  _fontListPromise: null,
+
+  _cssFontName(name) {
+    const s = String(name || '').trim().replace(/"/g, "'");
+    return s ? '"' + s + '"' : '';
+  },
+
+  _syncFontSelect(family) {
+    const sel = document.getElementById('set-font-family');
+    if (sel) sel.value = family || '';
+    const resetBtn = document.getElementById('btn-font-reset');
+    if (resetBtn) resetBtn.style.borderColor = family ? 'var(--c-accent)' : 'transparent';
+  },
+
+  /** 异步加载系统字体列表并填充下拉框（不同粗细变体已在 Rust 端去重） */
+  _loadFontList() {
+    if (!this._fontListPromise) {
+      this._fontListPromise = API.listSystemFonts().then(fonts => {
+        const sel = document.getElementById('set-font-family');
+        if (!sel) return;
+        const current = App._settings?.font_family || '';
+        sel.innerHTML = '<option value="">跟随系统（默认）</option>';
+        for (const name of fonts) {
+          const opt = document.createElement('option');
+          opt.value = name;
+          opt.textContent = name;
+          try { opt.style.fontFamily = this._cssFontName(name); } catch (e) { /* ignore */ }
+          sel.appendChild(opt);
+        }
+        if (current) sel.value = current;
+      }).catch(() => {});
+    }
+    return this._fontListPromise;
+  },
+
+  /** 应用界面字体（空字符串 = 跟随系统默认）；skipSave 用于 profile 加载同步，避免重复写库 */
+  applyFontFamily(family, skipSave = false) {
+    family = family || '';
+    App._settings.font_family = family;
+    if (!skipSave) {
+      API.saveSettings(S.profileId, { font_family: family });
+    }
+    const root = document.documentElement;
+    if (family) {
+      root.style.setProperty('--font-family', `${this._cssFontName(family)}, "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif`);
+    } else {
+      root.style.removeProperty('--font-family');
+    }
+    this._syncFontSelect(family);
   },
 
   applyOverlayOpacity(val) {

@@ -503,6 +503,8 @@ const App = {
       ST.applyAccent(App._settings.accent_color_dark ?? '#4A9EFF', 'dark');
       ST.applyAccent(App._settings.accent_color_light ?? '#003D7A', 'light');
       ST.applyCurrentAccent();
+      // 界面字体（空字符串 = 跟随系统默认）
+      ST.applyFontFamily(App._settings.font_family ?? '', true);
 
       document.getElementById('startup').classList.add('hidden');
       document.getElementById('app').classList.remove('hidden');
@@ -1491,25 +1493,29 @@ const App = {
       .slice(-6)
       .map(([label, value]) => ({ label, value }));
 
-    const accent = getComputedStyle(document.documentElement).getPropertyValue('--c-accent').trim() || '#4A9EFF';
-    const renderBars = (container, data, emptyText, limit = 100) => {
+    const renderBars = (container, data, emptyText, unitLabel) => {
+      if (!container) return;
       if (data.length === 0) {
         container.innerHTML = `<div class="home-empty-note">${emptyText}</div>`;
         return;
       }
       const max = Math.max(...data.map(i => i.value), 1);
-      container.innerHTML = data.map(item => `
+      const total = data.reduce((s, i) => s + i.value, 0);
+      const topPct = total > 0 ? Math.round((max / total) * 100) : 0;
+      const rows = data.map(item => `
         <div class="mini-chart-row">
           <div class="mini-chart-name">${U.esc(item.label)}</div>
           <div class="mini-chart-value">${item.value}</div>
-          <div class="mini-chart-track"><div class="mini-chart-fill" style="width:${Math.min(100, (item.value / max) * limit)}%;background:${accent};"></div></div>
+          <div class="mini-chart-track"><div class="mini-chart-fill" style="width:${Math.min(100, (item.value / max) * 100)}%;"></div></div>
         </div>
       `).join('');
+      const foot = `<div class="mini-chart-foot"><span>共 <b>${data.length}</b> ${unitLabel} · 合计 <b>${total}</b></span><span>TOP1 占 <b>${topPct}%</b></span></div>`;
+      container.innerHTML = `<div class="mini-chart-rows">${rows}</div>${foot}`;
     };
 
-    renderBars(folders, folderData, '暂无文件夹数据', 100);
-    renderBars(formats, formatData, '暂无格式数据', 100);
-    renderBars(trend, trendData, '暂无时间数据', 100);
+    renderBars(folders, folderData, '暂无文件夹数据', '文件夹');
+    renderBars(formats, formatData, '暂无格式数据', '种格式');
+    renderBars(trend, trendData, '暂无时间数据', '个月');
   },
 
   async deleteFromLb() {
