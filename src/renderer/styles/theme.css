@@ -18,6 +18,8 @@
   --c-accent: #60cdff;
   --c-accent2: #40b8e0;
   --c-accent-bg: rgba(96, 205, 255, 0.12);
+  /* 强调色底上的前景色：JS 按 WCAG 对比度自动切换黑/白，此为默认（浅色强调→黑字） */
+  --c-on-accent: #111111;
 
   /* Semantic */
   --c-danger: #ff4444;

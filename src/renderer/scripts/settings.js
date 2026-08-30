@@ -66,30 +66,8 @@ const ST = {
       // 加载强调色设置
       this._renderAccentUI();
 
-      // === 透明模式控件覆盖 ===
-      const bgCard2 = document.getElementById('bg-image-card');
-      const bgGrid2 = document.getElementById('bg-thumb-grid');
-      if (App._settings.bg_transparent) {
-        if (bgCard2) bgCard2.style.display = 'none';
-        if (bgGrid2) bgGrid2.style.display = 'none';
-        // 隐藏模糊和透明度滑块
-        const blurEl2 = document.getElementById('set-bg-blur');
-        if (blurEl2) blurEl2.closest('.settings-card').style.display = 'none';
-        document.getElementById('bg-blur-val').style.display = 'none';
-        const opacityEl2 = document.getElementById('set-bg-opacity');
-        if (opacityEl2) opacityEl2.closest('.settings-card').style.display = 'none';
-        document.getElementById('bg-opacity-val').style.display = 'none';
-        // 强调色 UI 由 _renderAccentUI 管理，不需要在此覆盖
-      } else {
-        if (bgCard2) bgCard2.style.display = '';
-        if (bgGrid2) bgGrid2.style.display = 'flex';
-        const blurEl2 = document.getElementById('set-bg-blur');
-        if (blurEl2) blurEl2.closest('.settings-card').style.display = '';
-        document.getElementById('bg-blur-val').style.display = '';
-        const opacityEl2 = document.getElementById('set-bg-opacity');
-        if (opacityEl2) opacityEl2.closest('.settings-card').style.display = '';
-        document.getElementById('bg-opacity-val').style.display = '';
-      }
+      // === 背景区块可见性同步（与 _loadBgList 共用实现，任何入口行为一致）===
+      this._syncBgSectionUi();
 
       // Cache info + 恢复可能仍在运行的预生成任务进度
       this._refreshCacheLabel();
@@ -243,6 +221,8 @@ const ST = {
   _applyAccentVisual(color) {
     const root = document.documentElement;
     root.style.setProperty('--c-accent', color);
+    // 强调色底上的自动前景色（WCAG 对比度选黑/白），供 .btn-primary 等使用
+    root.style.setProperty('--c-on-accent', U.onColor(color));
     const darken = (h, a) => { const n = parseInt(h.slice(1), 16); const r = Math.max(0, ((n>>16)&255) - a); const g = Math.max(0, ((n>>8)&255) - a); const b = Math.max(0, (n&255) - a); return `rgb(${r},${g},${b})`; };
     root.style.setProperty('--c-accent2', darken(color, 30));
     const parseHex = (h) => [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
@@ -905,6 +885,8 @@ const ST = {
 
       // === 应用透明背景效果 ===
       this.applyBgTransparent(true);
+      // 提前设置，确保 _syncBgSectionUi 与后续守卫能看到最新状态
+      App._settings.bg_transparent = true;
 
       // 首次进入透明模式时保存初始颜色到DB，使后续切换独立
       API.saveSettings(S.profileId, {
@@ -913,24 +895,8 @@ const ST = {
         transparent_accent_mode: App._settings.accent_mode
       });
 
-      // === UI 控件管理 ===
-      // 隐藏背景图卡片
-      const bgCard = document.getElementById('bg-image-card');
-      if (bgCard) bgCard.style.display = 'none';
-      // 隐藏模糊和透明度滑块
-      const blurSlider = document.getElementById('set-bg-blur');
-      if (blurSlider) {
-        const blurCard = blurSlider.closest('.settings-card');
-        if (blurCard) blurCard.style.display = 'none';
-      }
-      document.getElementById('bg-blur-val').style.display = 'none';
-      const opacitySlider = document.getElementById('set-bg-opacity');
-      if (opacitySlider) {
-        const opacityCard = opacitySlider.closest('.settings-card');
-        if (opacityCard) opacityCard.style.display = 'none';
-      }
-      document.getElementById('bg-opacity-val').style.display = 'none';
-      // 根据实际强调色模式显示面板
+      // === UI 控件管理（背景行隐藏 + 强调色面板按模式显示）===
+      this._syncBgSectionUi();
       document.getElementById('accent-custom-panel').style.display = App._settings.accent_mode === 'custom' ? '' : 'none';
       document.getElementById('accent-extract-panel').style.display = 'none';
       document.getElementById('accent-system-panel').style.display = App._settings.accent_mode === 'system' ? '' : 'none';
@@ -970,20 +936,7 @@ const ST = {
       this.applyOpacity(App._settings.bg_opacity ?? 1.0);
 
       // === UI 控件恢复 ===
-      const bgCard = document.getElementById('bg-image-card');
-      if (bgCard) bgCard.style.display = '';
-      const blurSlider = document.getElementById('set-bg-blur');
-      if (blurSlider) {
-        const blurCard = blurSlider.closest('.settings-card');
-        if (blurCard) blurCard.style.display = '';
-      }
-      document.getElementById('bg-blur-val').style.display = '';
-      const opacitySlider = document.getElementById('set-bg-opacity');
-      if (opacitySlider) {
-        const opacityCard = opacitySlider.closest('.settings-card');
-        if (opacityCard) opacityCard.style.display = '';
-      }
-      document.getElementById('bg-opacity-val').style.display = '';
+      this._syncBgSectionUi();
       // 恢复强调色UI
       this._renderAccentUI();
       this.applyCurrentAccent();
@@ -1052,9 +1005,24 @@ const ST = {
 
   // === Background Thumbnail Grid ===
 
+  /**
+   * 背景区块控件可见性同步：透明模式隐藏「背景图片 / 背景模糊 / 背景透明度」行，
+   * 图像模式恢复。render()、_loadBgList()、setBgMode() 全部复用本函数，
+   * 保证导入/删除/刷新后的界面与“切换标签页重新渲染”完全一致。
+   */
+  _syncBgSectionUi() {
+    const transparent = !!(App._settings && App._settings.bg_transparent);
+    const ids = ['bg-image-card', 'bg-blur-row', 'bg-opacity-row'];
+    for (const id of ids) {
+      const el = document.getElementById(id);
+      if (el) el.style.display = transparent ? 'none' : '';
+    }
+  },
+
   async _loadBgList() {
     const grid = document.getElementById('bg-thumb-grid');
     if (!grid) return;
+    this._syncBgSectionUi();
     let bgImgs = [];
     try {
       // 轻量读取背景图列表（只扫描 .album/backgrounds），不依赖全量扫描结果
@@ -1106,12 +1074,14 @@ const ST = {
 
   _makeBgThumb(filename, active, label) {
     const div = document.createElement('div');
+    div.dataset.bgName = filename || '';
     Object.assign(div.style, {
       width: '80px', height: '60px', borderRadius: '6px', cursor: 'pointer',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontSize: '0.75em', overflow: 'hidden', position: 'relative',
       border: `2px solid ${active ? 'var(--c-accent)' : 'var(--c-border)'}`,
-      background: 'var(--c-card)',
+      background: 'var(--c-surface)',
+      color: 'var(--c-text)',
     });
     if (label) {
       div.textContent = label;
@@ -1127,6 +1097,7 @@ const ST = {
     Modal.show('删除背景图', `确定删除 ${filename}？`, [{ label: '取消' }, { label: '删除', danger: true }]).then(r => {
       if (r.idx !== 1) return;
       API._invoke('bg_delete', { profileId: S.profileId, filename }).then(async () => {
+        API.evictThumbCache(S.profileId, BG_DIR, filename); // 删除后驱逐旧预览，避免同名再导入显示脏缓存
         await this._loadBgList();
         if (App._settings.bg_image === filename) this.applyBgImage(null);
         Toast.show('已删除', 'success');
@@ -1136,6 +1107,7 @@ const ST = {
 
   async _refreshBgList() {
     try {
+      API.evictThumbCacheByFolder(S.profileId, BG_DIR); // 刷新 = 丢弃背景目录全部预览缓存，强制重取
       await this._loadBgList();
       Toast.show('已刷新', 'info');
     } catch (e) {

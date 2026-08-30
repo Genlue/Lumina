@@ -75,6 +75,20 @@ const API = {
     }
     return result;
   },
+  /** 驱逐某文件的全部缩略图内存缓存（导入/删除/替换文件后强制重新取图，防脏缓存） */
+  evictThumbCache(profileId, folder, filename) {
+    const prefix = `${profileId}|${folder || ''}|${filename}|`;
+    for (const key of [...this._thumbCache.keys()]) {
+      if (key.startsWith(prefix)) this._thumbCache.delete(key);
+    }
+  },
+  /** 驱逐某文件夹下全部图片的缩略图内存缓存 */
+  evictThumbCacheByFolder(profileId, folder) {
+    const prefix = `${profileId}|${folder || ''}|`;
+    for (const key of [...this._thumbCache.keys()]) {
+      if (key.startsWith(prefix)) this._thumbCache.delete(key);
+    }
+  },
   /** Batch-load thumbnails — single IPC call for multiple images */
   async getThumbnailsBatch(profileId, items, size = 400) {
     // Pre-fill results in input order (null = uncached)

@@ -76,7 +76,7 @@ img {
   align-items: center;
   gap: 8px;
   background: var(--c-accent);
-  color: #000 !important;
+  color: var(--c-on-accent, #000) !important; /* 强调色底上自动黑/白（WCAG 对比度，见 U.onColor） */
   padding: 10px 24px;
   border-radius: var(--radius-sm);
   font-size: var(--font-size-base);
@@ -1071,55 +1071,96 @@ mark {
 /* ============================
    Settings
    ============================ */
-.settings-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+.settings-wrap {
+  display: flex;
+  flex-direction: column;
   gap: 12px;
-  max-width: 1120px;
+  max-width: 760px;
   margin: 0 auto;
+  padding-bottom: 32px;
 }
-@media (max-width: 860px) {
-  .settings-grid { grid-template-columns: 1fr; }
+.settings-card {
+  background: rgba(var(--c-card-r,42),var(--c-card-g,42),var(--c-card-b,42),var(--card-opacity,1));
+  backdrop-filter: blur(var(--card-blur,0px));
+  -webkit-backdrop-filter: blur(var(--card-blur,0px));
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px 8px;
 }
-.settings-card{background:rgba(var(--c-card-r,42),var(--c-card-g,42),var(--c-card-b,42),var(--card-opacity,1));backdrop-filter:blur(var(--card-blur,0px));-webkit-backdrop-filter:blur(var(--card-blur,0px));border:1px solid var(--c-border);border-radius:var(--radius-md);padding:12px}
 .settings-card h3 {
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-semibold);
-  margin-bottom: 6px;
+  font-size: 1.05em;
+  font-weight: var(--font-weight-bold);
+  color: var(--c-text);
+  margin-bottom: 2px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--c-border);
 }
-.settings-card select,
-.settings-card input[type="color"],
-.settings-card input[type="range"] {
-  width: 100%;
-}
-.settings-card input[type="color"] {
-  height: 36px;
-  padding: 2px;
+.settings-card select {
+  padding: 6px 10px;
   background: var(--c-surface);
   border: 1px solid var(--c-border);
   border-radius: var(--radius-sm);
-  cursor: pointer;
+  color: var(--c-text);
+  outline: none;
 }
 .settings-card input[type="range"] {
   accent-color: var(--c-accent);
+  width: 100%;
 }
-.settings-group-label {
-  grid-column: 1 / -1;
-  background: rgba(var(--c-card-r,42),var(--c-card-g,42),var(--c-card-b,42),var(--card-opacity,0.5));
-  backdrop-filter: blur(var(--card-blur,0px));
-  -webkit-backdrop-filter: blur(var(--card-blur,0px));
-  border-radius: var(--radius-md);
-  padding: 8px 12px;
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-semibold);
-  color: var(--c-accent);
-  border: 1px solid var(--c-border);
-  margin-bottom: 0;
+
+/* 设置行：左侧标题 + 右侧控件，一行一项，高密度 */
+.setting-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--c-border);
 }
-.settings-card.settings-card-range {
+.settings-card .setting-item:last-child { border-bottom: none; }
+.setting-item.si-stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.si-label {
+  flex: 0 0 auto;
+  min-width: 108px;
   display: flex;
   flex-direction: column;
+  gap: 1px;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  color: var(--c-text);
+}
+.si-stack .si-label { min-width: 0; }
+/* 说明文字：跟随深浅色的正文色，以“字号小一档 + 不加粗”与标题区分（替代旧灰色小字） */
+.si-hint {
+  font-size: 0.85em;
+  font-weight: normal;
+  color: var(--c-text);
+}
+.si-control {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
   gap: 8px;
+  min-width: 0;
+}
+.si-btnrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.si-sub {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.si-inline-label {
+  font-size: 0.88em;
+  color: var(--c-text);
 }
 .settings-row {
   display: flex;
@@ -1132,20 +1173,30 @@ mark {
   min-width: 0;
 }
 .settings-number {
-  width: 74px;
-  flex: 0 0 74px;
-  padding: 6px 8px;
+  width: 64px;
+  flex: 0 0 64px;
+  padding: 5px 6px;
   border: 1px solid var(--c-border);
   border-radius: var(--radius-sm);
   background: var(--c-surface);
   color: var(--c-text);
-  font-size: 0.9em;
+  font-size: 0.88em;
   text-align: center;
   outline: none;
 }
-.settings-number:focus {
-  border-color: var(--c-accent);
+.settings-number:focus { border-color: var(--c-accent); }
+.settings-text {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 12px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  color: var(--c-text);
+  font-size: var(--font-size-base);
+  outline: none;
 }
+.settings-text:focus { border-color: var(--c-accent); }
 .settings-card span[id$="-val"] {
   min-width: 46px;
   text-align: right;
@@ -1155,6 +1206,93 @@ mark {
   margin-left: 2px;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+
+/* 分段选择按钮（主题/背景模式/标题栏/强调色/逆向搜索） */
+.seg-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.theme-btn {
+  flex: 1;
+  padding: 7px 14px;
+  border-radius: 8px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  border: 2px solid transparent;
+  cursor: pointer;
+  font-size: 0.92em;
+  white-space: nowrap;
+}
+.theme-btn:hover { background: var(--c-surface2); }
+.theme-btn:disabled, .accent-mode-btn:disabled, .mini-btn:disabled, .btn-primary:disabled { opacity: 0.45; cursor: default; }
+.accent-mode-btn {
+  flex: 1;
+  padding: 7px 14px;
+  border-radius: 8px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  border: 2px solid transparent;
+  cursor: pointer;
+  font-size: 0.92em;
+  white-space: nowrap;
+}
+.accent-mode-btn.active { border-color: var(--c-accent); }
+.accent-swatch {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid var(--c-border);
+  transition: border-color 0.2s;
+}
+.accent-swatch:hover { border-color: var(--c-accent); }
+
+/* 次级小按钮（弱化操作：打开文件夹/刷新/清除缓存/指南） */
+.mini-btn {
+  padding: 6px 14px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  font-size: 0.85em;
+  cursor: pointer;
+}
+.mini-btn:hover { background: var(--c-surface2); }
+.mini-btn-accent {
+  background: var(--c-accent-bg);
+  color: var(--c-accent);
+  border-color: transparent;
+}
+/* 主按钮的紧凑变体 */
+.btn-primary.btn-sm { padding: 7px 16px; font-size: 0.88em; border-radius: var(--radius-sm); }
+
+/* 背景图缩略图网格 */
+.bg-thumb-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* 缓存生成进度条 */
+.gen-progress-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--c-border);
+  overflow: hidden;
+}
+#cache-gen-progress-bar {
+  height: 100%;
+  width: 0%;
+  border-radius: 3px;
+  background: var(--c-accent);
+  transition: width .25s;
+}
+#cache-size-label {
+  font-size: 0.88em;
+  color: var(--c-text);
+  margin-right: 4px;
 }
 
 /* Dashboard card - 4块布局 */

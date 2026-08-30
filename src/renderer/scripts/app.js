@@ -1553,9 +1553,17 @@ window._importBg = async () => {
   try {
     const imported = await API._invoke('bg_import', { profileId: S.profileId });
     if (!imported) return;
+    // 驱逐该文件的旧预览缓存（同名文件曾被删除/替换时防止显示脏缩略图）
+    API.evictThumbCache(S.profileId, BG_DIR, imported);
     // 轻量刷新背景图列表（即时显示，无需等待全量扫描）
     await ST._loadBgList();
     await ST.applyBgImage(imported);
+    // 兜底校验：导入成功后网格必须出现该图块，缺失则强制全量重渲染一次
+    const grid = document.getElementById('bg-thumb-grid');
+    if (grid && !App._settings.bg_transparent && ![...grid.children].some(el => el.dataset && el.dataset.bgName === imported)) {
+      API.evictThumbCacheByFolder(S.profileId, BG_DIR);
+      await ST._loadBgList();
+    }
     Toast.show('背景图已导入', 'success');
   } catch (e) {
     Toast.show('导入失败: ' + (e.message || e), 'error');

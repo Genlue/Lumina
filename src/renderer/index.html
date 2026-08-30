@@ -206,86 +206,216 @@
       <section id="page-settings" class="page-panel hidden">
         <div id="settings-toolbar"><span>设置</span></div>
         <div class="page-scroll">
-        <div class="settings-grid">
-<div class="settings-group-label">背景</div>
-<div class="settings-card" style="grid-column:1/-1;" id="bg-image-card"><h3>背景图片</h3><div id="bg-thumb-grid" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;"></div><button id="btn-import-bg" onclick="window._importBg()" style="margin-top:8px;padding:6px 12px;background:var(--c-accent-bg);color:var(--c-accent);border-radius:6px;font-size:0.85em;cursor:pointer;">+ 导入背景图</button> <button id="btn-open-bg-folder" onclick="window._openBgFolder()" style="margin-top:8px;padding:6px 12px;background:var(--c-card);color:var(--c-text2);border:1px solid var(--c-border);border-radius:6px;font-size:0.85em;cursor:pointer;">打开文件夹</button> <button id="btn-refresh-bg" onclick="ST._refreshBgList()" style="margin-top:8px;padding:6px 12px;background:var(--c-card);color:var(--c-text2);border:1px solid var(--c-border);border-radius:6px;font-size:0.85em;cursor:pointer;">刷新</button></div>
-<div class="settings-card"><h3>背景模式</h3>
-<div style="display:flex;gap:8px;">
-  <button id="btn-bg-image" class="theme-btn" onclick="ST.setBgMode('image')">背景图片</button>
-  <button id="btn-bg-transparent" class="theme-btn" onclick="ST.setBgMode('transparent')">透明背景</button>
-</div></div>
-<div class="settings-card settings-card-range"><h3>背景模糊</h3><div class="settings-row"><input type="range" id="set-bg-blur" oninput="ST.applyBlur(parseInt(this.value,10))" min="0" max="50" value="0"><input class="settings-number" type="number" id="set-bg-blur-input" onchange="ST.applyBlur(parseInt(this.value,10))" min="0" max="50" step="1" value="0"><span id="bg-blur-val">0px</span></div></div>
-<div class="settings-card settings-card-range"><h3>背景透明度</h3><div class="settings-row"><input type="range" id="set-bg-opacity" oninput="ST.applyOpacity(parseInt(this.value,10)/100)" min="0" max="100" value="100"><input class="settings-number" type="number" id="set-bg-opacity-input" onchange="ST.applyOpacity(parseInt(this.value,10)/100)" min="0" max="100" step="1" value="100"><span id="bg-opacity-val">100%</span></div></div>
+        <div class="settings-wrap">
 
-<div class="settings-group-label">侧边栏</div>
-<div class="settings-card settings-card-range"><h3>侧边栏宽度</h3><div class="settings-row"><input type="range" id="set-sidebar-w" oninput="ST.applySidebarWidth(parseInt(this.value,10))" min="150" max="500" value="150"><input class="settings-number" type="number" id="set-sidebar-w-input" onchange="ST.applySidebarWidth(parseInt(this.value,10))" min="150" max="500" step="1" value="150"><span id="sidebar-w-val">150px</span></div></div>
-<div class="settings-card settings-card-range"><h3>侧边栏字体</h3><div class="settings-row"><input type="range" id="set-sidebar-font" oninput="ST.applySidebarFont(parseInt(this.value,10))" min="10" max="30" value="20"><input class="settings-number" type="number" id="set-sidebar-font-input" onchange="ST.applySidebarFont(parseInt(this.value,10))" min="10" max="30" step="1" value="20"><span id="sidebar-font-val">20px</span></div></div>
-
-<div class="settings-group-label">面板</div>
-<div class="settings-card settings-card-range"><h3>面板模糊 <small style="font-weight:normal;color:var(--c-text3);">侧边栏 · 顶栏 · 标题栏 · 卡片</small></h3><div class="settings-row"><input type="range" id="set-panel-blur" oninput="ST.applyPanelBlur(parseInt(this.value,10))" min="0" max="50" value="16"><input class="settings-number" type="number" id="set-panel-blur-input" onchange="ST.applyPanelBlur(parseInt(this.value,10))" min="0" max="50" step="1" value="16"><span id="panel-blur-val">16px</span></div></div>
-<div class="settings-card settings-card-range"><h3>面板透明度 <small style="font-weight:normal;color:var(--c-text3);">侧边栏 · 顶栏 · 标题栏 · 卡片</small></h3><div class="settings-row"><input type="range" id="set-panel-opacity" oninput="ST.applyPanelOpacity(parseInt(this.value,10)/100)" min="0" max="100" value="70"><input class="settings-number" type="number" id="set-panel-opacity-input" onchange="ST.applyPanelOpacity(parseInt(this.value,10)/100)" min="0" max="100" step="1" value="70"><span id="panel-opacity-val">70%</span></div></div>
-
-<div class="settings-group-label">顶栏</div>
-<div class="settings-card settings-card-range"><h3>顶栏高度</h3><div class="settings-row"><input type="range" id="set-toolbar-h" oninput="ST.applyToolbarHeight(parseInt(this.value,10))" min="56" max="80" value="56"><input class="settings-number" type="number" id="set-toolbar-h-input" onchange="ST.applyToolbarHeight(parseInt(this.value,10))" min="56" max="80" step="1" value="56"><span id="toolbar-h-val">56px</span></div></div>
-
-<div class="settings-group-label">标题栏</div>
-<div class="settings-card"><h3>标题栏模式</h3><div style="display:flex;gap:8px;"><button id="btn-titlebar-native" class="theme-btn" onclick="ST.applyTitlebarMode('native')">Windows 原生</button><button id="btn-titlebar-macos" class="theme-btn" onclick="ST.applyTitlebarMode('macos')">MacOS</button></div></div>
-
-<div class="settings-group-label">其他</div>
-<div class="settings-card"><h3>主题</h3><div style="display:flex;gap:8px;"><button id="btn-theme-dark" onclick="ST.applyTheme('dark')" class="theme-btn">深色</button><button id="btn-theme-light" onclick="ST.applyTheme('light')" class="theme-btn">浅色</button><button id="btn-theme-system" onclick="ST.applyTheme('system')" class="theme-btn">跟随系统</button></div></div>
-<div class="settings-card" id="accent-card"><h3>强调色</h3>
-  <div style="display:flex;gap:8px;margin-bottom:8px;">
-    <button id="btn-accent-custom" class="accent-mode-btn" onclick="ST.setAccentMode('custom')">自定义颜色</button>
-    <button id="btn-accent-extract" class="accent-mode-btn" onclick="ST.setAccentMode('extract')">背景图提取</button>
-    <button id="btn-accent-system" class="accent-mode-btn" onclick="ST.setAccentMode('system')">跟随系统</button>
-  </div>
-  <div id="accent-custom-panel">
-    <div style="display:flex;gap:12px;align-items:center;">
-      <span style="font-size:0.82em;color:var(--c-text3);">深色:</span>
-      <div id="accent-swatch-dark" class="accent-swatch" style="background:#4A9EFF;" onclick="ST.openColorPicker('dark')" oncontextmenu="ST.openColorPicker('dark');event.preventDefault();"></div>
-      <span style="font-size:0.82em;color:var(--c-text3);">浅色:</span>
-      <div id="accent-swatch-light" class="accent-swatch" style="background:#003D7A;" onclick="ST.openColorPicker('light')" oncontextmenu="ST.openColorPicker('light');event.preventDefault();"></div>
+  <section class="settings-card">
+    <h3>外观与主题</h3>
+    <div class="setting-item">
+      <span class="si-label">主题</span>
+      <div class="si-control seg-group">
+        <button id="btn-theme-dark" onclick="ST.applyTheme('dark')" class="theme-btn">深色</button>
+        <button id="btn-theme-light" onclick="ST.applyTheme('light')" class="theme-btn">浅色</button>
+        <button id="btn-theme-system" onclick="ST.applyTheme('system')" class="theme-btn">跟随系统</button>
+      </div>
     </div>
-  </div>
-  <div id="accent-extract-panel" style="display:none;">
-    <span style="font-size:0.82em;color:var(--c-text3);">切换背景图或主题时自动提取</span>
-  </div>
-  <div id="accent-system-panel" style="display:none;">
-    <div style="display:flex;gap:12px;align-items:center;">
-      <span style="font-size:0.82em;color:var(--c-text3);">系统强调色:</span>
-      <div id="accent-swatch-system" class="accent-swatch" style="background:#4A9EFF;"></div>
-      <span id="accent-system-color-value" style="font-size:0.82em;color:var(--c-text3);"></span>
+    <div class="setting-item si-stack" id="accent-card">
+      <span class="si-label">强调色</span>
+      <div class="si-control seg-group">
+        <button id="btn-accent-custom" class="accent-mode-btn" onclick="ST.setAccentMode('custom')">自定义颜色</button>
+        <button id="btn-accent-extract" class="accent-mode-btn" onclick="ST.setAccentMode('extract')">背景图提取</button>
+        <button id="btn-accent-system" class="accent-mode-btn" onclick="ST.setAccentMode('system')">跟随系统</button>
+      </div>
+      <div id="accent-custom-panel" class="si-sub">
+        <span class="si-inline-label">深色:</span>
+        <div id="accent-swatch-dark" class="accent-swatch" style="background:#4A9EFF;" onclick="ST.openColorPicker('dark')" oncontextmenu="ST.openColorPicker('dark');event.preventDefault();"></div>
+        <span class="si-inline-label">浅色:</span>
+        <div id="accent-swatch-light" class="accent-swatch" style="background:#003D7A;" onclick="ST.openColorPicker('light')" oncontextmenu="ST.openColorPicker('light');event.preventDefault();"></div>
+      </div>
+      <div id="accent-extract-panel" class="si-sub" style="display:none;"><span class="si-hint">切换背景图或主题时自动提取</span></div>
+      <div id="accent-system-panel" class="si-sub" style="display:none;">
+        <span class="si-inline-label">系统强调色:</span>
+        <div id="accent-swatch-system" class="accent-swatch" style="background:#4A9EFF;"></div>
+        <span id="accent-system-color-value" class="si-hint"></span>
+      </div>
     </div>
-  </div>
-</div>
-<div class="settings-card settings-card-range"><h3>缩略图大小</h3><div class="settings-row"><input type="range" id="set-thumb-size" oninput="ST.applyThumbnailSize(parseInt(this.value,10))" min="100" max="800" value="400"><input class="settings-number" type="number" id="set-thumb-size-input" onchange="ST.applyThumbnailSize(parseInt(this.value,10))" min="100" max="800" step="1" value="400"><span id="thumb-size-val">400px</span></div></div>
-<div class="settings-card settings-card-range"><h3>抽卡个数</h3><div class="settings-row"><input type="range" id="set-draw-count" oninput="ST.applyDrawCount(parseInt(this.value,10))" min="1" max="30" value="10"><input class="settings-number" type="number" id="set-draw-count-input" onchange="ST.applyDrawCount(parseInt(this.value,10))" min="1" max="30" step="1" value="10"><span id="draw-count-val">10</span></div></div>
-<div class="settings-card settings-card-range"><h3>播放间隔 (秒)</h3><div class="settings-row"><input type="range" id="set-random-interval" oninput="ST.applyRandomInterval(parseInt(this.value,10))" min="1" max="30" value="3"><input class="settings-number" type="number" id="set-random-interval-input" onchange="ST.applyRandomInterval(parseInt(this.value,10))" min="1" max="30" step="1" value="3"><span id="random-interval-val">3</span></div></div>
-<div class="settings-card settings-card-range"><h3>多选遮罩浓度</h3><div class="settings-row"><input type="range" id="set-overlay-opacity" oninput="ST.applyOverlayOpacity(parseInt(this.value,10)/100)" min="0" max="60" value="20"><input class="settings-number" type="number" id="set-overlay-opacity-input" onchange="ST.applyOverlayOpacity(parseInt(this.value,10)/100)" min="0" max="60" step="1" value="20"><span id="overlay-opacity-val">20%</span></div></div>
-  <div class="settings-card" style="grid-column:1/-1;"><h3>主页标题</h3>
-    <div style="display:flex;gap:8px;align-items:center;">
-      <input type="text" id="set-home-title" style="flex:1;padding:8px 12px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--radius-sm);color:var(--c-text);font-size:var(--font-size-base);" placeholder="我的相册">
+  </section>
+
+  <section class="settings-card">
+    <h3>背景</h3>
+    <div class="setting-item">
+      <span class="si-label">背景模式</span>
+      <div class="si-control seg-group">
+        <button id="btn-bg-image" class="theme-btn" onclick="ST.setBgMode('image')">背景图片</button>
+        <button id="btn-bg-transparent" class="theme-btn" onclick="ST.setBgMode('transparent')">透明背景</button>
+      </div>
     </div>
-    <button id="btn-save-home-text" class="btn-primary" style="margin-top:8px;padding:6px 16px;" onclick="ST.saveHomeTitle()">保存</button>
-  </div>
-  <div class="settings-card settings-card-range"><h3>列表列数</h3><div class="settings-row"><input type="range" id="set-list-cols" oninput="ST.applyListColumns(parseInt(this.value,10))" min="1" max="5" value="3"><input class="settings-number" type="number" id="set-list-cols-input" onchange="ST.applyListColumns(parseInt(this.value,10))" min="1" max="5" step="1" value="3"><span id="list-cols-val">3</span></div></div>
-<div class="settings-card"><h3>逆向搜索栏</h3><div style="display:flex;gap:8px;"><button id="btn-reverse-on" onclick="ST.toggleReverseSearch(true)" style="flex:1;padding:10px;border-radius:8px;background:var(--c-card);color:var(--c-text);border:2px solid transparent;cursor:pointer;font-size:14px;">开启</button><button id="btn-reverse-off" onclick="ST.toggleReverseSearch(false)" style="flex:1;padding:10px;border-radius:8px;background:var(--c-card);color:var(--c-text);border:2px solid transparent;cursor:pointer;font-size:14px;">关闭</button></div></div>
-<div class="settings-card"><h3>缓存管理</h3><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><span id="cache-size-label">计算中...</span><button id="btn-generate-cache" class="btn-primary" onclick="ST.generateThumbs()" style="padding:6px 16px;">生成缩略图</button><button id="btn-check-cache" class="btn-primary" onclick="ST.checkCache()" style="padding:6px 16px;">检查缓存</button><button id="btn-clear-cache" class="btn-primary" onclick="ST.clearCache()" style="padding:6px 16px;">清除缓存</button></div><div id="cache-gen-progress-wrap" style="display:none;margin-top:10px;"><div style="height:6px;border-radius:3px;background:var(--c-border);overflow:hidden;"><div id="cache-gen-progress-bar" style="height:100%;width:0%;border-radius:3px;background:var(--c-accent);transition:width .25s;"></div></div><div id="cache-gen-progress-text" style="margin-top:4px;font-size:0.78em;color:var(--c-text3);"></div></div></div>
-<div class="settings-card" style="grid-column:1/-1;"><h3>收藏管理</h3>
-<div style="display:flex;gap:8px;margin-top:8px;">
-  <button id="btn-export-fav" class="btn-primary" onclick="window._exportFavorites()">导出收藏</button>
-  <button id="btn-import-fav" class="btn-primary" onclick="window._importFavorites()">导入收藏</button>
-</div>
-<button id="btn-fav-to-bg" class="btn-primary" onclick="window._favToBg()" style="margin-top:6px;">将收藏图片设为背景图</button></div>
-<div class="settings-card" style="grid-column:1/-1;"><h3>使用指南</h3><div style="display:flex;gap:8px;align-items:center;"><button id="btn-show-guide" class="btn-primary" onclick="ST.showSearchGuide()">搜索语法与快捷键</button></div></div>
-<style>
-#accent-card { position: relative; }
-.accent-mode-btn { flex:1; padding:10px; border-radius:8px; background:var(--c-card); color:var(--c-text); border:2px solid transparent; cursor:pointer; font-size:14px; }
-.accent-mode-btn.active { border-color:var(--c-accent); }
-.accent-swatch { width:32px; height:32px; border-radius:50%; cursor:pointer; border:2px solid var(--c-border); transition:border-color 0.2s; }
-.accent-swatch:hover { border-color:var(--c-accent); }
-.theme-btn { flex:1; padding:10px; border-radius:8px; background:var(--c-card); color:var(--c-text); border:2px solid transparent; cursor:pointer; font-size:14px; }
-</style>
+    <div class="setting-item si-stack" id="bg-image-card">
+      <span class="si-label">背景图片</span>
+      <div id="bg-thumb-grid" class="bg-thumb-grid"></div>
+      <div class="si-btnrow">
+        <button id="btn-import-bg" class="mini-btn mini-btn-accent" onclick="window._importBg()">+ 导入背景图</button>
+        <button id="btn-open-bg-folder" class="mini-btn" onclick="window._openBgFolder()">打开文件夹</button>
+        <button id="btn-refresh-bg" class="mini-btn" onclick="ST._refreshBgList()">刷新</button>
+      </div>
+    </div>
+    <div class="setting-item" id="bg-blur-row">
+      <span class="si-label">背景模糊</span>
+      <div class="si-control settings-row">
+        <input type="range" id="set-bg-blur" oninput="ST.applyBlur(parseInt(this.value,10))" min="0" max="50" value="0">
+        <input class="settings-number" type="number" id="set-bg-blur-input" onchange="ST.applyBlur(parseInt(this.value,10))" min="0" max="50" step="1" value="0">
+        <span id="bg-blur-val">0px</span>
+      </div>
+    </div>
+    <div class="setting-item" id="bg-opacity-row">
+      <span class="si-label">背景透明度</span>
+      <div class="si-control settings-row">
+        <input type="range" id="set-bg-opacity" oninput="ST.applyOpacity(parseInt(this.value,10)/100)" min="0" max="100" value="100">
+        <input class="settings-number" type="number" id="set-bg-opacity-input" onchange="ST.applyOpacity(parseInt(this.value,10)/100)" min="0" max="100" step="1" value="100">
+        <span id="bg-opacity-val">100%</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="settings-card">
+    <h3>面板与标题栏</h3>
+    <div class="setting-item">
+      <span class="si-label">侧边栏宽度</span>
+      <div class="si-control settings-row">
+        <input type="range" id="set-sidebar-w" oninput="ST.applySidebarWidth(parseInt(this.value,10))" min="150" max="500" value="150">
+        <input class="settings-number" type="number" id="set-sidebar-w-input" onchange="ST.applySidebarWidth(parseInt(this.value,10))" min="150" max="500" step="1" value="150">
+        <span id="sidebar-w-val">150px</span>
+      </div>
+    </div>
+    <div class="setting-item">
+      <span class="si-label">侧边栏字号</span>
+      <div class="si-control settings-row">
+        <input type="range" id="set-sidebar-font" oninput="ST.applySidebarFont(parseInt(this.value,10))" min="10" max="30" value="20">
+        <input class="settings-number" type="number" id="set-sidebar-font-input" onchange="ST.applySidebarFont(parseInt(this.value,10))" min="10" max="30" step="1" value="20">
+        <span id="sidebar-font-val">20px</span>
+      </div>
+    </div>
+    <div class="setting-item">
+      <span class="si-label">面板模糊<span class="si-hint">侧边栏 · 顶栏 · 标题栏 · 卡片</span></span>
+      <div class="si-control settings-row">
+        <input type="range" id="set-panel-blur" oninput="ST.applyPanelBlur(parseInt(this.value,10))" min="0" max="50" value="16">
+        <input class="settings-number" type="number" id="set-panel-blur-input" onchange="ST.applyPanelBlur(parseInt(this.value,10))" min="0" max="50" step="1" value="16">
+        <span id="panel-blur-val">16px</span>
+      </div>
+    </div>
+    <div class="setting-item">
+      <span class="si-label">面板透明度<span class="si-hint">侧边栏 · 顶栏 · 标题栏 · 卡片</span></span>
+      <div class="si-control settings-row">
+        <input type="range" id="set-panel-opacity" oninput="ST.applyPanelOpacity(parseInt(this.value,10)/100)" min="0" max="100" value="70">
+        <input class="settings-number" type="number" id="set-panel-opacity-input" onchange="ST.applyPanelOpacity(parseInt(this.value,10)/100)" min="0" max="100" step="1" value="70">
+        <span id="panel-opacity-val">70%</span>
+      </div>
+    </div>
+    <div class="setting-item">
+      <span class="si-label">顶栏高度</span>
+      <div class="si-control settings-row">
+        <input type="range" id="set-toolbar-h" oninput="ST.applyToolbarHeight(parseInt(this.value,10))" min="56" max="80" value="56">
+        <input class="settings-number" type="number" id="set-toolbar-h-input" onchange="ST.applyToolbarHeight(parseInt(this.value,10))" min="56" max="80" step="1" value="56">
+        <span id="toolbar-h-val">56px</span>
+      </div>
+    </div>
+    <div class="setting-item">
+      <span class="si-label">标题栏模式</span>
+      <div class="si-control seg-group">
+        <button id="btn-titlebar-native" class="theme-btn" onclick="ST.applyTitlebarMode('native')">Windows 原生</button>
+        <button id="btn-titlebar-macos" class="theme-btn" onclick="ST.applyTitlebarMode('macos')">MacOS</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="settings-card">
+    <h3>浏览与发现</h3>
+    <div class="setting-item">
+      <span class="si-label">缩略图大小</span>
+      <div class="si-control settings-row">
+        <input type="range" id="set-thumb-size" oninput="ST.applyThumbnailSize(parseInt(this.value,10))" min="100" max="800" value="400">
+        <input class="settings-number" type="number" id="set-thumb-size-input" onchange="ST.applyThumbnailSize(parseInt(this.value,10))" min="100" max="800" step="1" value="400">
+        <span id="thumb-size-val">400px</span>
+      </div>
+    </div>
+    <div class="setting-item">
+      <span class="si-label">列表列数</span>
+      <div class="si-control settings-row">
+        <input type="range" id="set-list-cols" oninput="ST.applyListColumns(parseInt(this.value,10))" min="1" max="5" value="3">
+        <input class="settings-number" type="number" id="set-list-cols-input" onchange="ST.applyListColumns(parseInt(this.value,10))" min="1" max="5" step="1" value="3">
+        <span id="list-cols-val">3</span>
+      </div>
+    </div>
+    <div class="setting-item">
+      <span class="si-label">多选遮罩浓度</span>
+      <div class="si-control settings-row">
+        <input type="range" id="set-overlay-opacity" oninput="ST.applyOverlayOpacity(parseInt(this.value,10)/100)" min="0" max="60" value="20">
+        <input class="settings-number" type="number" id="set-overlay-opacity-input" onchange="ST.applyOverlayOpacity(parseInt(this.value,10)/100)" min="0" max="60" step="1" value="20">
+        <span id="overlay-opacity-val">20%</span>
+      </div>
+    </div>
+    <div class="setting-item">
+      <span class="si-label">抽卡个数</span>
+      <div class="si-control settings-row">
+        <input type="range" id="set-draw-count" oninput="ST.applyDrawCount(parseInt(this.value,10))" min="1" max="30" value="10">
+        <input class="settings-number" type="number" id="set-draw-count-input" onchange="ST.applyDrawCount(parseInt(this.value,10))" min="1" max="30" step="1" value="10">
+        <span id="draw-count-val">10</span>
+      </div>
+    </div>
+    <div class="setting-item">
+      <span class="si-label">播放间隔<span class="si-hint">随机欣赏切换秒数</span></span>
+      <div class="si-control settings-row">
+        <input type="range" id="set-random-interval" oninput="ST.applyRandomInterval(parseInt(this.value,10))" min="1" max="30" value="3">
+        <input class="settings-number" type="number" id="set-random-interval-input" onchange="ST.applyRandomInterval(parseInt(this.value,10))" min="1" max="30" step="1" value="3">
+        <span id="random-interval-val">3</span>
+      </div>
+    </div>
+    <div class="setting-item">
+      <span class="si-label">逆向搜索栏</span>
+      <div class="si-control seg-group">
+        <button id="btn-reverse-on" onclick="ST.toggleReverseSearch(true)" class="theme-btn">开启</button>
+        <button id="btn-reverse-off" onclick="ST.toggleReverseSearch(false)" class="theme-btn">关闭</button>
+      </div>
+    </div>
+    <div class="setting-item si-stack">
+      <span class="si-label">主页标题</span>
+      <div class="si-control" style="gap:8px;">
+        <input type="text" id="set-home-title" class="settings-text" placeholder="我的相册">
+        <button id="btn-save-home-text" class="btn-primary btn-sm" onclick="ST.saveHomeTitle()">保存</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="settings-card">
+    <h3>数据与缓存</h3>
+    <div class="setting-item si-stack">
+      <span class="si-label">收藏管理</span>
+      <div class="si-btnrow">
+        <button id="btn-export-fav" class="btn-primary btn-sm" onclick="window._exportFavorites()">导出收藏</button>
+        <button id="btn-import-fav" class="btn-primary btn-sm" onclick="window._importFavorites()">导入收藏</button>
+        <button id="btn-fav-to-bg" class="btn-primary btn-sm" onclick="window._favToBg()">将收藏图片设为背景图</button>
+      </div>
+    </div>
+    <div class="setting-item si-stack">
+      <span class="si-label">缓存管理</span>
+      <div class="si-btnrow">
+        <span id="cache-size-label">计算中...</span>
+        <button id="btn-generate-cache" class="btn-primary btn-sm" onclick="ST.generateThumbs()">生成缩略图</button>
+        <button id="btn-check-cache" class="btn-primary btn-sm" onclick="ST.checkCache()">检查缓存</button>
+        <button id="btn-clear-cache" class="mini-btn" onclick="ST.clearCache()">清除缓存</button>
+      </div>
+      <div id="cache-gen-progress-wrap" style="display:none;">
+        <div class="gen-progress-track"><div id="cache-gen-progress-bar"></div></div>
+        <div id="cache-gen-progress-text" class="si-hint"></div>
+      </div>
+    </div>
+    <div class="setting-item">
+      <span class="si-label">使用指南</span>
+      <div class="si-btnrow">
+        <button id="btn-show-guide" class="mini-btn" onclick="ST.showSearchGuide()">搜索语法与快捷键</button>
+      </div>
+    </div>
+  </section>
+
         </div>
         </div>
       </section>

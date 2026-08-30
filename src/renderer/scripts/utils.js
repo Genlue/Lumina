@@ -94,4 +94,19 @@ const U = {
     }
     return arr;
   },
+
+  /**
+   * 给定背景色（#rrggbb），返回在其上对比度更高的前景色（自动黑/白）。
+   * 依据 WCAG 相对亮度：与黑色对比度 (L+0.05)/0.05 ≥ 与白色对比度 1.05/(L+0.05)
+   * 时选黑（阈值 L≥0.179），否则选白。
+   */
+  onColor(hex) {
+    if (!hex || hex[0] !== '#' || hex.length < 7) return '#fff';
+    const r = parseInt(hex.slice(1, 3), 16) / 255;
+    const g = parseInt(hex.slice(3, 5), 16) / 255;
+    const b = parseInt(hex.slice(5, 7), 16) / 255;
+    const lin = c => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+    const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+    return L >= 0.179 ? '#111111' : '#ffffff';
+  },
 };
