@@ -91,14 +91,9 @@ const ST = {
         document.getElementById('bg-opacity-val').style.display = '';
       }
 
-      // Cache info
-      API.getCacheInfo(S.profileId).then(info => {
-        const label = document.getElementById('cache-size-label');
-        if (label) {
-          const sizeStr = info.size > 0 ? U.fmtSize(info.size) : '0 B';
-          label.textContent = `缓存 ${info.file_count} 个文件 (${sizeStr})`;
-        }
-      }).catch(() => {});
+      // Cache info + 恢复可能仍在运行的预生成任务进度
+      this._refreshCacheLabel();
+      this._restoreGenStatus();
     } catch (e) { console.error('ST.render error:', e); }
   },
 
@@ -1232,15 +1227,136 @@ const ST = {
       if (r.idx !== 1) return;
       const btn = document.getElementById('btn-clear-cache');
       if (btn) { btn.disabled = true; btn.textContent = '清除中...'; }
-      API.clearCache(S.profileId).then(count => {
+      // 若预生成任务在跑：先取消，稍等在途的那一张结束后再清，避免边清边生成
+      const doClear = () => API.clearCache(S.profileId).then(count => {
         API.clearThumbCache();  // v1.1.2: 同时清空内存缓存
         Toast.show(`已清除 ${count} 个缓存文件`, 'success');
-        const label = document.getElementById('cache-size-label');
-        if (label) label.textContent = '缓存 0 个文件 (0 B)';
+        this._refreshCacheLabel();
       }).catch(e => {
         Toast.show('清除缓存失败: ' + (e.message || e), 'error');
-      }).finally(() => {
+      });
+      const finish = () => {
         if (btn) { btn.disabled = false; btn.textContent = '清除缓存'; }
+      };
+      if (this._genRunning) {
+        API.cancelGenerateThumbs().catch(() => {});
+        // 取消在下一张图前生效；稍等在途那一张结束后再清，避免边清边生成
+        setTimeout(() => doClear().finally(finish), 800);
+      } else {
+        doClear().finally(finish);
+      }
+    });
+  },
+
+  // === 缓存管理：预生成 / 检查 ===
+
+  _genRunning: false,
+  _genUnlisten: null,
+
+  _refreshCacheLabel() {
+    API.getCacheInfo(S.profileId).then(info => {
+      const label = document.getElementById('cache-size-label');
+      if (label) {
+        const sizeStr = info.size > 0 ? U.fmtSize(info.size) : '0 B';
+        label.textContent = `缓存 ${info.file_count} 个文件 (${sizeStr})`;
+      }
+    }).catch(() => {});
+  },
+
+  /** 进入设置页时恢复仍在后台运行的生成任务进度 */
+  _restoreGenStatus() {
+    API.getCacheGenStatus().then(st => {
+      if (st && st.running) {
+        this._genRunning = true;
+        this._ensureGenListener();
+        this._cacheGenUI(true, st.done, st.total);
+      } else if (!this._genRunning) {
+        this._cacheGenUI(false);
+      }
+    }).catch(() => {});
+  },
+
+  _ensureGenListener() {
+    if (this._genUnlisten) return;
+    API.onCacheGenProgress(p => {
+      if (p.phase === 'running') {
+        this._genRunning = true;
+        this._cacheGenUI(true, p.done, p.total);
+        return;
+      }
+      // done / cancelled
+      const wasRunning = this._genRunning;
+      this._genRunning = false;
+      this._cacheGenUI(false);
+      API.clearThumbCache(); // 生成期间可能缓存过“无缩略图回退”结果，清掉强制重取
+      this._refreshCacheLabel();
+      const checkBtn = document.getElementById('btn-check-cache');
+      if (checkBtn) checkBtn.disabled = false;
+      if (!wasRunning) return; // 图库为空时后端会同步补发 done，避免重复提示
+      if (p.phase === 'done') {
+        Toast.show(`缩略图缓存生成完成（共 ${p.total} 张）`, 'success');
+      } else {
+        Toast.show(`已取消生成（完成 ${p.done}/${p.total}）`, 'info');
+      }
+    }).then(un => { this._genUnlisten = un; }).catch(() => {});
+  },
+
+  _cacheGenUI(running, done, total) {
+    const btn = document.getElementById('btn-generate-cache');
+    const wrap = document.getElementById('cache-gen-progress-wrap');
+    const bar = document.getElementById('cache-gen-progress-bar');
+    const text = document.getElementById('cache-gen-progress-text');
+    if (btn) btn.textContent = running ? '取消生成' : '生成缩略图';
+    if (wrap) wrap.style.display = running ? '' : 'none';
+    if (running && bar && text) {
+      const pct = total ? Math.min(100, Math.round(done * 100 / total)) : 0;
+      bar.style.width = pct + '%';
+      text.textContent = `正在预生成缩略图 ${done || 0} / ${total || 0}（${pct}%），速度已自动限速`;
+    }
+  },
+
+  /** 预生成“图片”与“发现”两种浏览尺寸的缩略图（与视图实际取图尺寸一致） */
+  generateThumbs() {
+    if (this._genRunning) {
+      API.cancelGenerateThumbs().catch(() => {}); // 再次点击 = 取消，进度事件收尾
+      return;
+    }
+    const grid = App._settings?.thumbnail_size ?? 400;
+    const waterfall = Math.max(240, Math.round(grid * 1.25));
+    this._ensureGenListener();
+    const btn = document.getElementById('btn-generate-cache');
+    if (btn) { btn.disabled = true; btn.textContent = '启动中...'; }
+    API.generateThumbs(S.profileId, [grid, waterfall]).then(total => {
+      if (btn) btn.disabled = false;
+      if (!total) { Toast.show('图库为空，没有需要生成的图片', 'info'); return; }
+      this._genRunning = true;
+      this._cacheGenUI(true, 0, total);
+      const checkBtn = document.getElementById('btn-check-cache');
+      if (checkBtn) checkBtn.disabled = true; // 生成期间不做孤儿检查，避免结果误导
+    }).catch(e => {
+      if (btn) { btn.disabled = false; btn.textContent = '生成缩略图'; }
+      Toast.show('启动生成失败: ' + (e.message || e), 'error');
+    });
+  },
+
+  /** 对比图库（含回收站、背景图）与缓存文件，清理多余的孤儿缩略图 */
+  checkCache() {
+    Modal.show('检查缓存', '对比当前图库（含回收站与背景图）与缓存文件，清理源图片已不存在的多余缩略图缓存。', [{ label: '取消' }, { label: '开始检查', danger: true }]).then(r => {
+      if (r.idx !== 1) return;
+      const btn = document.getElementById('btn-check-cache');
+      if (btn) { btn.disabled = true; btn.textContent = '检查中...'; }
+      API.reconcileCache(S.profileId).then(res => {
+        const removed = res.removedCount ?? 0;
+        if (removed > 0) {
+          Toast.show(`检查完成：清理 ${removed} 个多余缓存 (${U.fmtSize(res.removedBytes || 0)})`, 'success');
+        } else {
+          Toast.show('检查完成：未发现多余缓存', 'info');
+        }
+        this._refreshCacheLabel();
+      }).catch(e => {
+        Toast.show('检查缓存失败: ' + (e.message || e), 'error');
+      }).finally(() => {
+        if (btn) { btn.disabled = false; btn.textContent = '检查缓存'; }
       });
     });
   },

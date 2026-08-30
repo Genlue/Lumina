@@ -229,6 +229,20 @@ const API = {
   async clearCache(profileId) {
     return this._invoke('cache_clear', { profileId });
   },
+  /** 预生成全部图片缩略图（sizes: 浏览尺寸数组），返回图片总数；进度走 cache-gen-progress 事件 */
+  async generateThumbs(profileId, sizes) {
+    return this._invoke('cache_generate', { profileId, sizes });
+  },
+  async cancelGenerateThumbs() {
+    return this._invoke('cache_generate_cancel');
+  },
+  async getCacheGenStatus() {
+    return this._invoke('cache_generate_status');
+  },
+  /** 检查缓存：清理图库（含回收站/背景图）中已不存在图片的孤儿缩略图 */
+  async reconcileCache(profileId) {
+    return this._invoke('cache_reconcile', { profileId });
+  },
 
   // === Events — not exposing file watcher for now, same scan-on-demand approach ===
   onFileChange(callback) {
@@ -246,6 +260,17 @@ const API = {
       return () => {};
     }
     return await window.__TAURI__.event.listen('scan-progress', (event) => {
+      callback(event.payload);
+    });
+  },
+
+  /** 缩略图预生成进度事件，payload: { phase, done, total, current } */
+  async onCacheGenProgress(callback) {
+    if (!window.__TAURI__?.event) {
+      console.warn('[API] Tauri event API not available');
+      return () => {};
+    }
+    return await window.__TAURI__.event.listen('cache-gen-progress', (event) => {
       callback(event.payload);
     });
   },

@@ -1,5 +1,6 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering as Ord_Atomic};
 use tauri::AppHandle;
 use tauri::Emitter;
 use tauri::Manager;
@@ -376,10 +377,7 @@ pub async fn files_get_thumbnail(
     size: Option<u32>,
 ) -> Result<ThumbnailResult, String> {
     let root = get_profile_folder(&app, &profile_id)?;
-    let file_path = match &folder {
-        Some(sf) if !sf.is_empty() => Path::new(&root).join(sf).join(&filename),
-        _ => Path::new(&root).join(&filename),
-    };
+    let file_path = build_file_path(&root, folder.as_deref(), &filename);
 
     if !file_path.exists() {
         return Err(format!("File not found: {}", filename));
@@ -506,10 +504,7 @@ pub async fn files_get_thumbnails_batch(
     let cache_dir_c = cache_dir.clone();
     let results = tauri::async_runtime::spawn_blocking(move || {
         requests.into_iter().map(|req| {
-            let fp = match &req.folder {
-                Some(sf) if !sf.is_empty() => Path::new(&root_c).join(sf).join(&req.filename),
-                _ => Path::new(&root_c).join(&req.filename),
-            };
+            let fp = build_file_path(&root_c, req.folder.as_deref(), &req.filename);
             let cache_key = format!("{:x}_{}_v2", simple_hash(&fp.to_string_lossy()), max_dim);
             // Match the single-thumbnail command: when conversion is unavailable,
             // let WebView2 try the original file instead of returning an empty URL.
@@ -537,12 +532,19 @@ pub async fn files_get_thumbnails_batch(
 }
 
 /// Simple non-cryptographic hash for cache key fallback when image not in DB.
+/// 实现已移到 services::thumbnails，所有需要按源路径哈希的地方共用同一算法。
 fn simple_hash(s: &str) -> u64 {
-    let mut h: u64 = 5381;
-    for b in s.bytes() {
-        h = h.wrapping_mul(33).wrapping_add(b as u64);
+    services::thumbnails::simple_hash(s)
+}
+
+/// 由 root + 可选相对文件夹 + 文件名构造源文件路径。
+/// 与 files_get_thumbnail / files_get_thumbnails_batch 的构造方式严格一致，
+/// 保证缓存键（对路径字符串做哈希）在预生成与缓存检查中可复现。
+fn build_file_path(root: &str, folder: Option<&str>, filename: &str) -> PathBuf {
+    match folder {
+        Some(sf) if !sf.is_empty() => Path::new(root).join(sf).join(filename),
+        _ => Path::new(root).join(filename),
     }
-    h
 }
 
 #[tauri::command]
@@ -642,6 +644,9 @@ pub fn files_permanent_delete(
     if file_path.exists() {
         fs::remove_file(&file_path).map_err(|e| format!("Delete error: {}", e))?;
     }
+    // 同步清掉该源文件的全部缩略图缓存（所有尺寸变体 + 残留 .tmp），避免孤儿缓存
+    let cache_dir = Path::new(&root).join(".album").join("cache").join("thumbnails");
+    services::thumbnails::purge_cache_for_source(&cache_dir, &file_path.to_string_lossy());
     let (p_conn_arc, _) = get_profile_db(&app, &profile_id)?;
     let p_conn = p_conn_arc.lock().map_err(|e| format!("Profile DB lock: {}", e))?;
     repos::trash::remove_trash_entry(&p_conn, &profile_id, &filename);
@@ -1136,10 +1141,15 @@ pub fn trash_count(app: AppHandle, profile_id: String) -> Result<i64, String> {
 pub fn trash_empty(app: AppHandle, profile_id: String) -> Result<i64, String> {
     let root = get_profile_folder(&app, &profile_id)?;
     let trash_dir = Path::new(&root).join(".album").join("trash");
+    let cache_dir = Path::new(&root).join(".album").join("cache").join("thumbnails");
     if trash_dir.exists() {
         if let Ok(entries) = fs::read_dir(&trash_dir) {
             for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
                 fs::remove_file(entry.path()).ok();
+                // 回收站视图的缩略图键由 ".album/trash" 相对路径构造，这里保持完全一致
+                let key_path = Path::new(&root).join(".album/trash").join(&name);
+                services::thumbnails::purge_cache_for_source(&cache_dir, &key_path.to_string_lossy());
             }
         }
     }
@@ -1317,6 +1327,8 @@ pub fn cache_get_info(app: AppHandle, profile_id: String) -> Result<CacheInfo, S
 
 #[tauri::command]
 pub fn cache_clear(app: AppHandle, profile_id: String) -> Result<u64, String> {
+    // 防御：清缓存时若有预生成任务在跑，先请求其退出，避免边清边生成
+    CACHE_GEN_CANCEL.store(true, Ord_Atomic::SeqCst);
     let folder = get_profile_folder(&app, &profile_id)?;
     let cache_dir = Path::new(&folder).join(".album").join("cache").join("thumbnails");
     if !cache_dir.exists() { return Ok(0); }
@@ -1330,6 +1342,230 @@ pub fn cache_clear(app: AppHandle, profile_id: String) -> Result<u64, String> {
         }
     }
     Ok(count)
+}
+
+// ============================================================
+// Cache — 预生成 / 检查
+// ============================================================
+//
+// 预生成任务状态（进程级，全局同一时刻只允许一个任务）。
+// 生成走与按需生成完全相同的 get_or_generate_thumbnail 管线，
+// 因此天然共享 services::thumbnails 的全局并发槽位；任务本身逐张串行 +
+// 每张间隔 15ms，保证运行时系统仍流畅可用（限速的“后台档”）。
+
+static CACHE_GEN_RUNNING: AtomicBool = AtomicBool::new(false);
+static CACHE_GEN_CANCEL: AtomicBool = AtomicBool::new(false);
+static CACHE_GEN_DONE: AtomicUsize = AtomicUsize::new(0);
+static CACHE_GEN_TOTAL: AtomicUsize = AtomicUsize::new(0);
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CacheGenProgress {
+    /// running | done | cancelled
+    phase: String,
+    done: usize,
+    total: usize,
+    current: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CacheGenStatus {
+    running: bool,
+    done: usize,
+    total: usize,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReconcileReport {
+    removed_count: u64,
+    removed_bytes: u64,
+    kept_count: u64,
+}
+
+/// 从 profile DB 取出全部图片的 (相对文件夹, 文件名)，文件夹构造与缩略图命令一致。
+fn list_profile_image_items(
+    p_conn: &rusqlite::Connection,
+    profile_id: &str,
+) -> Vec<(Option<String>, String)> {
+    let albums = repos::albums::list_albums(p_conn, profile_id);
+    let mut folder_by_id: std::collections::HashMap<i64, String> = std::collections::HashMap::new();
+    for a in &albums {
+        folder_by_id.insert(a.id, a.folder_name.clone());
+    }
+    repos::images::list_images(p_conn, profile_id, None)
+        .into_iter()
+        .map(|img| {
+            let folder = img.album_id.and_then(|id| folder_by_id.get(&id).cloned());
+            (folder, img.filename)
+        })
+        .collect()
+}
+
+/// 预生成全部图片的缩略图（sizes 为前端传入的几种浏览尺寸）。
+/// 立即返回待处理图片总数；进度通过 `cache-gen-progress` 事件推送。
+#[tauri::command]
+pub fn cache_generate(app: AppHandle, profile_id: String, sizes: Vec<u32>) -> Result<usize, String> {
+    if CACHE_GEN_RUNNING.swap(true, Ord_Atomic::SeqCst) {
+        CACHE_GEN_RUNNING.store(true, Ord_Atomic::SeqCst); // swap 不会覆盖，保持 running
+        return Err("已有缩略图生成任务正在运行".into());
+    }
+    let result = (|| -> Result<usize, String> {
+        let root = get_profile_folder(&app, &profile_id)?;
+        let (p_conn_arc, _) = get_profile_db(&app, &profile_id)?;
+        let items = {
+            let p_conn = p_conn_arc.lock().map_err(|e| format!("Profile DB lock: {}", e))?;
+            list_profile_image_items(&p_conn, &profile_id)
+        };
+        // 参数清洗：去重、限幅、最多 4 种尺寸
+        let mut sizes: Vec<u32> = sizes.into_iter().filter(|s| (16..=4096).contains(s)).collect();
+        sizes.sort_unstable();
+        sizes.dedup();
+        sizes.truncate(4);
+        if sizes.is_empty() {
+            return Err("没有有效的缩略图尺寸".into());
+        }
+        let total = items.len();
+        CACHE_GEN_TOTAL.store(total, Ord_Atomic::SeqCst);
+        CACHE_GEN_DONE.store(0, Ord_Atomic::SeqCst);
+        CACHE_GEN_CANCEL.store(false, Ord_Atomic::SeqCst);
+        if total == 0 {
+            CACHE_GEN_RUNNING.store(false, Ord_Atomic::SeqCst);
+            let _ = app.emit("cache-gen-progress", CacheGenProgress {
+                phase: "done".into(), done: 0, total: 0, current: String::new(),
+            });
+            return Ok(0);
+        }
+        std::thread::spawn(move || {
+            let cache_dir = Path::new(&root).join(".album").join("cache").join("thumbnails");
+            let mut done: usize = 0;
+            for (folder, filename) in &items {
+                if CACHE_GEN_CANCEL.load(Ord_Atomic::SeqCst) {
+                    break;
+                }
+                let fp = build_file_path(&root, folder.as_deref(), filename);
+                if fp.is_file() {
+                    let hash_src = fp.to_string_lossy().to_string();
+                    for &sz in &sizes {
+                        let key = format!("{:x}_{}_v2", simple_hash(&hash_src), sz);
+                        // 命中缓存立即返回；需要生成时排队占全局槽（与按需生成同一池子）
+                        let _ = services::thumbnails::get_or_generate_thumbnail(
+                            &fp, &cache_dir, &key, sz, 75,
+                        );
+                    }
+                }
+                done += 1;
+                CACHE_GEN_DONE.store(done, Ord_Atomic::Relaxed);
+                if done % 5 == 0 || done == total {
+                    let _ = app.emit("cache-gen-progress", CacheGenProgress {
+                        phase: "running".into(),
+                        done,
+                        total,
+                        current: filename.clone(),
+                    });
+                }
+                // 逐张限速：让出 CPU，浏览/交互请求始终优先
+                std::thread::sleep(std::time::Duration::from_millis(15));
+            }
+            let cancelled = CACHE_GEN_CANCEL.load(Ord_Atomic::SeqCst);
+            let _ = app.emit("cache-gen-progress", CacheGenProgress {
+                phase: if cancelled { "cancelled".into() } else { "done".into() },
+                done: CACHE_GEN_DONE.load(Ord_Atomic::Relaxed),
+                total,
+                current: String::new(),
+            });
+            CACHE_GEN_RUNNING.store(false, Ord_Atomic::SeqCst);
+            CACHE_GEN_CANCEL.store(false, Ord_Atomic::SeqCst);
+        });
+        Ok(total)
+    })();
+    if result.is_err() {
+        CACHE_GEN_RUNNING.store(false, Ord_Atomic::SeqCst);
+    }
+    result
+}
+
+/// 请求取消当前预生成任务（线程在下张图片前感知并推送 cancelled 事件）。
+#[tauri::command]
+pub fn cache_generate_cancel() -> Result<(), String> {
+    CACHE_GEN_CANCEL.store(true, Ord_Atomic::SeqCst);
+    Ok(())
+}
+
+/// 查询预生成任务状态（设置页重进时恢复进度条显示）。
+#[tauri::command]
+pub fn cache_generate_status() -> Result<CacheGenStatus, String> {
+    Ok(CacheGenStatus {
+        running: CACHE_GEN_RUNNING.load(Ord_Atomic::SeqCst),
+        done: CACHE_GEN_DONE.load(Ord_Atomic::Relaxed),
+        total: CACHE_GEN_TOTAL.load(Ord_Atomic::Relaxed),
+    })
+}
+
+/// 检查缓存：对比图库现有图片（含回收站、背景图）与缓存目录，
+/// 删除源文件已不存在的孤儿缩略图与残留 .tmp。命名无法解析的文件保守保留。
+#[tauri::command]
+pub fn cache_reconcile(app: AppHandle, profile_id: String) -> Result<ReconcileReport, String> {
+    let root = get_profile_folder(&app, &profile_id)?;
+    let (p_conn_arc, _) = get_profile_db(&app, &profile_id)?;
+    let items = {
+        let p_conn = p_conn_arc.lock().map_err(|e| format!("Profile DB lock: {}", e))?;
+        list_profile_image_items(&p_conn, &profile_id)
+    };
+
+    // 活跃源路径哈希集合（与缓存键的构造方式严格一致）
+    let mut live: std::collections::HashSet<u64> = std::collections::HashSet::new();
+    for (folder, filename) in &items {
+        let fp = build_file_path(&root, folder.as_deref(), filename);
+        if fp.is_file() {
+            live.insert(simple_hash(&fp.to_string_lossy()));
+        }
+    }
+    // 回收站 / 背景图缩略图以前端传入的 ".album/trash"、".album/backgrounds"
+    // 字符串路径为键（与上面 DB 图片的组件式 join 不同），这里逐字复现。
+    for sub in [".album/trash", ".album/backgrounds"] {
+        let dir = Path::new(&root).join(sub);
+        if let Ok(entries) = fs::read_dir(&dir) {
+            for entry in entries.flatten() {
+                if !entry.path().is_file() {
+                    continue;
+                }
+                let key_path = Path::new(&root).join(sub).join(entry.file_name());
+                live.insert(simple_hash(&key_path.to_string_lossy()));
+            }
+        }
+    }
+
+    let cache_dir = Path::new(&root).join(".album").join("cache").join("thumbnails");
+    let mut report = ReconcileReport { removed_count: 0, removed_bytes: 0, kept_count: 0 };
+    if let Ok(entries) = fs::read_dir(&cache_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            let name = entry.file_name().to_string_lossy().to_string();
+            let orphan = if name.ends_with(".tmp") {
+                true // 中断残留的临时文件
+            } else {
+                match services::thumbnails::parse_cache_source_hash(&name) {
+                    Some(h) => !live.contains(&h),
+                    None => false, // 命名不符合约定：保守保留
+                }
+            };
+            if orphan {
+                let bytes = path.metadata().map(|m| m.len()).unwrap_or(0);
+                if fs::remove_file(&path).is_ok() {
+                    report.removed_count += 1;
+                    report.removed_bytes += bytes;
+                }
+            } else {
+                report.kept_count += 1;
+            }
+        }
+    }
+    Ok(report)
 }
 
 // ============================================================

@@ -9,6 +9,113 @@ use image::DynamicImage;
 use jpeg_decoder as jd;
 use super::image_compat;
 
+// ============================================================
+// 全局生成并发上限（限速）
+// ============================================================
+//
+// 清空缓存后集中浏览会瞬间触发大量解码（每张图一个 spawn_blocking），
+// CPU / 内存同时被打满，整机卡顿。这里用一个进程级信号量限制
+// “实际生成”（解码 + 缩放 + 编码）的并发数：
+//   - 所有路径共用同一个槽池：单张按需生成、批量生成、HEIF 兼容转换、预生成任务；
+//   - 命中缓存的路径不占槽（在 acquire 之前已提前 return）；
+//   - 超过上限的请求排队等待，而非无限并发。
+// 上限取“逻辑核数的 3/4”，并保证至少留 2 个核给系统与其他任务，
+// 同时封顶 8，避免高核数机器上内存峰值过大。
+
+/// 生成并发上限：max(2, min(逻辑核数 * 3/4, 8))，即“较高的上限，超过就限速”。
+pub fn generation_cap() -> usize {
+    let n = std::thread::available_parallelism()
+        .map(|v| v.get())
+        .unwrap_or(4);
+    ((n * 3) / 4).clamp(2, 8)
+}
+
+struct GenSlots {
+    cap: usize,
+    active: std::sync::Mutex<usize>,
+    cv: std::sync::Condvar,
+}
+
+static GEN_SLOTS: std::sync::OnceLock<GenSlots> = std::sync::OnceLock::new();
+
+fn gen_slots() -> &'static GenSlots {
+    GEN_SLOTS.get_or_init(|| GenSlots {
+        cap: generation_cap(),
+        active: std::sync::Mutex::new(0),
+        cv: std::sync::Condvar::new(),
+    })
+}
+
+/// 持有生成槽的守卫；Drop 时自动归还并唤醒排队者。
+pub struct GenerationGuard {
+    _priv: (),
+}
+
+impl Drop for GenerationGuard {
+    fn drop(&mut self) {
+        let s = gen_slots();
+        if let Ok(mut active) = s.active.lock() {
+            *active = active.saturating_sub(1);
+        }
+        s.cv.notify_one();
+    }
+}
+
+/// 申请一个生成槽；达到上限时阻塞排队，返回守卫即代表占用（Drop 释放）。
+pub fn acquire_generation_slot() -> GenerationGuard {
+    let s = gen_slots();
+    let mut active = s.active.lock().unwrap_or_else(|e| e.into_inner());
+    while *active >= s.cap {
+        active = s.cv.wait(active).unwrap_or_else(|e| e.into_inner());
+    }
+    *active += 1;
+    GenerationGuard { _priv: () }
+}
+
+// ============================================================
+// 缓存键与清理工具（供 commands 层复用）
+// ============================================================
+
+/// 缓存键里源路径使用的非加密哈希（与历史键保持算法一致）。
+pub fn simple_hash(s: &str) -> u64 {
+    let mut h: u64 = 5381;
+    for b in s.bytes() {
+        h = h.wrapping_mul(33).wrapping_add(b as u64);
+    }
+    h
+}
+
+/// 从缓存文件名 `{hash}_{size}_v2.jpg` 中解析出源路径哈希。
+/// 解析失败（命名不符合约定）返回 None，调用方应保守保留该文件。
+pub fn parse_cache_source_hash(file_name: &str) -> Option<u64> {
+    let (hash_part, rest) = file_name.split_once('_')?;
+    if hash_part.is_empty() || hash_part.len() > 16 || rest.is_empty() {
+        return None;
+    }
+    if !hash_part.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return None;
+    }
+    u64::from_str_radix(hash_part, 16).ok()
+}
+
+/// 删除某个源文件对应的全部缩略图缓存（所有尺寸变体 + 残留 .tmp）。
+/// 返回删除数量。`source_path_str` 必须是与生成缓存键完全一致的路径字符串。
+pub fn purge_cache_for_source(cache_dir: &Path, source_path_str: &str) -> u32 {
+    let prefix = format!("{:x}_", simple_hash(source_path_str));
+    let mut removed = 0u32;
+    if let Ok(entries) = fs::read_dir(cache_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.starts_with(&prefix) {
+                if fs::remove_file(entry.path()).is_ok() {
+                    removed += 1;
+                }
+            }
+        }
+    }
+    removed
+}
+
 /// Generate or retrieve a cached thumbnail for the given source image.
 ///
 /// * `source_path` - Absolute path to the original image file.
@@ -40,6 +147,10 @@ pub fn get_or_generate_thumbnail(
         // Cache is stale — remove it
         let _ = fs::remove_file(&cache_path);
     }
+
+    // 真正需要解码生成了，才开始排队占全局生成槽（命中缓存不会走到这里）。
+    // 守卫在函数结束时 Drop，自动归还槽位。
+    let _slot = acquire_generation_slot();
 
     // Fast header read for native formats, followed by Windows WIC for HEIF/HEIC.
     let (orig_w, orig_h) = match image::image_dimensions(source_path) {
@@ -273,6 +384,53 @@ mod tests {
         let (w, h) = image::image_dimensions(&result).unwrap();
         assert_eq!(h, 400);
         assert_eq!(w, 266); // 600 * 400/900 ≈ 266
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_generation_cap_bounds() {
+        let cap = generation_cap();
+        assert!(cap >= 2, "cap 至少要允许 2 个并发");
+        assert!(cap <= 8, "cap 必须封顶，防止内存峰值失控");
+    }
+
+    #[test]
+    fn test_generation_slot_acquire_release() {
+        // 连续申请 cap 个再释放，若 Drop 未归还槽位，后续申请会永久阻塞（测试超时即失败）
+        let cap = generation_cap();
+        let guards: Vec<GenerationGuard> = (0..cap).map(|_| acquire_generation_slot()).collect();
+        assert!(guards.len() == cap);
+        drop(guards);
+        let g2 = acquire_generation_slot();
+        drop(g2);
+    }
+
+    #[test]
+    fn test_parse_cache_source_hash() {
+        let h = simple_hash("C:\\pics\\a.jpg");
+        let name = format!("{:x}_400_v2.jpg", h);
+        assert_eq!(parse_cache_source_hash(&name), Some(h));
+        assert_eq!(parse_cache_source_hash(&format!("{:x}_full_compat_v3.jpg", h)), Some(h));
+        // 非法命名一律返回 None（调用方保守保留）
+        assert_eq!(parse_cache_source_hash("notahex_400_v2.jpg"), None);
+        assert_eq!(parse_cache_source_hash("abc.jpg"), None);
+        assert_eq!(parse_cache_source_hash("_400_v2.jpg"), None);
+    }
+
+    #[test]
+    fn test_purge_cache_for_source() {
+        let dir = std::env::temp_dir().join(format!("pa_test_purge_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let src = "C:\\fake\\purge-me.jpg";
+        let h = simple_hash(src);
+        fs::write(dir.join(format!("{:x}_400_v2.jpg", h)), b"x").unwrap();
+        fs::write(dir.join(format!("{:x}_500_v2.jpg", h)), b"x").unwrap();
+        fs::write(dir.join(format!("{:x}_400_v2.1234.tmp", h)), b"x").unwrap();
+        fs::write(dir.join("ffffffff_400_v2.jpg"), b"x").unwrap(); // 其他文件不受影响
+        let removed = purge_cache_for_source(&dir, src);
+        assert_eq!(removed, 3);
+        assert!(dir.join("ffffffff_400_v2.jpg").exists());
         let _ = fs::remove_dir_all(&dir);
     }
 

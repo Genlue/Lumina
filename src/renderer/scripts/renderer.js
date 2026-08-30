@@ -539,7 +539,7 @@ const R = {
           .catch(() => { img.removeAttribute('data-src'); });
         this._imgObserver.unobserve(img);
       }
-    }, { rootMargin: '200px' });
+    }, { rootMargin: '800px' });
     images.forEach(img => this._imgObserver.observe(img));
   },
 

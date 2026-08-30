@@ -1,5 +1,3 @@
-use std::fs;
-use std::path::Path;
 use rusqlite::{Connection, params};
 use crate::models::{ImageRecord, FileInfo};
 
@@ -140,18 +138,8 @@ pub fn update_image_meta(conn: &Connection, id: i64, width: Option<i64>, height:
     }
 }
 
-/// Delete cached thumbnail files for an image (any size variant).
-pub fn purge_thumbnails_for_image(cache_dir: &Path, image_id: i64) {
-    let prefix = format!("{}_", image_id);
-    if let Ok(entries) = fs::read_dir(cache_dir) {
-        for entry in entries.flatten() {
-            let name = entry.file_name().to_string_lossy().to_string();
-            if name.starts_with(&prefix) && name.ends_with(".jpg") {
-                let _ = fs::remove_file(entry.path());
-            }
-        }
-    }
-}
+// 旧版按 image_id 前缀清理缩略图的函数已删除：缓存键现为“源路径哈希”，
+// 正确入口是 services::thumbnails::purge_cache_for_source。
 
 #[cfg(test)]
 mod tests {
