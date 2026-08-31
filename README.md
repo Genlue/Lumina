@@ -94,7 +94,7 @@ bash scripts/build-installer.sh
 cd src-tauri && cargo tauri build --bundles nsis
 ```
 
-安装器位于: `src-tauri/target/release/bundle/nsis/Lumina_2.5.1_x64-setup.exe`
+安装器位于: `src-tauri/target/release/bundle/nsis/Lumina_2.9.0_x64-setup.exe`
 
 ## 安装说明
 
@@ -106,6 +106,13 @@ cd src-tauri && cargo tauri build --bundles nsis
 - **数据隔离**: 应用数据存储在图片文件夹下的 `.album/` 目录，卸载时不会删除用户数据
 
 ## 旧版本更新日志
+
+### 2026-08-31 — v2.9.0 — 统一 L 型面板 + 内容区圆角可调
+
+- 🧩 **统一 L 型面板** — 侧边栏（全高）与当前页顶栏（全宽）由一块面板一体绘制：单一材质 + 单次 backdrop-filter，无栏间接缝、无边界暗线；内容区左上角内角用三层 mask 并集（顶条 ∪ 侧条 ∪ 内角圆角楔）圆角收边
+- 🎨 **内容区圆角可调（默认 12px）** — 设置 → 面板与标题栏新增「内容区圆角」滑块 + 数值输入（0–24，0 = 直角），实时生效并持久化，切换文件夹自动恢复
+- 📏 **顶栏高度实时跟随** — `--bar-h` 由 ResizeObserver 跟随当前可见顶栏的实际高度（换页/窗口缩放自动刷新），L 型面板顶条与各页顶栏真实高度一致，不再有固定估算偏差
+- 🗃️ **DB V18 迁移** — 新增 `panel_radius` 设置字段（默认 12），按 profile 独立持久化
 
 ### 2026-08-31 — v2.8.0 — 最近相册原图封面 + 生成并发可调
 

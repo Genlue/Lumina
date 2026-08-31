@@ -47,6 +47,9 @@
   --toolbar-blur: 16px;
   --toolbar-opacity: 0.85;
   --overlay-opacity: 0.2;
+  /* 统一 L 型面板：内容区左上角圆角（设置可调 0-24，默认 12）与当前页顶栏实际高度（JS 同步） */
+  --panel-radius: 12px;
+  --bar-h: calc(var(--toolbar-h, 56px) + 20px);
 }
 
 /* ---- Mica/Acrylic support (when available) ---- */

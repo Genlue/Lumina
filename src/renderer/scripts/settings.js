@@ -31,6 +31,8 @@ const ST = {
       this._setVal('set-panel-opacity-input', Math.round((s.sidebar_opacity ?? 0.7) * 100));
       this._setVal('set-toolbar-h', s.toolbar_height ?? 56);
       this._setVal('set-toolbar-h-input', s.toolbar_height ?? 56);
+      this._setVal('set-panel-radius', s.panel_radius ?? 12);
+      this._setVal('set-panel-radius-input', s.panel_radius ?? 12);
       this._setVal('set-overlay-opacity', Math.round((s.select_overlay_opacity ?? 0.2) * 100));
       this._setVal('set-overlay-opacity-input', Math.round((s.select_overlay_opacity ?? 0.2) * 100));
       this._setVal('set-list-cols', s.list_columns ?? 3);
@@ -43,6 +45,7 @@ const ST = {
       this._setText('panel-blur-val', (s.sidebar_blur ?? 16) + 'px');
       this._setText('panel-opacity-val', Math.round((s.sidebar_opacity ?? 0.7) * 100) + '%');
       this._setText('toolbar-h-val', (s.toolbar_height ?? 56) + 'px');
+      this._setText('panel-radius-val', (s.panel_radius ?? 12) + 'px');
       this._setText('overlay-opacity-val', Math.round((s.select_overlay_opacity ?? 0.2) * 100) + '%');
       this._setText('thumb-size-val', (s.thumbnail_size ?? 400) + 'px');
       this._setText('draw-count-val', s.draw_count ?? 10);
@@ -1154,6 +1157,15 @@ const ST = {
     this._syncRangePair('set-toolbar-h', 'set-toolbar-h-input', 'toolbar-h-val', val, v => v + 'px');
     API.saveSettings(S.profileId, { toolbar_height: val });
     App._settings.toolbar_height = val;
+  },
+
+  // === 内容区左上角圆角（统一 L 型面板内角，0 = 直角，默认 12px）===
+  applyPanelRadius(val) {
+    val = this._clampNumber(val, 0, 24, App._settings.panel_radius ?? 12);
+    document.documentElement.style.setProperty('--panel-radius', val + 'px');
+    this._syncRangePair('set-panel-radius', 'set-panel-radius-input', 'panel-radius-val', val, v => v + 'px');
+    API.saveSettings(S.profileId, { panel_radius: val });
+    App._settings.panel_radius = val;
   },
 
   applyListColumns(val) {

@@ -529,6 +529,10 @@ const App = {
         // 顶栏模式（native = Windows 原生 / macos = 红绿灯），skipSave 避免重复写库
         ST.applyTitlebarMode(App._settings.titlebar_mode ?? 'native', true);
 
+        // 统一 L 型面板：内容区圆角 + 当前页顶栏实际高度（含 ResizeObserver 跟随）
+        ST.applyPanelRadius(App._settings.panel_radius ?? 12);
+        App._syncLBarH();
+
         // Sync view mode toolbar buttons
         const currViewMode = App._settings.view_mode ?? 'grid';
         const gvBtn = document.getElementById('btn-view-grid');
@@ -656,6 +660,28 @@ const App = {
     settings: function () { ST.render(); },
   },
 
+  /** 统一 L 型面板：监听当前可见顶栏的实际高度，写入 --bar-h（换页/窗口缩放自动刷新） */
+  _syncLBarH() {
+    const bars = [
+      document.getElementById('settings-toolbar'),
+      document.getElementById('toolbar'),
+      document.getElementById('home-toolbar'),
+      document.querySelector('.discover-tabs'),
+    ];
+    const bar = bars.find(el => el && el.offsetParent !== null);
+    if (this._barHRO) { this._barHRO.disconnect(); this._barHRO = null; }
+    if (!bar) return;
+    const sync = () => {
+      const h = bar.getBoundingClientRect().height;
+      if (h > 0) document.documentElement.style.setProperty('--bar-h', h + 'px');
+    };
+    sync();
+    try {
+      this._barHRO = new ResizeObserver(sync);
+      this._barHRO.observe(bar);
+    } catch (e) { /* RO 不可用时至少已同步一次 */ }
+  },
+
   navPage(page) {
     // 离开相册页面时清空滚动缓存
     if (page !== 'album') {
@@ -674,6 +700,7 @@ const App = {
 
     const route = this._pageRoutes[page];
     if (route) route.call(this);
+    this._syncLBarH();
   },
 
   /**
@@ -737,6 +764,7 @@ const App = {
     document.querySelectorAll('.page-panel').forEach(p => p.classList.add('hidden'));
     document.getElementById('page-album').classList.remove('hidden');
     this._renderAlbumPageContent();
+    this._syncLBarH();
   },
 
   navToAlbum(folder) {
@@ -750,6 +778,7 @@ const App = {
     document.getElementById('page-album')?.classList.remove('hidden');
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     this._renderAlbumPageContent();
+    this._syncLBarH();
 
     // 恢复目标视图的滚动位置（retry机制等待DOM就绪）
     const tryRestore = (f, retries) => {

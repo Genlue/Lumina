@@ -354,6 +354,14 @@ fn init_profile_db_schema(conn: &Connection) -> rusqlite::Result<()> {
         println!("[DB] Profile DB migration V17 applied (thumb_gen_concurrency)");
     }
 
+    if version < 18 {
+        conn.execute_batch(
+            "ALTER TABLE settings ADD COLUMN panel_radius INTEGER NOT NULL DEFAULT 12;"
+        )?;
+        conn.execute("INSERT INTO _schema_version (version) VALUES (18)", [])?;
+        println!("[DB] Profile DB migration V18 applied (panel_radius)");
+    }
+
     Ok(())
 }
 

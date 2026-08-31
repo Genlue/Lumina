@@ -106,20 +106,44 @@ img {
 }
 
 /* ============================
-   App Layout
+   App Layout — 统一 L 型面板
+   侧边栏（全高）+ 当前页顶栏（全宽）由一块面板一体绘制：
+   单一材质（透明度/模糊跟随「面板」滑条 --sidebar-opacity/--sidebar-blur），
+   无栏间接缝；内角用三层 mask 并集画出圆角收边（顶条 ∪ 侧条 ∪ 内角楔），
+   全部处于同一次 backdrop-filter 内，不产生边界暗线
    ============================ */
-#app{position:relative;display:flex;height:100%}
+#app{position:relative;display:flex;height:100%;isolation:isolate}
+/* L 型主体 + 内角圆角楔：一层 mask 内并集：全宽顶条 + 全高侧条 + 弧外角楔（依次对应 mask 层） */
+#app::before{
+  content:'';
+  position:absolute;inset:0;z-index:-1;pointer-events:none;
+  background:rgba(var(--c-surface-r,45),var(--c-surface-g,45),var(--c-surface-b,45),var(--sidebar-opacity,0.85));
+  backdrop-filter:blur(var(--sidebar-blur,16px));
+  -webkit-backdrop-filter:blur(var(--sidebar-blur,16px));
+  -webkit-mask-image:
+    linear-gradient(to bottom,#000 0 var(--bar-h,calc(var(--toolbar-h,56px) + 20px)),transparent var(--bar-h,calc(var(--toolbar-h,56px) + 20px))),
+    linear-gradient(to right,#000 0 var(--sidebar-w),transparent var(--sidebar-w)),
+    radial-gradient(circle at 100% 100%,transparent 0,transparent var(--panel-radius,12px),#000 calc(var(--panel-radius,12px) + 0.6px));
+  -webkit-mask-position:0 0,0 0,var(--sidebar-w) var(--bar-h,calc(var(--toolbar-h,56px) + 20px));
+  -webkit-mask-size:100% 100%,100% 100%,var(--panel-radius,12px) var(--panel-radius,12px);
+  -webkit-mask-repeat:no-repeat;
+  mask-image:
+    linear-gradient(to bottom,#000 0 var(--bar-h,calc(var(--toolbar-h,56px) + 20px)),transparent var(--bar-h,calc(var(--toolbar-h,56px) + 20px))),
+    linear-gradient(to right,#000 0 var(--sidebar-w),transparent var(--sidebar-w)),
+    radial-gradient(circle at 100% 100%,transparent 0,transparent var(--panel-radius,12px),#000 calc(var(--panel-radius,12px) + 0.6px));
+  mask-position:0 0,0 0,var(--sidebar-w) var(--bar-h,calc(var(--toolbar-h,56px) + 20px));
+  mask-size:100% 100%,100% 100%,var(--panel-radius,12px) var(--panel-radius,12px);
+  mask-repeat:no-repeat;
+}
 
 /* ============================
-   Sidebar
+   Sidebar（表面由 L 型面板提供，自身透明）
    ============================ */
 #sidebar{position:relative;font-size:var(--sidebar-font,14px);z-index:1; height:100%;
   width: var(--sidebar-w);
   min-width: var(--sidebar-w);
-  background: rgba(var(--c-surface-r, 45), var(--c-surface-g, 45), var(--c-surface-b, 45), var(--sidebar-opacity, 0.85));
-  backdrop-filter:blur(var(--sidebar-blur,16px));
-  -webkit-backdrop-filter:blur(var(--sidebar-blur,16px));
-  border-right: 1px solid var(--c-border);
+  background: transparent;
+  border-right: none;
   display: flex;
   flex-direction: column;
 }
@@ -142,18 +166,6 @@ body.titlebar-macos #sidebar-titlebar{display:flex;}
 body.titlebar-macos #startup-titlebar{display:flex;}
 /* macOS 模式：主界面不再整体下移（顶栏行即窗口最顶行） */
 body.titlebar-macos #app{margin-top:0;}
-/* macOS 模式：侧边栏右侧无描边（3 与 2/4 的交界处干净） */
-body.titlebar-macos #sidebar{border-right:none;}
-/* macOS 模式：内容区（顶栏下方的滚动区）左边缘 + 顶边缘 L 形描边，直角交汇 */
-body.titlebar-macos .page-scroll{
-  border-top:1px solid var(--c-border);
-  border-left:1px solid var(--c-border);
-}
-/* macOS 模式：顶栏自身无描边线（分隔线由内容区顶边描边承担） */
-body.titlebar-macos #toolbar,
-body.titlebar-macos #home-toolbar,
-body.titlebar-macos #settings-toolbar,
-body.titlebar-macos .discover-tabs{border-bottom:none;}
 /* 红绿灯按钮（IconForge v1.4.4 复刻版）：12px 含 1px 描边（box-sizing:border-box），内径 10px */
 .tl-btn{width:12px;height:12px;box-sizing:border-box;border:1px solid rgba(0,0,0,0.18);border-radius:50%;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;color:rgba(0,0,0,0.55);}
 .tl-close{background:#ff5f57;border-color:#e0443e;}
@@ -276,6 +288,7 @@ body.window-unfocused .tl-btn{filter:grayscale(1);opacity:0.55;}
 }
 
 /* Scrollable content area for album/discover pages */
+/* 无描边：统一 L 型面板与内容区之间以面板材质收边（圆角由 #app::after 角楔补齐），不加线 */
 .page-scroll {
   flex: 1;
   overflow-y: auto;
@@ -774,10 +787,8 @@ body.window-unfocused .tl-btn{filter:grayscale(1);opacity:0.55;}
   padding: 10px 24px;
   margin: 0;
   flex-wrap: wrap;
-  background: rgba(var(--c-surface-r,45),var(--c-surface-g,45),var(--c-surface-b,45),var(--toolbar-opacity,0.85));
-  backdrop-filter: blur(var(--toolbar-blur,16px));
-  -webkit-backdrop-filter: blur(var(--toolbar-blur,16px));
-  border-bottom: 1px solid var(--c-border);
+  background: transparent;
+  border-bottom: none;
   min-height: var(--toolbar-h, 48px);
 }
 #settings-toolbar > span {
@@ -796,10 +807,8 @@ body.window-unfocused .tl-btn{filter:grayscale(1);opacity:0.55;}
   font-size: 1rem;
   padding: 10px 24px;
   margin: 0;
-  background: rgba(var(--c-surface-r,45),var(--c-surface-g,45),var(--c-surface-b,45),var(--toolbar-opacity,0.85));
-  backdrop-filter: blur(var(--toolbar-blur,16px));
-  -webkit-backdrop-filter: blur(var(--toolbar-blur,16px));
-  border-bottom: 1px solid var(--c-border);
+  background: transparent;
+  border-bottom: none;
   min-height: var(--toolbar-h, 48px);
 }
 
@@ -1104,10 +1113,8 @@ mark {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: rgba(var(--c-surface-r,45),var(--c-surface-g,45),var(--c-surface-b,45),var(--toolbar-opacity,0.85));
-  backdrop-filter: blur(var(--toolbar-blur,16px));
-  -webkit-backdrop-filter: blur(var(--toolbar-blur,16px));
-  border-bottom: 1px solid var(--c-border);
+  background: transparent;
+  border-bottom: none;
   min-height: var(--toolbar-h, 48px);
   align-items: center;
 }

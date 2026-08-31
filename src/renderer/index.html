@@ -342,6 +342,14 @@
       </div>
     </div>
     <div class="setting-item">
+      <span class="si-label">内容区圆角<span class="si-hint">侧栏 × 顶栏内角，0 = 直角</span></span>
+      <div class="si-control settings-row">
+        <input type="range" id="set-panel-radius" oninput="ST.applyPanelRadius(parseInt(this.value,10))" min="0" max="24" value="12">
+        <input class="settings-number" type="number" id="set-panel-radius-input" onchange="ST.applyPanelRadius(parseInt(this.value,10))" min="0" max="24" step="1" value="12">
+        <span id="panel-radius-val">12px</span>
+      </div>
+    </div>
+    <div class="setting-item">
       <span class="si-label">标题栏模式</span>
       <div class="si-control seg-group">
         <button id="btn-titlebar-native" class="theme-btn" onclick="ST.applyTitlebarMode('native')">Windows 原生</button>
