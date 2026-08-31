@@ -98,6 +98,7 @@ pub struct Settings {
     pub transparent_accent_mode: String,  // 透明模式下的强调色模式: 'custom' | 'system' | 'extract'
     pub titlebar_mode: String,            // 顶栏模式: 'native'(Windows 原生) | 'macos'(macOS 风格)
     pub font_family: String,              // 界面字体族（空字符串 = 跟随系统默认）
+    pub thumb_gen_concurrency: i64,       // 缩略图生成并发数（0 = 无上限，默认 10）
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

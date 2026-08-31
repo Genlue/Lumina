@@ -37,11 +37,11 @@ img {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--c-border-light);
+  background: color-mix(in srgb, var(--c-accent) 55%, transparent);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--c-text3);
+  background: var(--c-accent);
 }
 
 .hidden { display: none !important; }
@@ -1278,9 +1278,9 @@ mark {
   padding: 14px 16px 8px;
 }
 .settings-card h3 {
-  font-size: 1.05em;
+  font-size: 1.25em;
   font-weight: var(--font-weight-bold);
-  color: var(--c-text);
+  color: var(--c-accent);
   margin-bottom: 2px;
   padding-bottom: 10px;
   border-bottom: 1px solid var(--c-border);

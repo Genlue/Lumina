@@ -1162,11 +1162,22 @@ pub fn trash_empty(app: AppHandle, profile_id: String) -> Result<i64, String> {
 // Settings（使用 profile DB）
 // ============================================================
 
+/// 把 profile 的生成并发设置同步为进程级上限（0 = 无上限，负值按无上限处理）。
+fn apply_gen_concurrency_setting(setting: i64) {
+    let cap = if setting <= 0 { 0 } else { (setting as usize).clamp(1, 64) };
+    services::thumbnails::set_generation_cap(cap);
+}
+
 #[tauri::command]
 pub fn settings_get(app: AppHandle, profile_id: String) -> Result<Settings, String> {
     let (p_conn_arc, _) = get_profile_db(&app, &profile_id)?;
-    let p_conn = p_conn_arc.lock().map_err(|e| format!("Profile DB lock: {}", e))?;
-    Ok(repos::settings::get_settings(&p_conn, &profile_id))
+    let settings = {
+        let p_conn = p_conn_arc.lock().map_err(|e| format!("Profile DB lock: {}", e))?;
+        repos::settings::get_settings(&p_conn, &profile_id)
+    };
+    // 每次加载 profile 设置时同步进程级缩略图生成并发上限（0 = 无上限）
+    apply_gen_concurrency_setting(settings.thumb_gen_concurrency);
+    Ok(settings)
 }
 
 #[tauri::command]
@@ -1176,9 +1187,14 @@ pub fn settings_save(
     updates: serde_json::Value,
 ) -> Result<Settings, String> {
     let (p_conn_arc, _) = get_profile_db(&app, &profile_id)?;
-    let p_conn = p_conn_arc.lock().map_err(|e| format!("Profile DB lock: {}", e))?;
-    repos::settings::save_settings(&p_conn, &profile_id, updates);
-    Ok(repos::settings::get_settings(&p_conn, &profile_id))
+    let settings = {
+        let p_conn = p_conn_arc.lock().map_err(|e| format!("Profile DB lock: {}", e))?;
+        repos::settings::save_settings(&p_conn, &profile_id, updates);
+        repos::settings::get_settings(&p_conn, &profile_id)
+    };
+    // 保存后立即生效：浏览/批量生成共用同一进程级上限
+    apply_gen_concurrency_setting(settings.thumb_gen_concurrency);
+    Ok(settings)
 }
 
 // ============================================================
@@ -1350,13 +1366,17 @@ pub fn cache_clear(app: AppHandle, profile_id: String) -> Result<u64, String> {
 //
 // 预生成任务状态（进程级，全局同一时刻只允许一个任务）。
 // 生成走与按需生成完全相同的 get_or_generate_thumbnail 管线，
-// 因此天然共享 services::thumbnails 的全局并发槽位；任务本身逐张串行 +
-// 每张间隔 15ms，保证运行时系统仍流畅可用（限速的“后台档”）。
+// 因此天然共享 services::thumbnails 的全局并发槽位。
+// 工作线程为 detached：命令只负责启动并立即返回总数，不原地等待；
+// 进度经 `cache-gen-progress` 事件推送，全部结束（或取消）后由
+// 监控线程补发最终 done / cancelled 事件并复位全局状态。
 
 static CACHE_GEN_RUNNING: AtomicBool = AtomicBool::new(false);
 static CACHE_GEN_CANCEL: AtomicBool = AtomicBool::new(false);
 static CACHE_GEN_DONE: AtomicUsize = AtomicUsize::new(0);
 static CACHE_GEN_TOTAL: AtomicUsize = AtomicUsize::new(0);
+static CACHE_GEN_NEXT: AtomicUsize = AtomicUsize::new(0);
+static CACHE_GEN_WORKERS: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1404,19 +1424,26 @@ fn list_profile_image_items(
 }
 
 /// 预生成全部图片的缩略图（sizes 为前端传入的几种浏览尺寸）。
-/// 立即返回待处理图片总数；进度通过 `cache-gen-progress` 事件推送。
+/// 并发数取 profile 设置 `thumb_gen_concurrency`（默认 10，可调 1~64，
+/// 0 = 无上限，即不限制并发；此时工作线程数仍受安全上限约束，避免线程爆炸）。
+/// 命令为异步且只负责「启动」：立即返回待处理图片总数，不等待生成完成。
+/// 工作线程 detached 并行生成，进度通过 `cache-gen-progress` 事件推送；
+/// 全部完成或取消后由监控线程补发最终 done / cancelled 事件并复位全局状态。
+/// （v2.8.0 回归修复：曾用 thread::scope 原地 join 全部 worker，主线程被阻塞
+/// 整个生成过程，UI 冻结、进度事件无法送达、启动中… 状态卡死。）
 #[tauri::command]
-pub fn cache_generate(app: AppHandle, profile_id: String, sizes: Vec<u32>) -> Result<usize, String> {
+pub async fn cache_generate(app: AppHandle, profile_id: String, sizes: Vec<u32>) -> Result<usize, String> {
     if CACHE_GEN_RUNNING.swap(true, Ord_Atomic::SeqCst) {
         CACHE_GEN_RUNNING.store(true, Ord_Atomic::SeqCst); // swap 不会覆盖，保持 running
         return Err("已有缩略图生成任务正在运行".into());
     }
-    let result = (|| -> Result<usize, String> {
+    let result = (move || -> Result<usize, String> {
         let root = get_profile_folder(&app, &profile_id)?;
         let (p_conn_arc, _) = get_profile_db(&app, &profile_id)?;
-        let items = {
+        let (items, concurrency) = {
             let p_conn = p_conn_arc.lock().map_err(|e| format!("Profile DB lock: {}", e))?;
-            list_profile_image_items(&p_conn, &profile_id)
+            let settings = repos::settings::get_settings(&p_conn, &profile_id);
+            (list_profile_image_items(&p_conn, &profile_id), settings.thumb_gen_concurrency)
         };
         // 参数清洗：去重、限幅、最多 4 种尺寸
         let mut sizes: Vec<u32> = sizes.into_iter().filter(|s| (16..=4096).contains(s)).collect();
@@ -1429,6 +1456,7 @@ pub fn cache_generate(app: AppHandle, profile_id: String, sizes: Vec<u32>) -> Re
         let total = items.len();
         CACHE_GEN_TOTAL.store(total, Ord_Atomic::SeqCst);
         CACHE_GEN_DONE.store(0, Ord_Atomic::SeqCst);
+        CACHE_GEN_NEXT.store(0, Ord_Atomic::SeqCst);
         CACHE_GEN_CANCEL.store(false, Ord_Atomic::SeqCst);
         if total == 0 {
             CACHE_GEN_RUNNING.store(false, Ord_Atomic::SeqCst);
@@ -1437,36 +1465,68 @@ pub fn cache_generate(app: AppHandle, profile_id: String, sizes: Vec<u32>) -> Re
             });
             return Ok(0);
         }
-        std::thread::spawn(move || {
-            let cache_dir = Path::new(&root).join(".album").join("cache").join("thumbnails");
-            let mut done: usize = 0;
-            for (folder, filename) in &items {
-                if CACHE_GEN_CANCEL.load(Ord_Atomic::SeqCst) {
-                    break;
-                }
-                let fp = build_file_path(&root, folder.as_deref(), filename);
-                if fp.is_file() {
-                    let hash_src = fp.to_string_lossy().to_string();
-                    for &sz in &sizes {
-                        let key = format!("{:x}_{}_v2", simple_hash(&hash_src), sz);
-                        // 命中缓存立即返回；需要生成时排队占全局槽（与按需生成同一池子）
-                        let _ = services::thumbnails::get_or_generate_thumbnail(
-                            &fp, &cache_dir, &key, sz, 75,
-                        );
+        // 并发数：0 = 无上限（线程数仍受 64 安全上限约束）；否则钳制在 1~64
+        let workers = if concurrency <= 0 {
+            total.min(64)
+        } else {
+            (concurrency as usize).clamp(1, 64).min(total)
+        };
+        // 进程级生成槽同步到同一并发数，浏览时按需生成与预生成口径一致
+        services::thumbnails::set_generation_cap(if concurrency <= 0 { 0 } else { (concurrency as usize).clamp(1, 64) });
+        CACHE_GEN_WORKERS.store(workers, Ord_Atomic::SeqCst);
+
+        let cache_dir = Path::new(&root).join(".album").join("cache").join("thumbnails");
+        // 共享待处理列表：Arc 引用 + 原子下标，多 worker 之间零锁争抢
+        let items = std::sync::Arc::new(items);
+        let mut handles: Vec<std::thread::JoinHandle<()>> = Vec::with_capacity(workers);
+        for _ in 0..workers {
+            let app = app.clone();
+            let root = root.clone();
+            let cache_dir = cache_dir.clone();
+            let items = items.clone();
+            let sizes = sizes.clone();
+            handles.push(std::thread::spawn(move || {
+                loop {
+                    if CACHE_GEN_CANCEL.load(Ord_Atomic::SeqCst) {
+                        break;
                     }
+                    let idx = CACHE_GEN_NEXT.fetch_add(1, Ord_Atomic::SeqCst);
+                    if idx >= total {
+                        break;
+                    }
+                    let (folder, filename) = &items[idx];
+                    let fp = build_file_path(&root, folder.as_deref(), filename);
+                    if fp.is_file() {
+                        let hash_src = fp.to_string_lossy().to_string();
+                        for &sz in &sizes {
+                            let key = format!("{:x}_{}_v2", simple_hash(&hash_src), sz);
+                            // 命中缓存立即返回；需要生成时排队占全局槽（与按需生成同一池子）
+                            let _ = services::thumbnails::get_or_generate_thumbnail(
+                                &fp, &cache_dir, &key, sz, 75,
+                            );
+                        }
+                    }
+                    let done = CACHE_GEN_DONE.fetch_add(1, Ord_Atomic::SeqCst) + 1;
+                    if done % 5 == 0 || done == total {
+                        let _ = app.emit("cache-gen-progress", CacheGenProgress {
+                            phase: "running".into(),
+                            done,
+                            total,
+                            current: filename.clone(),
+                        });
+                    }
+                    // 小幅让出 CPU，保证浏览/交互请求始终优先（吞吐由并发 worker 数放大）
+                    std::thread::sleep(std::time::Duration::from_millis(15));
                 }
-                done += 1;
-                CACHE_GEN_DONE.store(done, Ord_Atomic::Relaxed);
-                if done % 5 == 0 || done == total {
-                    let _ = app.emit("cache-gen-progress", CacheGenProgress {
-                        phase: "running".into(),
-                        done,
-                        total,
-                        current: filename.clone(),
-                    });
-                }
-                // 逐张限速：让出 CPU，浏览/交互请求始终优先
-                std::thread::sleep(std::time::Duration::from_millis(15));
+            }));
+        }
+
+        // 监控线程：等全部 worker 结束（正常跑完或取消后退出）再补发最终事件并复位。
+        // 不在命令内 join —— 命令已立即返回，UI 全程保持响应。
+        let app = app.clone();
+        std::thread::spawn(move || {
+            for h in handles {
+                let _ = h.join();
             }
             let cancelled = CACHE_GEN_CANCEL.load(Ord_Atomic::SeqCst);
             let _ = app.emit("cache-gen-progress", CacheGenProgress {
@@ -1478,6 +1538,7 @@ pub fn cache_generate(app: AppHandle, profile_id: String, sizes: Vec<u32>) -> Re
             CACHE_GEN_RUNNING.store(false, Ord_Atomic::SeqCst);
             CACHE_GEN_CANCEL.store(false, Ord_Atomic::SeqCst);
         });
+
         Ok(total)
     })();
     if result.is_err() {

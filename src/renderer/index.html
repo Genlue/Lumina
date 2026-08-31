@@ -431,6 +431,18 @@
         <div id="cache-gen-progress-text" class="si-hint"></div>
       </div>
     </div>
+    <div class="setting-item si-stack">
+      <span class="si-label">生成并发数<span class="si-hint">同时解码的缩略图数量；无上限 = 不限制并发（默认 10）</span></span>
+      <div class="si-control seg-group">
+        <button id="btn-gen-conc-limited" class="theme-btn" onclick="ST.setGenConcurrencyMode('limited')">限速（可调）</button>
+        <button id="btn-gen-conc-unlimited" class="theme-btn" onclick="ST.setGenConcurrencyMode('unlimited')">无上限</button>
+      </div>
+      <div class="si-control settings-row" id="gen-conc-row">
+        <input type="range" id="set-gen-conc" oninput="ST.applyGenConcurrency(parseInt(this.value,10))" min="1" max="64" value="10">
+        <input class="settings-number" type="number" id="set-gen-conc-input" onchange="ST.applyGenConcurrency(parseInt(this.value,10))" min="1" max="64" step="1" value="10">
+        <span id="gen-conc-val">10</span>
+      </div>
+    </div>
     <div class="setting-item">
       <span class="si-label">使用指南</span>
       <div class="si-btnrow">

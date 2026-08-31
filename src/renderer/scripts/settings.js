@@ -49,6 +49,9 @@ const ST = {
       this._setText('random-interval-val', (s.random_interval ?? 3) + 's');
       this._setText('list-cols-val', s.list_columns ?? 3);
 
+      // 生成并发数（0 = 无上限）
+      this.syncGenConcurrency(s.thumb_gen_concurrency ?? 10);
+
       this._highlightThemeBtns(s.theme_mode ?? 'dark');
       this._highlightTitlebarBtns(s.titlebar_mode ?? 'native');
       // 界面字体：异步加载系统字体下拉 + 同步当前值
@@ -1412,6 +1415,39 @@ const ST = {
     this._syncRangePair('set-thumb-size', 'set-thumb-size-input', 'thumb-size-val', val, v => v + 'px');
     API.saveSettings(S.profileId, { thumbnail_size: val });
     App._settings.thumbnail_size = val;
+  },
+
+  // === 生成并发数（缩略图预生成 / 按需解码的全局并发上限）===
+
+  /** 仅同步 UI 与内存值（不写库），供 render / _doLoad / profile 切换恢复状态；0 = 无上限 */
+  syncGenConcurrency(val) {
+    App._settings.thumb_gen_concurrency = val;
+    this._syncRangePair('set-gen-conc', 'set-gen-conc-input', 'gen-conc-val', val > 0 ? val : 10, v => v);
+    this._highlightGenConcurrencyBtns(val);
+  },
+
+  /** 限速模式下滑块/数值输入（1~64），保存并立即生效 */
+  applyGenConcurrency(val) {
+    val = this._clampNumber(val, 1, 64, App._settings.thumb_gen_concurrency > 0 ? App._settings.thumb_gen_concurrency : 10);
+    this.syncGenConcurrency(val);
+    API.saveSettings(S.profileId, { thumb_gen_concurrency: val });
+  },
+
+  /** 限速（可调）/ 无上限 二选一；切回限速时若无历史值则恢复默认 10 */
+  setGenConcurrencyMode(mode) {
+    const cur = App._settings.thumb_gen_concurrency ?? 10;
+    const val = mode === 'unlimited' ? 0 : (cur > 0 ? cur : 10);
+    this.syncGenConcurrency(val);
+    API.saveSettings(S.profileId, { thumb_gen_concurrency: val });
+  },
+
+  _highlightGenConcurrencyBtns(val) {
+    const limitedBtn = document.getElementById('btn-gen-conc-limited');
+    const unlimitedBtn = document.getElementById('btn-gen-conc-unlimited');
+    if (limitedBtn) limitedBtn.style.borderColor = val !== 0 ? 'var(--c-accent)' : 'transparent';
+    if (unlimitedBtn) unlimitedBtn.style.borderColor = val === 0 ? 'var(--c-accent)' : 'transparent';
+    const row = document.getElementById('gen-conc-row');
+    if (row) row.style.display = val === 0 ? 'none' : '';
   },
 
   applyDrawCount(val) {

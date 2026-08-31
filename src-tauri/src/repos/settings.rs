@@ -15,7 +15,8 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
                 bg_image_accent_mode, bg_image_accent_color_dark, bg_image_accent_color_light,
                 transparent_accent_color_dark, transparent_accent_color_light,
                 extract_color_dark, extract_color_light,
-                transparent_accent_mode, titlebar_mode, font_family
+                transparent_accent_mode, titlebar_mode, font_family,
+                thumb_gen_concurrency
          FROM settings WHERE profile_id = ?1",
         params![profile_id],
         |row| Ok(Settings {
@@ -51,6 +52,7 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
             transparent_accent_mode: row.get(36).unwrap_or_else(|_| "custom".to_string()),
             titlebar_mode: row.get(37).unwrap_or_else(|_| "native".to_string()),
             font_family: row.get(38).unwrap_or_default(),
+            thumb_gen_concurrency: row.get(39).unwrap_or(10),
         }),
     ) {
         Ok(s) => s,
@@ -66,7 +68,7 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
                  bg_image_accent_mode, bg_image_accent_color_dark, bg_image_accent_color_light,
                  transparent_accent_color_dark, transparent_accent_color_light,
                  extract_color_dark, extract_color_light,
-                 transparent_accent_mode, titlebar_mode, font_family)
+                 transparent_accent_mode, titlebar_mode, font_family, thumb_gen_concurrency)
                  VALUES (?1, 'grid', 'name-asc', 'dark', '#6D79F6',
                  NULL, 0, 1.0, 150, 0.7, 10, 0.7, 16, 20, 3, 400,
                  56, 16, 0.7, 0.2, 1, NULL, 3,
@@ -74,7 +76,7 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
                  0, 16, 'acrylic',
                  'custom', '#4A9EFF', '#003D7A',
                  '#4A9EFF', '#003D7A',
-                 '#4A9EFF', '#003D7A', 'custom', 'native', '')",
+                 '#4A9EFF', '#003D7A', 'custom', 'native', '', 10)",
                 params![profile_id],
             ).ok();
             Settings {
@@ -110,6 +112,7 @@ pub fn get_settings(conn: &Connection, profile_id: &str) -> Settings {
                 transparent_accent_mode: "custom".to_string(),
                 titlebar_mode: "native".to_string(),
                 font_family: String::new(),
+                thumb_gen_concurrency: 10,
             }
         }
     }
@@ -173,6 +176,9 @@ pub fn save_settings(conn: &Connection, profile_id: &str, updates: serde_json::V
     let font_family = updates["font_family"].as_str()
         .map(|s| s.to_string())
         .unwrap_or(current.font_family);
+    let thumb_gen_concurrency = updates["thumb_gen_concurrency"]
+        .as_i64()
+        .unwrap_or(current.thumb_gen_concurrency);
 
     conn.execute(
         "UPDATE settings SET view_mode=?1, sort_by=?2, theme_mode=?3, accent_color=?4,
@@ -185,8 +191,9 @@ pub fn save_settings(conn: &Connection, profile_id: &str, updates: serde_json::V
          bg_image_accent_mode=?29, bg_image_accent_color_dark=?30, bg_image_accent_color_light=?31,
          transparent_accent_color_dark=?32, transparent_accent_color_light=?33,
          extract_color_dark=?34, extract_color_light=?35,
-         transparent_accent_mode=?36, titlebar_mode=?37, font_family=?38
-         WHERE profile_id=?39",
+         transparent_accent_mode=?36, titlebar_mode=?37, font_family=?38,
+         thumb_gen_concurrency=?39
+         WHERE profile_id=?40",
         params![view_mode, sort_by, theme_mode, accent_color,
                 bg_image, bg_blur, bg_opacity, sidebar_width, sidebar_opacity,
                 draw_count, card_opacity, card_blur, sidebar_font, random_interval,
@@ -197,7 +204,8 @@ pub fn save_settings(conn: &Connection, profile_id: &str, updates: serde_json::V
                 bg_image_accent_mode, bg_image_accent_color_dark, bg_image_accent_color_light,
                 transparent_accent_color_dark, transparent_accent_color_light,
                 extract_color_dark, extract_color_light,
-                transparent_accent_mode, titlebar_mode, font_family, profile_id],
+                transparent_accent_mode, titlebar_mode, font_family,
+                thumb_gen_concurrency, profile_id],
     ).ok();
 }
 
@@ -248,7 +256,8 @@ mod tests {
                 extract_color_light TEXT NOT NULL DEFAULT '#003D7A',
                 transparent_accent_mode TEXT NOT NULL DEFAULT 'custom',
                 titlebar_mode TEXT NOT NULL DEFAULT 'native',
-                font_family TEXT NOT NULL DEFAULT ''
+                font_family TEXT NOT NULL DEFAULT '',
+                thumb_gen_concurrency INTEGER NOT NULL DEFAULT 10
             );"
         ).unwrap();
         conn
@@ -269,6 +278,24 @@ mod tests {
         assert_eq!(s.bg_effect_type, "acrylic");
         assert_eq!(s.accent_mode, "custom");
         assert_eq!(s.home_title, None);
+        assert_eq!(s.thumb_gen_concurrency, 10, "Default concurrency should be 10");
+    }
+
+    #[test]
+    fn test_thumb_gen_concurrency_save_and_unlimited() {
+        let conn = setup();
+        let mut json = serde_json::Map::new();
+        json.insert("thumb_gen_concurrency".to_string(), serde_json::Value::Number(serde_json::Number::from(16)));
+        save_settings(&conn, "p1", serde_json::Value::Object(json));
+        let s = get_settings(&conn, "p1");
+        assert_eq!(s.thumb_gen_concurrency, 16);
+
+        let mut json2 = serde_json::Map::new();
+        json2.insert("thumb_gen_concurrency".to_string(), serde_json::Value::Number(serde_json::Number::from(0)));
+        save_settings(&conn, "p1", serde_json::Value::Object(json2));
+        let s2 = get_settings(&conn, "p1");
+        assert_eq!(s2.thumb_gen_concurrency, 0, "0 = unlimited, must persist");
+        assert_eq!(s2.view_mode, "grid", "Unrelated fields should be preserved");
     }
 
     #[test]

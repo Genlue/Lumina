@@ -346,6 +346,14 @@ fn init_profile_db_schema(conn: &Connection) -> rusqlite::Result<()> {
         println!("[DB] Profile DB migration V16 applied (font_family)");
     }
 
+    if version < 17 {
+        conn.execute_batch(
+            "ALTER TABLE settings ADD COLUMN thumb_gen_concurrency INTEGER NOT NULL DEFAULT 10;"
+        )?;
+        conn.execute("INSERT INTO _schema_version (version) VALUES (17)", [])?;
+        println!("[DB] Profile DB migration V17 applied (thumb_gen_concurrency)");
+    }
+
     Ok(())
 }
 

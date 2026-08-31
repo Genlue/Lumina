@@ -505,6 +505,8 @@ const App = {
       ST.applyCurrentAccent();
       // 界面字体（空字符串 = 跟随系统默认）
       ST.applyFontFamily(App._settings.font_family ?? '', true);
+      // 生成并发数（同步控件状态，不写库；0 = 无上限）
+      ST.syncGenConcurrency(App._settings.thumb_gen_concurrency ?? 10);
 
       document.getElementById('startup').classList.add('hidden');
       document.getElementById('app').classList.remove('hidden');
@@ -1438,7 +1440,8 @@ const App = {
       item.addEventListener('click', () => App.navToAlbum(item.dataset.folder));
     });
 
-    const ts = Math.round((App._settings.thumbnail_size ?? 400) * 0.35);
+    // 封面缩略图与「相册」tab 口径一致（thumbnail_size × 0.75）
+    const ts = Math.round((App._settings.thumbnail_size ?? 400) * 0.75);
     coverTasks.forEach(async task => {
       try {
         const thumb = await API.getThumbnail(S.profileId, task.filename, task.folder, ts);

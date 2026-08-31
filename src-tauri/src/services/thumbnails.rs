@@ -19,19 +19,25 @@ use super::image_compat;
 //   - 所有路径共用同一个槽池：单张按需生成、批量生成、HEIF 兼容转换、预生成任务；
 //   - 命中缓存的路径不占槽（在 acquire 之前已提前 return）；
 //   - 超过上限的请求排队等待，而非无限并发。
-// 上限取“逻辑核数的 3/4”，并保证至少留 2 个核给系统与其他任务，
-// 同时封顶 8，避免高核数机器上内存峰值过大。
+// 上限取自 profile 设置 `thumb_gen_concurrency`（默认 10，可调 1~64，
+// 0 = 无上限：不排队、不计数，直接并发）。每次 profile 设置加载/保存时
+// 通过 set_generation_cap 同步到进程级上限。
 
-/// 生成并发上限：max(2, min(逻辑核数 * 3/4, 8))，即“较高的上限，超过就限速”。
+static GEN_CAP: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(10);
+
+/// 当前生成并发上限（0 = 无上限）。
+#[allow(dead_code)] // 供测试/调试读取，生产路径直接读 GEN_CAP
 pub fn generation_cap() -> usize {
-    let n = std::thread::available_parallelism()
-        .map(|v| v.get())
-        .unwrap_or(4);
-    ((n * 3) / 4).clamp(2, 8)
+    GEN_CAP.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// 运行时更新生成并发上限（0 = 无上限，不限制并发）。
+pub fn set_generation_cap(n: usize) {
+    GEN_CAP.store(n, std::sync::atomic::Ordering::Relaxed);
 }
 
 struct GenSlots {
-    cap: usize,
     active: std::sync::Mutex<usize>,
     cv: std::sync::Condvar,
 }
@@ -40,19 +46,21 @@ static GEN_SLOTS: std::sync::OnceLock<GenSlots> = std::sync::OnceLock::new();
 
 fn gen_slots() -> &'static GenSlots {
     GEN_SLOTS.get_or_init(|| GenSlots {
-        cap: generation_cap(),
         active: std::sync::Mutex::new(0),
         cv: std::sync::Condvar::new(),
     })
 }
 
-/// 持有生成槽的守卫；Drop 时自动归还并唤醒排队者。
+/// 持有生成槽的守卫；Drop 时自动归还并唤醒排队者。无上限模式下不占槽。
 pub struct GenerationGuard {
-    _priv: (),
+    held: bool,
 }
 
 impl Drop for GenerationGuard {
     fn drop(&mut self) {
+        if !self.held {
+            return;
+        }
         let s = gen_slots();
         if let Ok(mut active) = s.active.lock() {
             *active = active.saturating_sub(1);
@@ -62,14 +70,24 @@ impl Drop for GenerationGuard {
 }
 
 /// 申请一个生成槽；达到上限时阻塞排队，返回守卫即代表占用（Drop 释放）。
+/// 上限为 0 时表示“无上限”：直接放行，不做排队与计数。
 pub fn acquire_generation_slot() -> GenerationGuard {
     let s = gen_slots();
     let mut active = s.active.lock().unwrap_or_else(|e| e.into_inner());
-    while *active >= s.cap {
+    loop {
+        let cap = GEN_CAP.load(std::sync::atomic::Ordering::Relaxed);
+        if cap == 0 {
+            // 无上限：不计数也不排队
+            drop(active);
+            return GenerationGuard { held: false };
+        }
+        if *active < cap {
+            break;
+        }
         active = s.cv.wait(active).unwrap_or_else(|e| e.into_inner());
     }
     *active += 1;
-    GenerationGuard { _priv: () }
+    GenerationGuard { held: true }
 }
 
 // ============================================================
@@ -387,22 +405,48 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
+    /// 全局 GEN_CAP 变更测试间互斥：cargo test 默认并行跑测试，避免互相覆盖并发上限
+    static GEN_CAP_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
-    fn test_generation_cap_bounds() {
-        let cap = generation_cap();
-        assert!(cap >= 2, "cap 至少要允许 2 个并发");
-        assert!(cap <= 8, "cap 必须封顶，防止内存峰值失控");
+    fn test_generation_cap_settable() {
+        let _guard = GEN_CAP_TEST_LOCK.lock().unwrap();
+        set_generation_cap(4);
+        assert_eq!(generation_cap(), 4);
+        set_generation_cap(0); // 无上限
+        assert_eq!(generation_cap(), 0);
+        set_generation_cap(10);
+        assert_eq!(generation_cap(), 10);
     }
 
     #[test]
     fn test_generation_slot_acquire_release() {
+        let _guard = GEN_CAP_TEST_LOCK.lock().unwrap();
         // 连续申请 cap 个再释放，若 Drop 未归还槽位，后续申请会永久阻塞（测试超时即失败）
-        let cap = generation_cap();
-        let guards: Vec<GenerationGuard> = (0..cap).map(|_| acquire_generation_slot()).collect();
-        assert!(guards.len() == cap);
+        set_generation_cap(4);
+        let guards: Vec<GenerationGuard> = (0..4).map(|_| acquire_generation_slot()).collect();
+        assert!(guards.len() == 4);
         drop(guards);
         let g2 = acquire_generation_slot();
         drop(g2);
+        set_generation_cap(10);
+    }
+
+    #[test]
+    fn test_unlimited_mode_no_wait() {
+        let _guard = GEN_CAP_TEST_LOCK.lock().unwrap();
+        // 无上限（cap=0）：任意数量并发直接放行，不排队不计数
+        set_generation_cap(0);
+        let guards: Vec<GenerationGuard> = (0..32).map(|_| acquire_generation_slot()).collect();
+        assert_eq!(guards.len(), 32);
+        drop(guards);
+        // 无上限期间 active 计数始终为 0，随后恢复限速仍可正常申请
+        set_generation_cap(2);
+        let g1 = acquire_generation_slot();
+        let g2 = acquire_generation_slot();
+        drop(g1);
+        drop(g2);
+        set_generation_cap(10);
     }
 
     #[test]
