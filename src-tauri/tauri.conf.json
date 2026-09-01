@@ -1,6 +1,6 @@
 {
   "productName": "Lumina",
-  "version": "2.9.1",
+  "version": "2.9.2",
   "identifier": "com.lumina.album",
   "build": {
     "frontendDist": "../src/renderer"

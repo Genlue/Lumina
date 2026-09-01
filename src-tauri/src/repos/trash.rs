@@ -46,16 +46,8 @@ pub fn empty_trash(conn: &Connection, profile_id: &str) -> i64 {
     count
 }
 
-pub fn get_trash_entry(conn: &Connection, profile_id: &str, trash_name: &str) -> Option<TrashRecord> {
-    conn.query_row(
-        "SELECT id, profile_id, original_name, trash_name, original_folder, deleted_at FROM trash WHERE profile_id = ?1 AND trash_name = ?2",
-        params![profile_id, trash_name],
-        |row| Ok(TrashRecord {
-            id: row.get(0)?, profile_id: row.get(1)?, original_name: row.get(2)?,
-            trash_name: row.get(3)?, original_folder: row.get(4)?, deleted_at: row.get(5)?,
-        }),
-    ).ok()
-}
+// 注：原 pub fn get_trash_entry 已删除 —— 生产代码未使用
+// （回收站条目的定位走 list_trash + trash_name 匹配）。
 
 #[cfg(test)]
 mod tests {
@@ -91,7 +83,9 @@ mod tests {
     fn test_add_trash_with_folder() {
         let conn = setup();
         add_trash_entry(&conn, "p1", "nested.jpg", "nested_999.jpg", Some("album/sub"));
-        let entry = get_trash_entry(&conn, "p1", "nested_999.jpg").unwrap();
+        let entry = list_trash(&conn, "p1").into_iter()
+            .find(|t| t.trash_name == "nested_999.jpg")
+            .expect("entry should be listed");
         assert_eq!(entry.original_folder, Some("album/sub".to_string()));
     }
 
@@ -142,12 +136,6 @@ mod tests {
         assert_eq!(removed, 2, "Should return count of removed entries");
         assert_eq!(list_trash(&conn, "p1").len(), 0);
         assert_eq!(list_trash(&conn, "p2").len(), 1, "p2 trash should survive");
-    }
-
-    #[test]
-    fn test_get_trash_entry_not_found() {
-        let conn = setup();
-        assert!(get_trash_entry(&conn, "p1", "nonexistent").is_none());
     }
 
     #[test]

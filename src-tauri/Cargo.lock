@@ -2104,7 +2104,7 @@ dependencies = [
 
 [[package]]
 name = "lumina"
-version = "2.9.1"
+version = "2.9.2"
 dependencies = [
  "image",
  "jpeg-decoder",

@@ -89,18 +89,8 @@ pub fn list_images(conn: &Connection, profile_id: &str, album_id: Option<Option<
     rows.filter_map(|r| r.ok()).collect()
 }
 
-pub fn get_image_by_id(conn: &Connection, id: i64) -> Option<ImageRecord> {
-    conn.query_row(
-        "SELECT id, profile_id, album_id, filename, file_size, file_date, width, height FROM images WHERE id = ?1",
-        params![id],
-        |row| Ok(ImageRecord {
-            id: row.get(0)?, profile_id: row.get(1)?, album_id: row.get(2)?,
-            filename: row.get(3)?, file_size: row.get(4)?, file_date: row.get(5)?,
-            width: row.get(6)?, height: row.get(7)?,
-        }),
-    ).ok()
-}
-
+// 注：原 pub fn get_image_by_id 已删除 —— 生产代码未使用
+// （按名称/相册定位图片走 get_image_by_name）。
 pub fn get_image_by_name(conn: &Connection, profile_id: &str, filename: &str, album_id: Option<i64>) -> Option<ImageRecord> {
     match album_id {
         None | Some(0) => {
@@ -129,14 +119,8 @@ pub fn get_image_by_name(conn: &Connection, profile_id: &str, filename: &str, al
     }
 }
 
-pub fn update_image_meta(conn: &Connection, id: i64, width: Option<i64>, height: Option<i64>) {
-    if let (Some(w), Some(h)) = (width, height) {
-        conn.execute(
-            "UPDATE images SET width = ?1, height = ?2 WHERE id = ?3",
-            params![w, h, id],
-        ).ok();
-    }
-}
+// 注：原 pub fn update_image_meta 已删除 —— 生产代码未使用
+// （图片宽高由 sync_images 在扫描时统一维护）。
 
 // 旧版按 image_id 前缀清理缩略图的函数已删除：缓存键现为“源路径哈希”，
 // 正确入口是 services::thumbnails::purge_cache_for_source。
@@ -253,18 +237,6 @@ mod tests {
     }
 
     #[test]
-    fn test_get_image_by_id() {
-        let conn = setup();
-        let files = vec![make_file("findme.jpg", 100)];
-        sync_images(&conn, "p1", None, &files);
-        let images = list_images(&conn, "p1", Some(None));
-        let found = get_image_by_id(&conn, images[0].id);
-        assert!(found.is_some());
-        assert_eq!(found.unwrap().filename, "findme.jpg");
-        assert!(get_image_by_id(&conn, 99999).is_none());
-    }
-
-    #[test]
     fn test_get_image_by_name_with_null_album() {
         let conn = setup();
         sync_images(&conn, "p1", None, &[make_file("pic.jpg", 100)]);
@@ -282,18 +254,6 @@ mod tests {
         assert!(found.is_some());
         let not_found = get_image_by_name(&conn, "p1", "pic.jpg", None);
         assert!(not_found.is_none(), "Should not find root image when it's in an album");
-    }
-
-    #[test]
-    fn test_update_image_meta() {
-        let conn = setup();
-        sync_images(&conn, "p1", None, &[make_file("meta.jpg", 100)]);
-        let images = list_images(&conn, "p1", Some(None));
-        let id = images[0].id;
-        update_image_meta(&conn, id, Some(800), Some(600));
-        let updated = get_image_by_id(&conn, id).unwrap();
-        assert_eq!(updated.width, Some(800));
-        assert_eq!(updated.height, Some(600));
     }
 
     #[test]

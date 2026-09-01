@@ -714,6 +714,19 @@ const App = {
     const ag = document.getElementById('album-grid-wrap');
     const ic = document.getElementById('image-container');
 
+    // 切视图防闪烁（共性问题）：两个网格每次进入视图都会被整体重建
+    // （renderGrid / renderAlbumGrid），而重建前存在异步 IPC 间隙（如收藏/回收站
+    // 需先 await listFavorites/listTrash）。若不清空旧内容，重新显示容器时会瞬间
+    // 露出上一个视图的残留（例如「图片」→「相册」→「收藏」闪现旧图片网格）。
+    const imgGridEl = document.getElementById('image-grid');
+    if (imgGridEl) imgGridEl.innerHTML = '';
+    const albumGridEl = document.getElementById('album-grid');
+    if (albumGridEl) albumGridEl.innerHTML = '';
+    const imgEmptyEl = document.getElementById('empty-state');
+    if (imgEmptyEl) imgEmptyEl.classList.add('hidden');
+    const albumEmptyEl = document.getElementById('albums-empty');
+    if (albumEmptyEl) albumEmptyEl.classList.add('hidden');
+
     const isRootAlbums = S.currentView === 'albums';
     // A nested folder might have sub-albums → show both grid and images
     const hasSubAlbums = !isRootAlbums && S.currentView !== 'all'
@@ -1420,6 +1433,9 @@ const App = {
   _renderRecentAlbums() {
     const container = document.getElementById('recent-album-list');
     if (!container) return;
+    // 防闪烁（与相册页同类）：封面列表需异步拉取（listAlbums），
+    // 重建前若不清空，重新进入主页会短暂显示上一状态的残留列表。
+    container.innerHTML = '';
     const items = [...S.albumFolders]
       .sort((a, b) => {
         const getTime = p => {

@@ -94,7 +94,7 @@ bash scripts/build-installer.sh
 cd src-tauri && cargo tauri build --bundles nsis
 ```
 
-安装器位于: `src-tauri/target/release/bundle/nsis/Lumina_2.9.1_x64-setup.exe`
+安装器位于: `src-tauri/target/release/bundle/nsis/Lumina_2.9.2_x64-setup.exe`
 
 ## 安装说明
 
@@ -106,6 +106,12 @@ cd src-tauri && cargo tauri build --bundles nsis
 - **数据隔离**: 应用数据存储在图片文件夹下的 `.album/` 目录，卸载时不会删除用户数据
 
 ## 旧版本更新日志
+
+### 2026-09-01 — v2.9.2 — 修复切页闪烁（共性问题）+ 清理未使用代码
+
+- 🔀 **切页闪烁修复** — 视图切换（如图片→相册→收藏）不再闪现上一个视图的残留内容：根因是异步 IPC 间隙中旧网格仍在容器内，现于进入视图时先同步清空图片网格/相册网格与空状态提示，所有视图入口统一生效
+- 🏠 **主页「最近相册」残留修复** — 同类问题：重新进入主页时先清空列表，不再露出上一状态的残留
+- 🧹 **清理 4 处 dead code** — 移除生产代码未使用的 `init_profile_database`、`get_image_by_id`、`update_image_meta`、`get_trash_entry`，构建零警告
 
 ### 2026-08-31 — v2.9.1 — 修复：启动页红绿灯固定 + 面包屑可点击 + 设置项小字精简
 

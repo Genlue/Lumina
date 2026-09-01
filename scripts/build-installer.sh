@@ -8,4 +8,4 @@ cd "$(dirname "$0")/../src-tauri"
 echo "=== Building release binary + NSIS installer ==="
 cargo tauri build --bundles nsis
 echo "=== Done ==="
-echo "Installer: $(dirname "$0")/../src-tauri/target/release/bundle/nsis/Lumina_2.2.3_x64-setup.exe"
+echo "Installer: $(dirname "$0")/../src-tauri/target/release/bundle/nsis/Lumina_2.9.2_x64-setup.exe"

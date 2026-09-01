@@ -98,18 +98,8 @@ fn run_central_migrations(conn: &Connection) -> rusqlite::Result<()> {
 // Profile 数据库 (albums, images, favorites, trash, settings)
 // ============================================================
 
-/// 初始化 profile 数据库 schema (无外键 REFERENCES profiles)
-pub fn init_profile_database(path: &Path) -> rusqlite::Result<()> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).ok();
-    }
-
-    let conn = Connection::open(path)?;
-    conn.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")?;
-    init_profile_db_schema(&conn)?;
-    Ok(())
-}
-
+// 注：原 pub fn init_profile_database 已删除 —— 生产代码未使用；
+// profile 库由 db.rs 内的打开/迁移路径直接创建连接并调用 init_profile_db_schema。
 fn init_profile_db_schema(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS _schema_version (
