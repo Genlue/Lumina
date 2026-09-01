@@ -162,7 +162,7 @@ img {
 #sidebar-titlebar{display:none;height:40px;align-items:center;gap:8px;padding:0 14px;cursor:default;user-select:none;-webkit-user-select:none;flex:none;}
 body.titlebar-macos #sidebar-titlebar{display:flex;}
 /* 启动页红绿灯行（与主界面红绿灯行同款；仅 macOS 模式显示） */
-#startup-titlebar{position:absolute;top:0;left:0;right:0;height:40px;display:none;align-items:center;gap:8px;padding:0 14px;cursor:default;user-select:none;-webkit-user-select:none;z-index:1;}
+#startup-titlebar{position:fixed;top:0;left:0;right:0;height:40px;display:none;align-items:center;gap:8px;padding:0 14px;cursor:default;user-select:none;-webkit-user-select:none;z-index:1;}
 body.titlebar-macos #startup-titlebar{display:flex;}
 /* macOS 模式：主界面不再整体下移（顶栏行即窗口最顶行） */
 body.titlebar-macos #app{margin-top:0;}

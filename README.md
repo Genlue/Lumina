@@ -94,7 +94,7 @@ bash scripts/build-installer.sh
 cd src-tauri && cargo tauri build --bundles nsis
 ```
 
-安装器位于: `src-tauri/target/release/bundle/nsis/Lumina_2.9.0_x64-setup.exe`
+安装器位于: `src-tauri/target/release/bundle/nsis/Lumina_2.9.1_x64-setup.exe`
 
 ## 安装说明
 
@@ -106,6 +106,12 @@ cd src-tauri && cargo tauri build --bundles nsis
 - **数据隔离**: 应用数据存储在图片文件夹下的 `.album/` 目录，卸载时不会删除用户数据
 
 ## 旧版本更新日志
+
+### 2026-08-31 — v2.9.1 — 修复：启动页红绿灯固定 + 面包屑可点击 + 设置项小字精简
+
+- 🚦 **启动页红绿灯固定** — 初始化页内容可滚动时，红绿灯行改为 `position:fixed`，不再随页面上下滚动
+- 🧭 **面包屑可点击修复** — 「全部图片 / 相册A」等 bc-link 原先会被顶栏窗口拖拽吞掉点击事件：已将 `.bc-link` 加入拖拽排除列表，点击任意上级目录（含嵌套相册的上级相册）均可正常跳转
+- 🧹 **设置页小字精简** — 「面板与标题栏」分组中「面板模糊 / 面板透明度 / 内容区圆角」三项移除下方灰色小字说明
 
 ### 2026-08-31 — v2.9.0 — 统一 L 型面板 + 内容区圆角可调
 

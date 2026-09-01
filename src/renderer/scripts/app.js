@@ -986,7 +986,7 @@ const App = {
   /** macOS 风格红绿灯按钮与窗口拖拽（透明窗口下 data-tauri-drag-region 不可用）
       拖拽区域：侧边栏顶部红绿灯行、各页面顶栏行（空白处）、启动页 */
   _bindTitlebarControls() {
-    const DRAG_INTERACTIVE = '.tl-btn, button, input, select, a, .qn-btn, .discover-tab, .home-quick-nav';
+    const DRAG_INTERACTIVE = '.tl-btn, button, input, select, a, .qn-btn, .discover-tab, .home-quick-nav, .bc-link';
     const setupDrag = (el) => {
       if (!el) return;
       el.addEventListener('mousedown', (e) => {
