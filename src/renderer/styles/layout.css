@@ -154,36 +154,230 @@ img {
   font-weight: var(--font-weight-bold);
 }
 
-/* ============================
-   macOS 模式：红绿灯行（标题栏模式 = macos 时显示）
-   位于侧边栏顶部，高度固定 40px（与启动页红绿灯行一致），不随顶栏高度变化；
-   整行可拖动窗口、双击最大化
-   ============================ */
-#sidebar-titlebar{display:none;height:40px;align-items:center;gap:8px;padding:0 14px;cursor:default;user-select:none;-webkit-user-select:none;flex:none;}
-body.titlebar-macos #sidebar-titlebar{display:flex;}
+/* ============================================================
+   macOS 模式：自绘顶栏「红绿灯」按钮 (IconForge v2.0.0 规范版)
+   ============================================================ */
+
+/* 红绿灯原生色彩变量 (IconForge v2.0.0 规范) */
+:root {
+  --traffic-close-bg: #ff5f56;
+  --traffic-close-border: #e0443e;
+  --traffic-close-glyph: #4d0000;
+
+  --traffic-min-bg: #ffbd2e;
+  --traffic-min-border: #dea123;
+  --traffic-min-glyph: #995700;
+
+  --traffic-max-bg: #27c93f;
+  --traffic-max-border: #1aab29;
+  --traffic-max-glyph: #006400;
+
+  /* 实体失焦色彩（亮色默认） */
+  --traffic-inactive-bg: #dfdfdf;
+  --traffic-inactive-border: #c4c4c4;
+}
+
+/* 暗色模式失焦色彩 */
+[data-theme="dark"],
+body:not([data-theme="light"]):not(.theme-light) {
+  --traffic-inactive-bg: #3c3c3c;
+  --traffic-inactive-border: #4a4a4a;
+}
+[data-theme="light"] {
+  --traffic-inactive-bg: #dfdfdf;
+  --traffic-inactive-border: #c4c4c4;
+}
+
+/* macOS 模式：窗口外框圆角 (r=10) 且裁切溢出，最大化时直角铺满 */
+body.titlebar-macos:not(.window-maximized) {
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* 位于侧边栏顶部，高度固定 36px，圆心居中于 y = 18px；
+   padding-left 为 12px（配合容器 padding 2px 达成 14px 起始外边距）；
+   整行可拖动窗口、双击最大化 */
+#sidebar-titlebar {
+  display: none;
+  height: 36px;
+  align-items: center;
+  padding: 0 12px;
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+  flex: none;
+}
+body.titlebar-macos #sidebar-titlebar {
+  display: flex;
+}
+
 /* 启动页红绿灯行（与主界面红绿灯行同款；仅 macOS 模式显示） */
-#startup-titlebar{position:fixed;top:0;left:0;right:0;height:40px;display:none;align-items:center;gap:8px;padding:0 14px;cursor:default;user-select:none;-webkit-user-select:none;z-index:1;}
-body.titlebar-macos #startup-titlebar{display:flex;}
+#startup-titlebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 36px;
+  display: none;
+  align-items: center;
+  padding: 0 12px;
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+  z-index: 100;
+}
+body.titlebar-macos #startup-titlebar {
+  display: flex;
+}
+
 /* macOS 模式：主界面不再整体下移（顶栏行即窗口最顶行） */
-body.titlebar-macos #app{margin-top:0;}
-/* 红绿灯按钮（IconForge v1.4.4 复刻版）：12px 含 1px 描边（box-sizing:border-box），内径 10px */
-.tl-btn{width:12px;height:12px;box-sizing:border-box;border:1px solid rgba(0,0,0,0.18);border-radius:50%;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;color:rgba(0,0,0,0.55);}
-.tl-close{background:#ff5f57;border-color:#e0443e;}
-.tl-min{background:#febc2e;border-color:#d89e24;}
-.tl-max{background:#28c840;border-color:#1fad30;}
-/* 按下反馈：整圆变暗 18% */
-.tl-btn:active{filter:brightness(0.82);}
-/* 图标：默认隐藏；悬停/键盘聚焦时各自渐显（0.08s），仅被悬停/聚焦的按钮自身显示 */
-.tl-glyph{opacity:0;pointer-events:none;display:flex;align-items:center;justify-content:center;transition:opacity 0.08s ease;}
-.tl-glyph svg{display:block;}
-.tl-btn:hover .tl-glyph,
-.tl-btn:focus-visible .tl-glyph{opacity:1;}
-/* 绿灯：未最大化 ⤢（Maximize2）/ 已最大化 ⤡（Minimize2）切换 */
-.tl-max .tl-glyph-restore{display:none;}
-.tl-max.maximized .tl-glyph-max{display:none;}
-.tl-max.maximized .tl-glyph-restore{display:flex;}
-/* 窗口失焦：三圆变灰（grayscale）+ 55% 不透明度（聚焦状态由 body.window-unfocused 控制） */
-body.window-unfocused .tl-btn{filter:grayscale(1);opacity:0.55;}
+body.titlebar-macos #app {
+  margin-top: 0;
+}
+
+/* 红绿灯外包盒：8px 间距，扩展上下安全热区至 24px，左右 padding 2px（圆心距 20px，圆心坐标精准对齐 (20,18) · (40,18) · (60,18)） */
+.traffic-lights {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 24px;
+  padding: 0 2px;
+}
+
+/* 单个按钮通用规则：直径 12px 含 1px 描边，内径 10px 实心区 */
+.traffic-light,
+.tl-btn {
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  cursor: default;
+  background: none;
+  outline: none;
+  position: relative;
+  flex: none;
+  transition: transform 0.08s ease, filter 0.08s ease;
+}
+
+/* 内部 SVG 图标：常态隐藏，过渡 0.12s */
+.traffic-light .traffic-glyph,
+.tl-btn .traffic-glyph {
+  width: 12px;
+  height: 12px;
+  display: block;
+  opacity: 0;
+  transition: opacity 0.12s cubic-bezier(0.2, 0, 0, 1);
+  pointer-events: none;
+}
+
+/* 三灯联动悬停（Group Hover）：光标移入三灯容器，所有图标同时淡入 */
+.traffic-lights:hover .traffic-light .traffic-glyph,
+.traffic-lights:focus-within .traffic-light .traffic-glyph,
+.traffic-lights:hover .tl-btn .traffic-glyph,
+.traffic-lights:focus-within .tl-btn .traffic-glyph {
+  opacity: 1;
+}
+
+/* 按钮专属语义色彩 */
+.traffic-light--close,
+.tl-close {
+  background-color: var(--traffic-close-bg);
+  border-color: var(--traffic-close-border);
+  color: var(--traffic-close-glyph);
+}
+
+.traffic-light--minimize,
+.tl-min {
+  background-color: var(--traffic-min-bg);
+  border-color: var(--traffic-min-border);
+  color: var(--traffic-min-glyph);
+}
+
+.traffic-light--maximize,
+.tl-max {
+  background-color: var(--traffic-max-bg);
+  border-color: var(--traffic-max-border);
+  color: var(--traffic-max-glyph);
+}
+
+/* 单击按压反馈：微弱下沉与受压质感 */
+.traffic-light:active,
+.tl-btn:active {
+  filter: brightness(0.85);
+  transform: scale(0.96);
+}
+
+/* 键盘 Tab 聚焦 */
+.traffic-light:focus-visible,
+.tl-btn:focus-visible {
+  box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.6);
+}
+
+/* 绿灯多形态切换（常态全屏双三角 / 最大化还原双三角 / 按住 Alt 缩放加号） */
+.traffic-light--maximize .glyph-restore,
+.traffic-light--maximize .glyph-zoom,
+.tl-max .glyph-restore,
+.tl-max .glyph-zoom {
+  display: none;
+}
+
+/* 窗口已最大化且未按 Alt：显示向心对顶还原双三角 (图 2) */
+.traffic-light--maximize.maximized:not(.alt-pressed) .glyph-max,
+.traffic-light--maximize.maximized:not(.alt-pressed) .glyph-maximize,
+.tl-max.maximized:not(.alt-pressed) .glyph-max,
+.tl-max.maximized:not(.alt-pressed) .glyph-maximize {
+  display: none;
+}
+.traffic-light--maximize.maximized:not(.alt-pressed) .glyph-restore,
+.tl-max.maximized:not(.alt-pressed) .glyph-restore {
+  display: block;
+}
+
+/* Alt 键激活：切换为居中加号 [+] 缩放图标 */
+.traffic-light--maximize.alt-pressed .glyph-max,
+.traffic-light--maximize.alt-pressed .glyph-maximize,
+.traffic-light--maximize.alt-pressed .glyph-restore,
+.tl-max.alt-pressed .glyph-max,
+.tl-max.alt-pressed .glyph-maximize,
+.tl-max.alt-pressed .glyph-restore {
+  display: none;
+}
+.traffic-light--maximize.alt-pressed .glyph-zoom,
+.tl-max.alt-pressed .glyph-zoom {
+  display: block;
+}
+
+/* 窗口失焦：实体低扰中灰，且失焦状态下悬停不激活图标 */
+body.window-unfocused .traffic-light,
+body.window-unfocused .tl-btn {
+  background-color: var(--traffic-inactive-bg) !important;
+  border-color: var(--traffic-inactive-border) !important;
+  color: transparent !important;
+}
+body.window-unfocused .traffic-lights:hover .traffic-light .traffic-glyph,
+body.window-unfocused .traffic-lights:hover .tl-btn .traffic-glyph {
+  opacity: 0 !important;
+}
+
+/* 未保存状态圆点（Dirty State 预留） */
+.traffic-dirty-dot {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background-color: var(--traffic-close-glyph);
+  border-radius: 50%;
+  pointer-events: none;
+  transition: opacity 0.1s ease;
+}
+.traffic-lights:hover .traffic-dirty-dot {
+  opacity: 0;
+}
 
 #folder-info{padding:0 14px 8px;color:var(--c-text3);font-size:0.75em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 #folder-info span {

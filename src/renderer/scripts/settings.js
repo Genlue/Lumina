@@ -97,6 +97,7 @@ const ST = {
 
     const theme = THEMES[effectiveMode] ?? THEMES.dark;
     const root = document.documentElement;
+    root.setAttribute('data-theme', effectiveMode);
     const set = (k, v) => root.style.setProperty(k, v);
     set('--c-bg', theme.bg);
     set('--c-surface', theme.surface);

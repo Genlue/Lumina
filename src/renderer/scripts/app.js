@@ -999,7 +999,7 @@ const App = {
   /** macOS 风格红绿灯按钮与窗口拖拽（透明窗口下 data-tauri-drag-region 不可用）
       拖拽区域：侧边栏顶部红绿灯行、各页面顶栏行（空白处）、启动页 */
   _bindTitlebarControls() {
-    const DRAG_INTERACTIVE = '.tl-btn, button, input, select, a, .qn-btn, .discover-tab, .home-quick-nav, .bc-link';
+    const DRAG_INTERACTIVE = '.tl-btn, .traffic-light, button, input, select, a, .qn-btn, .discover-tab, .home-quick-nav, .bc-link';
     const setupDrag = (el) => {
       if (!el) return;
       el.addEventListener('mousedown', (e) => {
@@ -1044,19 +1044,56 @@ const App = {
     bindBtn('st-close', 'close');
     bindBtn('st-min', 'min');
     bindBtn('st-max', 'max');
-    // 红绿灯状态同步（IconForge 复刻）：绿钮随真实最大化状态在 ⤢/⤡ 间切换（含系统方式最大化），
-    // 窗口失焦时三圆变灰（macOS 行为）
+
+    // 红绿灯状态同步（IconForge v2.0.0 规范）：
+    // 1. 绿灯随真实最大化状态在 全屏双三角 / 还原双三角 间切换
+    // 2. Alt (Option) 键感知：按住时绿灯即刻切换为加号 [+] 缩放图标
+    // 3. 窗口失焦时三圆变纯净中灰且禁用悬停图标
+    const setMaxState = (isMax) => {
+      document.body.classList.toggle('window-maximized', !!isMax);
+      ['tl-max', 'st-max'].forEach(id => {
+        const b = document.getElementById(id);
+        if (!b) return;
+        b.classList.toggle('maximized', !!isMax);
+        const isAlt = b.classList.contains('alt-pressed');
+        if (isAlt) {
+          b.title = '缩放';
+          b.setAttribute('aria-label', '缩放窗口');
+        } else {
+          b.title = isMax ? '还原' : '全屏';
+          b.setAttribute('aria-label', isMax ? '还原窗口' : '全屏窗口');
+        }
+      });
+    };
+
+    const setAltState = (isAlt) => {
+      ['tl-max', 'st-max'].forEach(id => {
+        const b = document.getElementById(id);
+        if (!b) return;
+        b.classList.toggle('alt-pressed', !!isAlt);
+        if (isAlt) {
+          b.title = '缩放';
+          b.setAttribute('aria-label', '缩放窗口');
+        } else {
+          const isMax = b.classList.contains('maximized');
+          b.title = isMax ? '还原' : '全屏';
+          b.setAttribute('aria-label', isMax ? '还原窗口' : '全屏窗口');
+        }
+      });
+    };
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Alt' || e.altKey) setAltState(true);
+    });
+    window.addEventListener('keyup', (e) => {
+      if (e.key === 'Alt' || !e.altKey) setAltState(false);
+    });
+    window.addEventListener('blur', () => {
+      setAltState(false);
+    });
+
     const w = window.__TAURI__?.window?.getCurrentWindow?.();
     if (w) {
-      const setMaxState = (isMax) => {
-        ['tl-max', 'st-max'].forEach(id => {
-          const b = document.getElementById(id);
-          if (!b) return;
-          b.classList.toggle('maximized', !!isMax);
-          b.title = isMax ? '还原' : '最大化';
-          b.setAttribute('aria-label', isMax ? '还原窗口' : '最大化窗口');
-        });
-      };
       const syncMax = () => {
         if (typeof w.isMaximized === 'function') w.isMaximized().then(setMaxState).catch(() => {});
       };
