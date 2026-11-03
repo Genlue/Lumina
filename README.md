@@ -94,7 +94,7 @@ bash scripts/build-installer.sh
 cd src-tauri && cargo tauri build --bundles nsis
 ```
 
-安装器位于: `src-tauri/target/release/bundle/nsis/Lumina_2.9.3_x64-setup.exe`
+安装器位于: `src-tauri/target/release/bundle/nsis/Lumina_3.0.0_x64-setup.exe`
 
 ## 安装说明
 
@@ -106,6 +106,29 @@ cd src-tauri && cargo tauri build --bundles nsis
 - **数据隔离**: 应用数据存储在图片文件夹下的 `.album/` 目录，卸载时不会删除用户数据
 
 ## 旧版本更新日志
+
+### 2026-11-03 — v3.0.0 — 全面对齐 Golden Gate 设计系统（大版本）
+
+这一版把界面从 11-01 的旧副本整体换到 **Golden Gate 设计系统当前版**，并重建了窗口外壳。
+控件 DOM 有变动，属于不兼容的大版本。
+
+- 🪟 **窗口外壳重建** — 顶栏升级为窗口级：红绿灯从侧栏移到窗口顶栏（`.l-chrome`），
+  侧栏从顶栏下方开始；导航栏改用 `NavColumn`（头 / 可滚中段 / 脚三区），收起时整根滑出。
+  顶栏只有一条 flex 流：chrome → 前进后退 + 页面名 → 右侧胶囊。
+- 🧊 **接入液态玻璃渲染层** — `glass-schema` / `glass-shape` / `glass-optics` / `glass-lens` / `refraction`
+  五个模块，灯箱与幻灯片工具条由渲染层接管材质；系统 Acrylic 模式下自动让位给 DWM。
+- 🧩 **控件全面替换** — 回收站改 `List` + `ListRow`；面包屑改 `Breadcrumb`；相册卡改 `Tile`；
+  对话框改 `Dialog` / `confirmDialog`（模态栈、Esc、焦点返还由控件负责）。
+- 🚦 **红绿灯** — 接入设计系统的 `TrafficLights`：`data-focused` 统一 `1/0` 契约；
+  失焦色改为主题令牌（浅色 alpha 黑 / 深色 alpha 白），不再写死深灰；外圈改成描边环。
+- 🧭 **导航栏开合材质** — 开合那 380ms 会压在内容上，系统 Acrylic 压不到 webview 内容，
+  飞行期自绘一层同款 acrylic（`markNavMoving`），落位交还 DWM。
+- 🖼️ **应用图标** — 换成新图标，导航栏信息模块改用真实图标文件（`NavInfo({ iconSrc })`），
+  不再拿字形拼圆底假图标。
+- 🐞 **修复** — ① 相册卡封面永远空白（`Tile` 把空串当成"没有媒体"）；
+  ② 抽卡网格错位、右侧被切（列宽按固定像素算，容器放不下）；
+  ③ 顶部渐进模糊把工具栏糊成灰的（面纱高度 108px 盖过了 52px 顶栏）；
+  ④ 浅色模式下失焦红绿灯是三颗黑豆。
 
 ### 2026-09-15 — v2.9.3 — 升级 macOS 顶栏「红绿灯」按钮为 IconForge v2.0.0 规范版
 

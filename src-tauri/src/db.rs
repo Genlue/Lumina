@@ -162,12 +162,13 @@ fn init_profile_db_schema(conn: &Connection) -> rusqlite::Result<()> {
                 profile_id      TEXT PRIMARY KEY,
                 view_mode       TEXT NOT NULL DEFAULT 'grid',
                 sort_by         TEXT NOT NULL DEFAULT 'name-asc',
-                theme_mode      TEXT NOT NULL DEFAULT 'dark',
-                accent_color    TEXT NOT NULL DEFAULT '#6D79F6',
+                -- Golden Gate：主题跟随系统、强调色取 macOS 系统蓝、侧栏宽 224
+                theme_mode      TEXT NOT NULL DEFAULT 'system',
+                accent_color    TEXT NOT NULL DEFAULT '#0a84ff',
                 bg_image        TEXT,
                 bg_blur         INTEGER NOT NULL DEFAULT 0,
                 bg_opacity      REAL NOT NULL DEFAULT 1.0,
-                sidebar_width   INTEGER NOT NULL DEFAULT 150,
+                sidebar_width   INTEGER NOT NULL DEFAULT 224,
                 sidebar_opacity REAL NOT NULL DEFAULT 0.7,
                 draw_count      INTEGER NOT NULL DEFAULT 10,
                 card_opacity    REAL NOT NULL DEFAULT 0.7,
@@ -350,6 +351,31 @@ fn init_profile_db_schema(conn: &Connection) -> rusqlite::Result<()> {
         )?;
         conn.execute("INSERT INTO _schema_version (version) VALUES (18)", [])?;
         println!("[DB] Profile DB migration V18 applied (panel_radius)");
+    }
+
+    if version < 19 {
+        // 对齐 Golden Gate 的默认值：强调色只有一个（深浅由 theme.js 派生）、
+        // 主题跟随系统、侧栏宽 224。
+        // 只动「外观从未被改过」的图库 —— 三档色值与 dark 主题必须同时命中旧默认，
+        // 任何一项被用户改过都保持原样，避免覆盖真实偏好。
+        conn.execute_batch(
+            "UPDATE settings
+                SET accent_color = '#0a84ff',
+                    accent_color_dark = '#0a84ff',
+                    accent_color_light = '#0a84ff',
+                    theme_mode = 'system',
+                    sidebar_width = 224
+              WHERE LOWER(accent_color) = '#6d79f6'
+                AND LOWER(accent_color_dark) = '#4a9eff'
+                AND LOWER(accent_color_light) = '#003d7a'
+                AND theme_mode = 'dark'
+
+             ;UPDATE settings
+                SET sidebar_width = 224
+              WHERE sidebar_width < 190;"
+        )?;
+        conn.execute("INSERT INTO _schema_version (version) VALUES (19)", [])?;
+        println!("[DB] Profile DB migration V19 applied (Golden Gate defaults)");
     }
 
     Ok(())

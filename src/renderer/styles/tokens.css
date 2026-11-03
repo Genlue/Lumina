@@ -1,0 +1,441 @@
+/* ==========================================================================
+   Lumina · Design Tokens
+   Golden Gate / Liquid Glass
+   —— 所有控件只允许消费这里的变量，不允许出现字面色值
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* ---------------------------------------------------------------------
+     1. Liquid Glass 通透度
+     0 = 超透明（玻璃感最强，染色最淡）
+     1 = 饱和（对比最高，染色最重）
+     --------------------------------------------------------------------- */
+  /* 定稿值 1。theme.js 的 state.glass 默认也是 1，两处必须一致 ——
+     以前这里写 0.46、theme 写 1，CSS 默认值和运行时默认值对不上。 */
+  --lg: 1;
+
+  /* 材质：四级，权重递增。轻材质不可叠在另一层轻材质上 */
+  /* 玻璃基色。纯白会「消失」在白色内容里 —— 留一点冷灰，白底上才看得出是一块材质 */
+  --glass-rgb: 236 238 243;
+
+  /* 下面这组 calc 在 --lg: 1 时展开成定稿值（由玻璃参数页导出）：
+       chrome 0.80 / 14px    panel 0.78 / 20px
+       popover 0.94 / 24px   sheet 0.96 / 26px
+     改 --lg 会整体联动；要单独钉死某一面，就在那个类上直接写 --glass-base-a。 */
+
+  /* L1 chrome —— 工具栏、标题栏 */
+  --m-chrome-a: calc(0.40 + 0.40 * var(--lg));
+  --m-chrome-blur: calc(26px - 12px * var(--lg));
+  --m-chrome-sat: 165%;
+
+  /* L2 panel —— 侧边导航栏。
+     **它不是液态玻璃，是 acrylic。** 真实软件里侧栏用系统材质（模糊 + 提饱和 + 染色），
+     没有折射、没有色散、没有边缘聚光。所以这一档只有三个旋钮：浓度 / 模糊 / 饱和。 */
+  --m-acrylic-a: calc(0.62 + 0.18 * var(--lg));
+  --m-acrylic-blur: calc(36px - 12px * var(--lg));
+  --m-acrylic-sat: 180%;
+  /* @deprecated 旧名，指向 acrylic */
+  --m-panel-a: var(--m-acrylic-a);
+  --m-panel-blur: var(--m-acrylic-blur);
+  --m-panel-sat: var(--m-acrylic-sat);
+
+  /* 悬浮导航栏 —— 浮在内容上的长条玻璃。面积比胶囊大，所以比胶囊糊得多一点，
+     但比菜单薄：它后面是内容，不是另一层玻璃。 */
+  --m-dock-blur: calc(34px - 14px * var(--lg));
+
+  /* L3 popover —— 菜单、弹出层。必须比它覆盖的表面更重 */
+  --m-popover-a: calc(0.66 + 0.28 * var(--lg));
+  --m-popover-blur: calc(46px - 22px * var(--lg));
+  --m-popover-sat: 180%;
+
+  /* L4 sheet —— 模态面板、灯箱工具条 */
+  --m-sheet-a: calc(0.74 + 0.22 * var(--lg));
+  --m-sheet-blur: calc(50px - 24px * var(--lg));
+
+  /* ---- Liquid Glass 光学参数（设置页可调）----
+     参数语义沿用 LiquidGlassParams：
+     refract=RefractionAmount, chroma=Dispersion, vibrance=Vibrancy,
+     coat=Coating.Strength, highlight=StrokeAlpha
+
+     注意：这一组只作用于「大面积的玻璃」——顶栏胶囊、提示条、材质样张。
+     滑块拇指用的是自己的一套定稿值（写在 .c-slider__thumb 里），不跟这里走，
+     否则调到极值会把那颗 24×16 的小玻璃调成塑料片。
+     refract 只改拇指那几条蓝色折射弧的浓度；真正的后景位移强度在
+     scripts/core/refraction.js 的 BASE_DISPLACEMENT（SVG 滤镜的 scale）。 */
+  /* 液态玻璃光学参数（DeskCanvas 口径）。theme.init() 会按玻璃面覆写这些值，
+     这里只是「还没有主题时」的兜底，默认与胶囊那一档一致。 */
+  --lg-band: 20;
+  --lg-amount: 7;
+  --lg-depth: 0.6;
+  --lg-dispersion: 0;
+  --lg-vibrancy: 1.8;
+  --lg-coating: 0.34;
+  --lg-stroke-half: 0.8;
+  --lg-stroke-feather: 0.25;
+  --lg-stroke-alpha: 0.3;
+  --lg-falloff: 1;
+  --lg-light: 0;
+  --glass-blur-k: 1;
+  /* 对称高光：底部聚光 / 底边高光相对顶部的比例。0 = 只有上方有光 */
+  --hl-bottom: 0.55;
+
+  --accent-rgb: 10 132 255;
+
+  --scrim: rgb(0 0 0 / 0.34);
+
+  /* ---------------------------------------------------------------------
+     2. 表面
+     --------------------------------------------------------------------- */
+  --surface-window: #ffffff;
+  --surface-content: #ffffff;
+  --surface-elevated: #ffffff;
+  --surface-sunken: #f5f5f7;
+
+  --surface-card: #ffffff;
+  --surface-card-hover: #fafafc;
+  --surface-well: rgb(120 120 128 / 0.08);
+
+  --surface-control: rgb(120 120 128 / 0.12);
+  --surface-control-hover: rgb(120 120 128 / 0.18);
+  --surface-control-active: rgb(120 120 128 / 0.24);
+  --surface-control-solid: #ffffff;
+
+  --surface-selection: rgb(0 0 0 / 0.06);
+  --surface-selection-strong: rgb(0 0 0 / 0.09);
+  --surface-hover: rgb(0 0 0 / 0.04);
+
+  /* 侧栏选中底：中性灰，不是强调色。强调只留给文字和图标。
+     浅色下"比白深一点"，深色下"比黑浅一点"，两套各给一个值。 */
+  --surface-nav-selected: rgb(0 0 0 / 0.09);
+
+  /* 卡片式导航的分组底。它不是玻璃 —— 是压在导航栏玻璃上的一层薄染色，
+     所以只用极低透明度，靠 0.5px 描边把边界读出来。 */
+  --surface-nav-card: rgb(0 0 0 / 0.045);
+  --surface-nav-card-hover: rgb(0 0 0 / 0.065);
+
+  /* 信息模块里重叠头像之间的分离环。导航栏是 acrylic，没有实心底可采，
+     所以用一层「近似底色」的半透明环：压在别人头像上时把两个圆分开，
+     落在导航栏本身上时又几乎看不见。 */
+  --nav-ring: rgb(255 255 255 / 0.82);
+
+  /* 失焦红绿灯：三灯退成中性灰。
+     用 alpha 半透明而不是定值 —— 这三点压在顶栏玻璃上，底有多亮它们就跟到多亮。
+     写死一个 #45474a，浅色顶栏上就是三颗黑豆（深色主题里看着没问题，所以很容易漏）。 */
+  --tl-off-rim: rgb(0 0 0 / 0.2);
+  --tl-off-body: rgb(0 0 0 / 0.12);
+  --tl-off-dot: rgb(0 0 0 / 0.34);
+
+  /* 导航栏开合时的「覆盖期材质」。
+     系统 Acrylic 只模糊窗口背后的桌面，压不到 webview 里的内容；导航栏又是覆盖层，
+     开合那 380ms 会压在内容上 —— 必须自己补一层真模糊，否则内容原样透出来。
+     这三个数只在飞行期生效，落位就把材质交还 DWM。 */
+  --nav-move-a: 0.32;
+  --nav-move-blur: 28px;
+  --nav-move-sat: 1.8;
+
+  /* ---------------------------------------------------------------------
+     3. 文字
+     --------------------------------------------------------------------- */
+  --text-primary: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --text-tertiary: #8e8e93;
+  --text-quaternary: #aeaeb2;
+  --text-on-accent: #ffffff;
+
+  /* 玻璃/模糊材质上的文字：必须比普通表面更实、更重。
+     中灰叠在半透明层上会直接糊掉，可读性崩盘。 */
+  --text-glass-1: #1d1d1f;
+  --text-glass-2: #45454a;
+  --text-glass-3: #55555a;
+  --text-glass-4: #6a6a70;
+
+  /* ---------------------------------------------------------------------
+     4. 描边
+     --------------------------------------------------------------------- */
+  --line: rgb(0 0 0 / 0.08);
+  --line-soft: rgb(0 0 0 / 0.05);
+  --line-strong: rgb(0 0 0 / 0.14);
+  --line-highlight: rgb(255 255 255 / 0.55);
+
+  /* ---------------------------------------------------------------------
+     5. 强调色（由 theme.js 覆写）
+     --------------------------------------------------------------------- */
+  --accent: #0a84ff;
+  --accent-hover: #0071e3;
+  --accent-soft: rgb(10 132 255 / 0.12);
+  --accent-ring: rgb(10 132 255 / 0.35);
+
+  --danger: #ff3b30;
+  --danger-soft: rgb(255 59 48 / 0.12);
+  --warning: #ff9f0a;
+  --success: #30d158;
+
+  /* ---------------------------------------------------------------------
+     6. 字体
+     --------------------------------------------------------------------- */
+  --font-ui: "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text",
+    "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", system-ui, sans-serif;
+  --font-display: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display",
+    "Segoe UI", "PingFang SC", "Microsoft YaHei UI", system-ui, sans-serif;
+  --font-mono: "SF Mono", "Cascadia Mono", "JetBrains Mono", ui-monospace, monospace;
+
+  /* 字阶。UI 正文 13px —— macOS 的默认行高基准 */
+  --fs-11: 11px;
+  --fs-12: 12px;
+  --fs-13: 13px;
+  --fs-15: 15px;
+  --fs-17: 17px;
+  --fs-22: 22px;
+  --fs-28: 28px;
+  --fs-34: 34px;
+
+  --lh-tight: 1.15;
+  --lh-snug: 1.3;
+  --lh-base: 1.5;
+
+  /* 字距随字号反向调整：大字收紧，小字略放 */
+  --tracking-display: -0.022em;
+  --tracking-title: -0.014em;
+  --tracking-body: -0.004em;
+  --tracking-caption: 0.006em;
+  --tracking-section: 0.02em;
+
+  /* ---------------------------------------------------------------------
+     7. 间距（4pt 栅格）
+     --------------------------------------------------------------------- */
+  --s-1: 2px;
+  --s-2: 4px;
+  --s-3: 6px;
+  --s-4: 8px;
+  --s-5: 10px;
+  --s-6: 12px;
+  --s-7: 16px;
+  --s-8: 20px;
+  --s-9: 24px;
+  --s-10: 32px;
+  --s-11: 40px;
+
+  /* ---------------------------------------------------------------------
+     8. 圆角（Golden Gate 统一圆角标准）
+     --------------------------------------------------------------------- */
+  --r-xs: 6px;
+  --r-sm: 9px;
+  --r-md: 12px;
+  --r-lg: 15px;
+  --r-xl: 18px;
+  --r-window: 20px;
+  --r-pill: 999px;
+
+  /* ---------------------------------------------------------------------
+     8.5 控件尺寸阶梯
+     这一组变量**故意不在 :root 声明**：一旦声明，控件自己的 var(..., 回退)
+     就永远用不上，分段控件也就没法在「常规轨道」里保持 22 高。
+     规则是「容器声明、控件回退」：
+       常规轨道  高 22 / 图标 13 / 圆角 5     ← .c-seg__opt 的回退值
+       默认控件  高 28 / 图标 16 / 圆角 7     ← .c-btn / .c-iconbtn 的回退值
+       胶囊容器  高 28 / 图标 14 / 全圆角     ← .c-capsule 声明，内部全部继承
+     于是同一段控件代码换容器就自动换尺寸，不需要任何 .容器 > .控件 覆盖。
+     --------------------------------------------------------------------- */
+
+  /* ---------------------------------------------------------------------
+     8.6 图标线宽
+     所有 SVG 用同一条物理线宽（不随尺寸缩放），由设置里的「图标线条」调。
+     --------------------------------------------------------------------- */
+  --ic-stroke: 1.4;
+
+  /* ---------------------------------------------------------------------
+     9. 阴影（接触阴影 + 环境阴影双层）
+     所有黑阴影的透明度都乘 --shadow-k，设置里的「阴影浓度」直接改这一个值，
+     从 0（完全没有阴影）到 1.6（很重）连续可调。
+     --------------------------------------------------------------------- */
+  --shadow-k: 1;
+  --shadow-window: 0 0 0 0.5px rgb(0 0 0 / calc(0.14 * var(--shadow-k))), 0 18px 48px -12px rgb(0 0 0 / calc(0.30 * var(--shadow-k))),
+    0 2px 10px rgb(0 0 0 / calc(0.10 * var(--shadow-k)));
+  --shadow-popover: 0 0 0 0.5px rgb(0 0 0 / calc(0.10 * var(--shadow-k))), 0 10px 32px -8px rgb(0 0 0 / calc(0.22 * var(--shadow-k))),
+    0 2px 6px rgb(0 0 0 / calc(0.08 * var(--shadow-k)));
+  --shadow-card: 0 0 0 0.5px rgb(0 0 0 / calc(0.06 * var(--shadow-k))), 0 1px 3px rgb(0 0 0 / calc(0.06 * var(--shadow-k)));
+  --shadow-card-hover: 0 0 0 0.5px rgb(0 0 0 / calc(0.08 * var(--shadow-k))), 0 6px 18px -6px rgb(0 0 0 / calc(0.16 * var(--shadow-k))),
+    0 1px 3px rgb(0 0 0 / calc(0.06 * var(--shadow-k)));
+  --shadow-thumb: 0 1px 2px rgb(0 0 0 / calc(0.10 * var(--shadow-k)));
+
+  /* ---------------------------------------------------------------------
+     10. 动效
+     --------------------------------------------------------------------- */
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 320ms;
+  --ease-out: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-in: cubic-bezier(0.68, 0, 0.68, 0.2);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ---------------------------------------------------------------------
+     11. 布局度量
+     导航栏宽度的唯一入口是 --nav-w。「侧栏」只是导航栏的一种形态，
+     所以 --sidebar-* 已降级为兼容别名，新代码一律用 --nav-*。
+     --------------------------------------------------------------------- */
+
+  /* 推导用的组件尺寸 —— 顶栏的账本拿它们算，不写死结果：
+       --chrome-lights-w = 3 × --tl-dot + 2 × --tl-gap
+       --chrome-btn-w    = --capsule-h
+     改这三个数，圆点、圆点间距、胶囊、开关的落点一起动。 */
+  --tl-dot: 12px;
+  --tl-gap: 8px;
+  --capsule-h: 34px;
+
+  --nav-w: 224px;
+  --nav-w-min: 190px;
+  --nav-w-max: 340px;
+
+  /* 悬浮导航栏的度量：药丸宽 = 圆钮 + 两侧内边距。
+     --dock-gutter 是它给内容留的让位（药丸 + 两侧外边距），算在这里是因为
+     .l-main 也要用 —— 不能只在 .c-dock 里定义。 */
+  --dock-btn: 40px;
+  --dock-gap: 4px;
+  --dock-pad: 6px;
+  --dock-inset: 14px;
+  --dock-gutter: calc(var(--dock-inset) * 2 + var(--dock-btn) + var(--dock-pad) * 2);
+  /* @deprecated 兼容旧页面 */
+  --sidebar-w: var(--nav-w);
+  --sidebar-w-min: var(--nav-w-min);
+  --sidebar-w-max: var(--nav-w-max);
+
+  --toolbar-h: 52px;
+  --row-h: 28px;
+  --grid-gap: 4px;
+
+  /* ---------------------------------------------------------------------
+     12. 壁纸（Golden Gate：黄昏时分的暖光）
+     --------------------------------------------------------------------- */
+  --wallpaper: radial-gradient(70% 55% at 74% 18%, rgb(255 201 130 / 0.55), transparent 64%),
+    radial-gradient(58% 48% at 18% 76%, rgb(94 124 214 / 0.42), transparent 62%),
+    radial-gradient(120% 78% at 52% 106%, rgb(255 143 92 / 0.82), transparent 56%),
+    linear-gradient(168deg, #1b2148 0%, #3a3566 36%, #7a4e6e 62%, #c4735c 84%, #e9a46b 100%);
+}
+
+/* ==========================================================================
+   Dark
+   ========================================================================== */
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --glass-rgb: 28 28 32;
+
+  --m-chrome-a: calc(0.34 + 0.38 * var(--lg));
+  --m-acrylic-a: calc(0.56 + 0.16 * var(--lg));
+  --m-acrylic-blur: calc(36px - 12px * var(--lg));
+  --m-popover-a: calc(0.70 + 0.24 * var(--lg));
+  --m-sheet-a: calc(0.78 + 0.18 * var(--lg));
+
+  --scrim: rgb(0 0 0 / 0.52);
+
+  --surface-window: #1c1c1e;
+  --surface-content: #1e1e20;
+  --surface-elevated: #26262a;
+  --surface-sunken: #161618;
+
+  --surface-card: #26262a;
+  --surface-card-hover: #2e2e33;
+  --surface-well: rgb(255 255 255 / 0.06);
+
+  --surface-control: rgb(255 255 255 / 0.12);
+  --surface-control-hover: rgb(255 255 255 / 0.18);
+  --surface-control-active: rgb(255 255 255 / 0.24);
+  --surface-control-solid: #3a3a40;
+
+  --surface-selection: rgb(255 255 255 / 0.10);
+  --surface-selection-strong: rgb(255 255 255 / 0.14);
+  --surface-hover: rgb(255 255 255 / 0.06);
+
+  /* 侧栏选中底：深色下用白色低透明度，得到"比黑浅一点"的中性灰 */
+  --surface-nav-selected: rgb(255 255 255 / 0.12);
+  --surface-nav-card: rgb(255 255 255 / 0.05);
+  --surface-nav-card-hover: rgb(255 255 255 / 0.075);
+  --nav-ring: rgb(28 28 30 / 0.78);
+
+  /* 失焦红绿灯：深色顶栏上换成淡白半透明，亮度与浅色那套对称 */
+  --tl-off-rim: rgb(255 255 255 / 0.26);
+  --tl-off-body: rgb(255 255 255 / 0.15);
+  --tl-off-dot: rgb(255 255 255 / 0.4);
+
+  /* 覆盖期材质：深色底要更厚一点才压得住内容 */
+  --nav-move-a: 0.36;
+  --nav-move-blur: 28px;
+  --nav-move-sat: 1.6;
+
+  --text-primary: #f5f5f7;
+  --text-secondary: rgb(235 235 245 / 0.62);
+  --text-tertiary: rgb(235 235 245 / 0.42);
+  --text-quaternary: rgb(235 235 245 / 0.26);
+  --text-on-accent: #ffffff;
+
+  --text-glass-1: #f7f7f9;
+  --text-glass-2: rgb(240 240 246 / 0.9);
+  --text-glass-3: rgb(240 240 246 / 0.76);
+  --text-glass-4: rgb(240 240 246 / 0.62);
+
+  --line: rgb(255 255 255 / 0.10);
+  --line-soft: rgb(255 255 255 / 0.06);
+  --line-strong: rgb(255 255 255 / 0.18);
+  --line-highlight: rgb(255 255 255 / 0.14);
+
+  --accent: #0a84ff;
+  --accent-hover: #409cff;
+  --accent-soft: rgb(10 132 255 / 0.20);
+  --accent-ring: rgb(10 132 255 / 0.45);
+
+  --danger: #ff453a;
+  --danger-soft: rgb(255 69 58 / 0.18);
+  --warning: #ffb340;
+  --success: #32d74b;
+
+  --shadow-window: 0 0 0 0.5px rgb(0 0 0 / calc(0.55 * var(--shadow-k))), 0 18px 48px -12px rgb(0 0 0 / calc(0.62 * var(--shadow-k))),
+    0 2px 10px rgb(0 0 0 / calc(0.36 * var(--shadow-k)));
+  --shadow-popover: 0 0 0 0.5px rgb(255 255 255 / 0.08), 0 10px 32px -8px rgb(0 0 0 / calc(0.58 * var(--shadow-k))),
+    0 2px 6px rgb(0 0 0 / calc(0.32 * var(--shadow-k)));
+  --shadow-card: 0 0 0 0.5px rgb(255 255 255 / 0.06), 0 1px 3px rgb(0 0 0 / calc(0.4 * var(--shadow-k)));
+  --shadow-card-hover: 0 0 0 0.5px rgb(255 255 255 / 0.10), 0 6px 18px -6px rgb(0 0 0 / calc(0.5 * var(--shadow-k)));
+  --shadow-thumb: 0 1px 2px rgb(0 0 0 / calc(0.4 * var(--shadow-k)));
+
+  --wallpaper: radial-gradient(68% 52% at 76% 16%, rgb(212 148 84 / 0.30), transparent 62%),
+    radial-gradient(56% 46% at 16% 78%, rgb(60 84 168 / 0.32), transparent 62%),
+    linear-gradient(168deg, #0a0d1e 0%, #191733 38%, #33243c 64%, #4a2f36 86%, #5d3c33 100%);
+}
+
+/* ==========================================================================
+   辅助偏好：降透明 / 高对比 / 降动态
+   ========================================================================== */
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --m-chrome-a: 1;
+    --m-chrome-blur: 0px;
+    --m-acrylic-a: 1;
+    --m-acrylic-blur: 0px;
+    --m-dock-blur: 0px;
+    --m-popover-a: 1;
+    --m-popover-blur: 0px;
+    --m-sheet-a: 1;
+    --m-sheet-blur: 0px;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --line: rgb(0 0 0 / 0.28);
+    --line-strong: rgb(0 0 0 / 0.42);
+    --text-secondary: #48484a;
+    --text-tertiary: #636366;
+    --m-chrome-a: 1;
+    --m-acrylic-a: 1;
+    --m-popover-a: 1;
+  }
+  [data-theme="dark"] {
+    --line: rgb(255 255 255 / 0.34);
+    --line-strong: rgb(255 255 255 / 0.5);
+    --text-secondary: rgb(235 235 245 / 0.82);
+    --text-tertiary: rgb(235 235 245 / 0.66);
+  }
+}

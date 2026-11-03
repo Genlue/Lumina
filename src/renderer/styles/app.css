@@ -1,0 +1,733 @@
+/* ==========================================================================
+   Lumina · App
+   —— 页面级样式：只写「位置、尺寸、栅格、层级」。
+      颜色、圆角、阴影、动效一律来自 tokens.css / components.css，这里不出现字面色值。
+      窗口几何、顶栏节奏、导航栏材质全部吃 layout.css + components.css：
+      这里不再覆盖 inset / 圆角 / 面板浓度 / 模糊 —— 那些是设计系统的账。
+   ========================================================================== */
+
+/* ==========================================================================
+   1. 顶栏
+   ========================================================================== */
+
+/* 顶栏空白处要能接住指针，窗口才拖得动。
+   components.css 给 .c-topbar 写了 pointer-events: none（只让子元素命中），
+   那样挂在顶栏上的 Tauri 拖拽区永远收不到 pointerdown —— 整条顶栏都是死的。
+   桌面端靠 data-tauri-drag-region 拖动；按钮/胶囊是子元素，照常点击。 */
+.c-topbar {
+  pointer-events: auto;
+}
+
+.c-topbar__lead,
+.c-topbar__pills {
+  -webkit-app-region: no-drag;
+}
+
+/* 图库选择器胶囊：挂在顶栏右侧，显示当前图库名。
+   名字可能很长（文件夹名），必须自己 ellipsis，不能把胶囊撑破。 */
+.app-libchip {
+  max-width: 200px;
+  justify-content: flex-start;
+  overflow: hidden;
+}
+
+.app-libchip .c-btn__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 胶囊里的危险按钮：只保留红字，不要再套一颗药丸（胶囊里不许套胶囊） */
+.c-capsule .c-btn--danger {
+  background: transparent;
+}
+
+.c-capsule .c-btn--danger:hover {
+  background: var(--danger-soft);
+}
+
+/* 启动占位：主题起好、数据还没到的那一帧 */
+.app-boot {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+/* ==========================================================================
+   2. 导航栏
+   —— 容器与材质由 NavColumn（.l-nav.c-acrylic）提供，这里只补任务状态区。
+   ========================================================================== */
+
+/* 任务状态区：空闲时整块 display:none（由 paintStatus 控制），
+   只有扫描 / 生成缩略图时才浮出来 —— 导航栏底部平时是干净的。 */
+.app-status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.app-status__line {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  font-size: var(--fs-11);
+  letter-spacing: var(--tracking-caption);
+  color: var(--text-glass-4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ==========================================================================
+   3. 页面骨架
+   ========================================================================== */
+
+.app-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-7);
+  /* 顶部 16：与 .l-stage 的 --toolbar-h(52) 相加 = 68，和文档 .l-pad 的 20 同量级 */
+  padding: var(--s-7) var(--s-8) var(--s-11);
+  min-height: 100%;
+}
+
+/* 网格类页面自己管内边距，不要上下再叠一层 */
+.app-page--flush {
+  /* 搜索行与网格之间要留一口气，不能贴在一起 */
+  gap: var(--s-7);
+  /* 左右与 .app-page 对齐（20）：网格要和其它页面的卡片同一条竖线 */
+  padding: var(--s-5) var(--s-8) var(--s-9);
+}
+
+/* .c-section 自带「左右 20」，是给整幅铺满的页面用的。
+   放进已经有内边距的容器（.app-page / .app-chart / 卡片）时会把标题再缩进 20，
+   和下面的卡片错开一条线 —— 容器里只需保留纵向节奏。 */
+.app-page .c-section,
+.app-settings .c-section,
+.app-chart .c-section,
+.c-card .c-section,
+.c-dialog .c-section {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* 页面名只在顶栏出现（docs/04 §3）：正文不再有 28px 大标题，也不再有副标题行。
+   需要分节时用 .c-section（11px 加粗字距 0.02em），需要视觉锚点用 .c-headline（22px）。 */
+
+/* 工具行：搜索 / 排序 / 视图切换 */
+.app-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+}
+
+.app-tools__seps {
+  flex: 1;
+  min-width: var(--s-6);
+}
+
+/* 搜索命中的高亮：只改字重与底色，颜色仍来自强调色 */
+.app-mark {
+  padding: 0 1px;
+  background: var(--accent-soft);
+  color: inherit;
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   4. 图片网格 / 列表
+   —— 单元格绝对定位：容器高度由总行数撑开，只渲染可视区 ±1 屏
+   ========================================================================== */
+
+.app-grid {
+  position: relative;
+  width: 100%;
+}
+
+.app-grid__spacer {
+  width: 1px;
+  pointer-events: none;
+}
+
+.app-grid__cell {
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform;
+}
+
+/* 单元格尺寸由 JS 写死，缩略图铺满它 —— 两个方向都给值，Thumb 的 aspect-ratio 就不再生效 */
+.app-grid__cell > .c-thumb {
+  width: 100%;
+  height: 100%;
+}
+
+/* 列表形态的一行：与 .c-list__row 同一套尺寸与层级，只是排进虚拟化网格 */
+.app-listrow {
+  height: 100%;
+  min-height: 0;
+  gap: var(--s-4);
+  padding: 0 var(--s-4);
+  border-radius: var(--r-sm);
+  background: transparent;
+}
+
+.app-listrow:hover {
+  background: var(--surface-hover);
+}
+
+.app-listrow[aria-selected="true"] {
+  background: var(--accent-soft);
+}
+
+.app-listrow__thumb {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-xs);
+  overflow: hidden;
+  background: var(--surface-well);
+}
+
+.app-listrow__thumb > .c-thumb {
+  width: 100%;
+  height: 100%;
+  box-shadow: none;
+}
+
+.app-listrow__name {
+  flex: 1 1 40%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-13);
+  color: var(--text-primary);
+}
+
+.app-listrow__meta {
+  flex: none;
+  font-size: var(--fs-11);
+  color: var(--text-tertiary);
+  letter-spacing: var(--tracking-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.app-listrow__folder {
+  flex: 0 1 26%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-11);
+  color: var(--text-tertiary);
+}
+
+/* 行内独立图标。
+   不要把 .c-nav__icon 借到导航之外：那个类带的是「16px 栅格 + 导航选中染色」的语义，
+   借出去以后一旦导航栏样式变了，列表行会跟着歪。这里只保留栅格与次要色。 */
+.app-ic {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  color: var(--text-tertiary);
+}
+
+.app-ic--dim {
+  color: var(--text-quaternary);
+}
+
+/* 网格里的空白提示 */
+.app-empty {
+  padding: var(--s-11) 0;
+}
+
+/* ==========================================================================
+   5. 相册卡 / 相册头
+   —— 网格卡片走控件的 Tile（.c-tile），这里只写栅格与封面加载态。
+   ========================================================================== */
+
+.app-albumgrid {
+  display: grid;
+  /* 固定列宽：相册再少也不会被拉成一张巨图 */
+  grid-template-columns: repeat(auto-fill, 168px);
+  justify-content: start;
+  gap: var(--s-6);
+}
+
+/* 相册头：封面 + 名称 + 张数 + 操作 */
+.app-albumhead {
+  display: flex;
+  align-items: center;
+  gap: var(--s-7);
+  padding: var(--s-6);
+}
+
+.app-albumhead__cover {
+  flex: none;
+  width: 72px;
+  height: 72px;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--surface-well);
+}
+
+.app-albumhead__cover > .c-thumb {
+  width: 100%;
+  height: 100%;
+}
+
+.app-albumhead__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.app-albumhead__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-22);
+  font-weight: 600;
+  letter-spacing: var(--tracking-title);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 没有封面时的占位：与 .c-tile__media 同一套底色与居中 */
+.app-album__placeholder {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--surface-well);
+  color: var(--text-quaternary);
+}
+
+/* 拖拽落点：相册 / 相册头 / 导航栏相册行 */
+.app-dropzone[data-over="1"],
+.c-tile[data-over="1"] .c-tile__media {
+  box-shadow: inset 0 0 0 2px var(--accent), var(--shadow-card);
+}
+
+/* 导航栏行的落点高亮跟选中态同一套语义：底色中性灰，只有图标染强调色 */
+.c-nav__item[data-over="1"] {
+  background: var(--surface-nav-selected);
+}
+
+.c-nav__item[data-over="1"] .c-nav__icon {
+  color: var(--accent);
+}
+
+/* 页面里的成块内容（相册头 / 面包屑） */
+.app-page__block {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: var(--s-6);
+}
+
+/* ==========================================================================
+   6. 主页工作台
+   ========================================================================== */
+
+.app-metrics {
+  display: flex;
+  align-items: stretch;
+  gap: var(--s-7);
+  flex-wrap: wrap;
+  padding: var(--s-7) var(--s-8);
+}
+
+.app-metric {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 96px;
+}
+
+.app-metric__value {
+  font-family: var(--font-display);
+  font-size: var(--fs-34);
+  font-weight: 500;
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-display);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.app-metric__label {
+  font-size: var(--fs-11);
+  letter-spacing: var(--tracking-caption);
+  color: var(--text-tertiary);
+}
+
+.app-metrics__sep {
+  align-self: center;
+}
+
+/* 最近相册：横向滚动 */
+.app-rail {
+  display: flex;
+  gap: var(--s-6);
+  overflow: hidden auto;
+  padding-bottom: var(--s-3);
+}
+
+.app-rail > * {
+  flex: none;
+  width: 168px;
+}
+
+/* 分析区 */
+.app-analytics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--s-7);
+}
+
+.app-chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-7);
+}
+
+.app-chart__title {
+  font-size: var(--fs-11);
+  font-weight: 500;
+  letter-spacing: var(--tracking-section);
+  color: var(--text-tertiary);
+}
+
+.app-chart__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--s-2) var(--s-4);
+  align-items: center;
+}
+
+.app-chart__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-12);
+  color: var(--text-secondary);
+}
+
+.app-chart__value {
+  font-size: var(--fs-11);
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.app-chart__track {
+  grid-column: 1 / -1;
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: var(--surface-well);
+  overflow: hidden;
+}
+
+.app-chart__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+/* 七日活动柱 */
+.app-days {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s-3);
+  height: 72px;
+}
+
+.app-day {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.app-day__bar {
+  width: 100%;
+  min-height: 2px;
+  border-radius: var(--r-xs);
+  background: var(--accent);
+  opacity: 0.85;
+}
+
+.app-day__label {
+  font-size: var(--fs-11);
+  color: var(--text-quaternary);
+  letter-spacing: var(--tracking-caption);
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   7. 多选工具条 / 灯箱 / 幻灯片
+   ========================================================================== */
+
+.app-multibar {
+  position: fixed;
+  left: 50%;
+  /* 让开提示条：.c-toast-host 固定在 bottom 26px、高 34px，两者都居中，
+     不挪开的话「已选 N 张」会被提示条压住。26 + 34 + 12 = 72 */
+  bottom: calc(26px + 34px + var(--s-6));
+  transform: translateX(-50%);
+  z-index: 250;
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+/* —— 灯箱 —— */
+.app-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--scrim);
+}
+
+.app-lightbox__bg {
+  position: absolute;
+  inset: -60px;
+  background-position: center;
+  background-size: cover;
+  /* 兜底色：图片还没到时不要露出下面的网格 */
+  background-color: var(--surface-sunken);
+  filter: blur(52px) brightness(0.45) saturate(1.1);
+  pointer-events: none;
+}
+
+.app-lightbox__stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 64px 48px 96px;
+  overflow: hidden;
+}
+
+.app-lightbox__img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-window);
+  transform-origin: center;
+  will-change: transform;
+  cursor: grab;
+}
+
+.app-lightbox__img[data-zoomed="1"] {
+  cursor: grabbing;
+}
+
+.app-lightbox__meta {
+  position: absolute;
+  top: var(--s-8);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-1);
+  max-width: 70%;
+  text-align: center;
+  pointer-events: none;
+}
+
+.app-lightbox__name {
+  font-size: var(--fs-13);
+  font-weight: 500;
+  color: var(--text-glass-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.app-lightbox__sub {
+  font-size: var(--fs-11);
+  letter-spacing: var(--tracking-caption);
+  color: var(--text-glass-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.app-lightbox__bar {
+  position: absolute;
+  bottom: var(--s-8);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  /* L4 玻璃外壳（.c-glass-sheet）+ 3px 内边距 = 34 高，
+     与胶囊同高；内部按钮 28 高、全圆角，同心 17−14=3 */
+  padding: 3px;
+  border-radius: var(--r-pill);
+}
+
+.app-lightbox__spinner {
+  position: absolute;
+  z-index: 1;
+}
+
+/* —— 发现页 —— */
+.app-waterfall {
+  column-gap: var(--s-4);
+}
+
+.app-waterfall__item {
+  break-inside: avoid;
+  margin: 0 0 var(--s-4);
+}
+
+.app-waterfall__item > .c-thumb {
+  width: 100%;
+  height: auto;
+}
+
+.app-draw {
+  display: grid;
+  gap: var(--s-6);
+  justify-content: center;
+}
+
+.app-draw__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 0;
+  opacity: 0;
+  transform: translateY(8px);
+  animation: app-draw-in var(--dur-3) var(--ease-out) forwards;
+}
+
+.app-draw__card > .c-thumb {
+  /* 两个方向都给死：MediaTile 加载后会给自己写 aspect-ratio，
+     不压住它，每张卡高度各不相同，整行就会错开成锯齿。 */
+  width: 100%;
+  height: 180px;
+  border-radius: var(--r-md);
+}
+
+.app-draw__card > .c-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.app-draw__name {
+  font-size: var(--fs-11);
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes app-draw-in {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.app-slide {
+  position: absolute;
+  inset: var(--toolbar-h) 0 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+
+.app-slide__img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.app-slide__bar {
+  position: absolute;
+  bottom: var(--s-8);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  /* 与灯箱工具条同一套：L4 玻璃 + 3px 内边距 */
+  padding: 3px;
+  border-radius: var(--r-pill);
+}
+
+.app-slide__meta {
+  position: absolute;
+  top: var(--s-7);
+  left: var(--s-7);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  max-width: 60%;
+  padding: var(--s-4) var(--s-6);
+  border-radius: var(--r-md);
+}
+
+/* ==========================================================================
+   8. 设置页
+   ========================================================================== */
+
+.app-settings {
+  width: 100%;
+  /* docs/04 §4：设置页整体 560px，别铺满 */
+  max-width: 560px;
+  padding: var(--s-6) var(--s-8) var(--s-11);
+}
+
+/* 右侧读数：与 docs/04 的示例一致 —— 44px、右对齐、tabular-nums */
+.app-settings__value {
+  flex: none;
+  width: 44px;
+  text-align: right;
+  font-size: var(--fs-11);
+  letter-spacing: var(--tracking-caption);
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.app-settings__rowfill {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  width: 100%;
+}
+
+/* ==========================================================================
+   9. 窄窗口：标题先截断，胶囊不换行
+   ========================================================================== */
+
+@media (max-width: 980px) {
+  .app-page {
+    padding-left: var(--s-6);
+    padding-right: var(--s-6);
+  }
+}
+

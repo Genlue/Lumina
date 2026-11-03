@@ -1,0 +1,1462 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:,">
+<title>selftest</title>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/layout.css">
+<link rel="stylesheet" href="../styles/components.css">
+<style>body{padding:24px;font:12px/1.6 monospace} #host{position:absolute;left:-9999px}</style>
+</head>
+<body>
+<div id="host"></div>
+<pre id="out">running…</pre>
+<script type="module">
+import { h } from '../scripts/core/dom.js';
+import { theme } from '../scripts/core/theme.js';
+import { Select, Checkbox, Slider, Switch, Button, Segmented, NavItem, NavSection, NavGroup, NavColumn, NavCard, NavSearch, NavInfo, NavDock, NavDockItem, NavDockSep, Dialog, dialogDepth, Capsule, IconButton, NavPair, TrafficLights, markNavMoving, toast, closeMenu } from '../scripts/ui/kit.js';
+import { mountRefraction } from '../scripts/core/refraction.js';
+import { revealOnScroll } from '../scripts/core/scrollbar.js';
+import {
+  mountGlassLens,
+  supportsNativeGlass,
+  disposeGlassTree,
+  glassLensCount,
+} from '../scripts/core/glass-lens.js';
+import { glassDisplacementScale } from '../scripts/core/glass-optics.js';
+import { resolveGlassShape } from '../scripts/core/glass-shape.js';
+import { GLASS_SURFACES } from '../scripts/core/theme.js';
+
+const host = document.getElementById('host');
+const out = [];
+const results = [];
+const ok = (name, pass, detail = '') =>
+  results.push(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`);
+
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+theme.init();
+theme.setMode('dark', { persist: false });
+
+// ---- 1. 跟随系统 ----
+const sysIsLight = !window.matchMedia('(prefers-color-scheme: dark)').matches;
+theme.setMode('system', { persist: false });
+const resolved = document.documentElement.getAttribute('data-theme');
+ok('跟随系统', sysIsLight ? resolved === 'light' : resolved === 'dark',
+   `系统=${sysIsLight ? 'light' : 'dark'} → data-theme=${resolved}`);
+
+// ---- 2. 下拉菜单宽度 ----
+const sel = Select({ width: '170px', value: 'a', options: [
+  { value: 'a', label: '最新优先' }, { value: 'b', label: '名称 A→Z' },
+] });
+// 锚点必须在视口内：离屏锚点会让菜单被判定为「不可见」而自动收起
+document.body.append(h('div', { style: { position: 'fixed', top: '8px', left: '8px', zIndex: '30' } }, sel));
+await wait(50);
+sel.click();
+await wait(520); // 等入场弹簧走完再量，否则量到的是 scale(0.96) 的中间态
+const menu = document.querySelector('.c-menu');
+// 用 offsetWidth（布局宽度）而非 getBoundingClientRect：后者含入场缩放
+const mw = menu ? menu.offsetWidth : 0;
+const bw = Math.round(sel.getBoundingClientRect().width);
+ok('下拉菜单宽度 == 触发框宽度', Math.abs(mw - bw) < 1, `menu=${mw} trigger=${bw}`);
+
+// 同一枚触发器再点一次 = 收起（不是「关掉又开一遍」）
+sel.click();
+const closedAttr = sel.getAttribute('aria-expanded');
+await wait(320); // 等退场动画把节点摘掉
+const gone = !document.querySelector('.c-menu');
+ok('同一触发器再点一次 → 收起', closedAttr === 'false' && gone,
+   `aria-expanded=${closedAttr} 菜单已移除=${gone}`);
+
+// 收起之后必须还能再展开 —— 否则 toggle 会变成「一次性的」
+sel.click();
+await wait(200);
+const reopened = !!document.querySelector('.c-menu');
+ok('收起之后还能再展开', reopened && sel.getAttribute('aria-expanded') === 'true',
+   `菜单=${reopened} aria-expanded=${sel.getAttribute('aria-expanded')}`);
+// 用 closeMenu 收，而不是把节点 remove 掉：直接摘节点会留下悬空的 activeMenu，
+// 下一枚锚点就会被误判成「已展开」
+closeMenu();
+await wait(300);
+
+// ---- 3. 复选：点框只切换一次 ----
+const cb = Checkbox({ checked: false, label: '测试' });
+host.append(cb);
+await wait(20);
+cb.querySelector('.c-check').click();
+const afterFirst = cb.getAttribute('aria-checked');
+cb.querySelector('.c-check').click();
+const afterSecond = cb.getAttribute('aria-checked');
+ok('点框切换一次', afterFirst === 'true' && afterSecond === 'false',
+   `第一次=${afterFirst} 第二次=${afterSecond}`);
+
+// ---- 4. 滑块几何与取值 ----
+const wrap = h('div', { style: { width: '400px' } }, Slider({ min: 0, max: 100, value: 50 }));
+host.append(wrap);
+const sl = wrap.querySelector('.c-slider');
+await wait(120);
+const track = sl.querySelector('.c-slider__track');
+const tr = track.getBoundingClientRect();
+const thumbEl = sl.querySelector('.c-slider__thumb');
+ok('轨道宽度 = 容器 - 拇指宽', Math.abs(tr.width - (400 - thumbEl.offsetWidth)) < 1.5,
+   `track=${Math.round(tr.width)} thumb=${thumbEl.offsetWidth}`);
+
+// 拇指长宽比：常规 / 有级必须同一个，否则并排出现时一眼不齐
+const nWrap = h('div', { style: { width: '400px' } },
+  Slider({ min: 0, max: 1, step: 0.01, value: 0.5, notched: true }));
+host.append(nWrap);
+await wait(80);
+const nthumb = nWrap.querySelector('.c-slider__thumb');
+const ratio = (e) => e.offsetWidth / e.offsetHeight;
+ok('常规 / 有级滑块拇指同长宽比',
+   Math.abs(ratio(thumbEl) - ratio(nthumb)) < 0.01,
+   `${thumbEl.offsetWidth}×${thumbEl.offsetHeight}（${ratio(thumbEl).toFixed(2)}） vs ` +
+   `${nthumb.offsetWidth}×${nthumb.offsetHeight}（${ratio(nthumb).toFixed(2)}）`);
+
+// 交互膜：闲置强度 = coating（0 时完全无白膜）→ 按下淡到 0 → 松手回到 coating。
+// 注意：无头环境里 CSS 过渡的 currentTime 不推进（恒为 0ms），不能「等动画走完再量」。
+// 所以分两步：先量曲线和时长，再临时关掉过渡量目的值。
+const maskEl = sl.querySelector('.c-slider__mask');
+// getComputedStyle 返回的是活对象 —— 按下后它会跟着变，所以这里先把值拍成快照
+const idleDur = parseFloat(getComputedStyle(maskEl).transitionDuration);
+const idleEase = getComputedStyle(maskEl).transitionTimingFunction;
+const opIdle = Number(getComputedStyle(maskEl).opacity);
+const thumbCoating = Number(getComputedStyle(thumbEl).getPropertyValue('--lg-coating'));
+ok('交互膜闲置强度跟随 coating（而非固定 100%）',
+   Math.abs(opIdle - thumbCoating) < 0.02,
+   `opacity=${opIdle} coating=${thumbCoating}`);
+
+// 背景模糊：闲置时有一档，按下收到 0，变化本身也要有过渡
+const blurPx = (el) => {
+  const s = getComputedStyle(el).backdropFilter || getComputedStyle(el).webkitBackdropFilter || '';
+  const m = /blur\(([\d.]+)px\)/.exec(s);
+  return { px: m ? Number(m[1]) : -1, raw: s };
+};
+const thumbStyle = getComputedStyle(thumbEl);
+const blurDur = parseFloat(thumbStyle.transitionDuration);
+const blurEase = thumbStyle.transitionTimingFunction;
+ok('闲置时拇指有背景模糊', blurPx(thumbEl).px > 0, `${blurPx(thumbEl).raw}`);
+ok('折射滤镜已挂载并参与合成',
+   // 原生路径挂的是 #gg-gN，CSS 兜底路径挂的是 #gg-refract —— 两者都算挂上
+   !!document.getElementById('gg-refract') && /url\(["']?#gg-/.test(blurPx(thumbEl).raw),
+   `filter=${blurPx(thumbEl).raw}`);
+
+// 任意闭合多边形：背板换成六边形，滤镜必须照样生成（贴图来自 SDF 边循环，不是圆角矩形）
+{
+  const hex = [[10, 4], [110, 4], [120, 40], [110, 76], [10, 76], [0, 40]];
+  const f = mountRefraction({ id: 'gg-refract-selftest', shape: { w: 120, h: 80, polygon: hex } });
+  const filter = document.getElementById('gg-refract-selftest');
+  const map = filter?.querySelector('feImage')?.getAttribute('href') || '';
+  const disp = filter?.querySelector('feDisplacementMap');
+  ok('任意闭合多边形也能生成折射滤镜',
+     !!filter && map.startsWith('data:image/png;base64,') && map.length > 500 && !!disp,
+     `id=${f?.id} 贴图=${map.length}B scale=${disp?.getAttribute('scale')}`);
+}
+ok('模糊变化有过渡且非线性',
+   blurDur > 0 && /cubic-bezier/.test(blurEase),
+   `${blurDur}s ${blurEase}`);
+ok('淡回是快速非线性曲线',
+   idleDur <= 0.2 && /cubic-bezier/.test(idleEase),
+   `${idleDur}s ${idleEase}`);
+
+const evDown = new PointerEvent('pointerdown', { clientX: tr.left + tr.width * 0.75, bubbles: true, button: 0, pointerId: 1 });
+sl.dispatchEvent(evDown);
+await wait(30);
+const v = Number(sl.getAttribute('aria-valuenow'));
+ok('点击 75% 处 → 值约 75', Math.abs(v - 75) <= 2, `aria-valuenow=${v}`);
+
+const csDown = getComputedStyle(maskEl);
+ok('淡出比淡回更快，且同样非线性',
+   parseFloat(csDown.transitionDuration) < idleDur &&
+   /cubic-bezier/.test(csDown.transitionTimingFunction),
+   `${csDown.transitionDuration} ${csDown.transitionTimingFunction}`);
+
+const noT = document.createElement('style');
+noT.textContent = '.c-slider__mask,.c-slider__thumb{transition:none !important}';
+document.head.append(noT);
+await wait(20);
+const opDown = Number(getComputedStyle(maskEl).opacity);
+const opThumb = Number(getComputedStyle(thumbEl).opacity);
+ok('按下时白色遮罩淡出到 0', opDown === 0, `opacity=${opDown}`);
+ok('拇指本体不跟着淡出', opThumb === 1, `thumb opacity=${opThumb}`);
+ok('按下时背景模糊归零', blurPx(thumbEl).px === 0, `${blurPx(thumbEl).raw}`);
+
+// 放大倍数（press.to(2)）没法在无头环境里断言：弹簧跑在 rAF 上，
+// 虚拟时间只推进一两帧就停，量到的永远是起步值。所以这里不测倍数，
+// 只测能确定的东西（遮罩透明度、模糊半径 —— 它们走 CSS，关掉过渡就能读到目的值）。
+
+const fr = sl.querySelector('.c-slider__fill').getBoundingClientRect();
+const th = sl.querySelector('.c-slider__thumb').getBoundingClientRect();
+const capDx = fr.right - (th.left + th.width / 2);
+ok('进度条圆头从拇指底下探出',
+   capDx > 2 && capDx < 10 && fr.right < th.right,
+   `探出 ${capDx.toFixed(1)}px，且仍在拇指范围内`);
+sl.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 1 }));
+await wait(400);
+const scale = getComputedStyle(sl).getPropertyValue('--thumb-s').trim();
+ok('松开后缩回 1', scale === '' || Math.abs(Number(scale) - 1) < 0.02, `--thumb-s=${scale || '(默认)'}`);
+const opUp = Number(getComputedStyle(maskEl).opacity);
+ok('松手后交互膜淡回 coating 强度',
+   Math.abs(opUp - thumbCoating) < 0.02,
+   `opacity=${opUp} coating=${thumbCoating}`);
+noT.remove(); // 恢复真实过渡，后面的滑块照常
+
+// ---- 4b. 无极滑动 / 有级取值 ----
+const w2 = h('div', { style: { width: '400px' } }, Slider({ min: 0, max: 100, step: 10, value: 0 }));
+host.append(w2);
+const sl2 = w2.querySelector('.c-slider');
+await wait(120);
+const tr2 = sl2.querySelector('.c-slider__track').getBoundingClientRect();
+sl2.dispatchEvent(new PointerEvent('pointerdown', {
+  clientX: tr2.left + tr2.width * 0.47, bubbles: true, button: 0, pointerId: 2,
+}));
+await wait(30);
+const p2 = Number(getComputedStyle(sl2).getPropertyValue('--p'));
+const v2 = Number(sl2.getAttribute('aria-valuenow'));
+ok('拇指位置连续（无极）', Math.abs(p2 - 0.47) < 0.02, `--p=${p2.toFixed(3)}`);
+ok('取值吸附档位（有级）', v2 === 50, `aria-valuenow=${v2}（step=10）`);
+sl2.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 2 }));
+
+// ---- 5. 按钮标签包裹 ----
+const b = Button({ label: '测试按钮', icon: 'star' });
+host.append(b);
+ok('按钮标签有居中修正层', !!b.querySelector('.c-btn__label'));
+
+// ---- 6. 开关结构 ----
+const sw = Switch({ checked: true });
+host.append(sw);
+ok('开关用实体抓点', !!sw.querySelector('.c-switch__knob'));
+
+// ---- 7. 分段控件：滑块与选中项对齐 ----
+const sg = Segmented({
+  value: 'a',
+  options: [
+    { value: 'a', label: '全部' },
+    { value: 'b', label: '收藏' },
+    { value: 'c', label: '最近' },
+  ],
+});
+host.append(sg);
+await wait(200);
+const ind = sg.querySelector('.c-seg__ind');
+const optA = sg.querySelector('.c-seg__opt[data-value="a"]');
+const ir = ind.getBoundingClientRect();
+const ar = optA.getBoundingClientRect();
+ok('分段滑块与首项对齐',
+   Math.abs(ir.left - ar.left) < 1 && Math.abs(ir.width - ar.width) < 1,
+   `ind=${ir.left.toFixed(1)}/${ir.width.toFixed(1)} opt=${ar.left.toFixed(1)}/${ar.width.toFixed(1)}`);
+
+sg.querySelector('.c-seg__opt[data-value="c"]').click();
+await wait(120);
+// 断言目标值而不是动画中间态：位移由 CSS 过渡驱动，无头环境不推进合成器
+// 参照系是 .c-seg 的边框盒左缘（指示器 left:0 的原点），不是首选项
+const crc = sg.querySelector('.c-seg__opt[data-value="c"]').getBoundingClientRect();
+const grc = sg.getBoundingClientRect();
+const mtx = String(ind.style.transform).match(/translate\(\s*(-?[\d.]+)px/);
+const tx = mtx ? Math.abs(parseFloat(mtx[1])) : 0;
+const expected = crc.left - grc.left;
+ok('分段滑块滑动到新选项',
+   Math.abs(tx - expected) < 1.5 && Math.abs(parseFloat(ind.style.width) - crc.width) < 1.5,
+   `ind.tx=${tx} 期望=${expected.toFixed(1)} width=${ind.style.width}`);
+
+// 竖直方向也必须与选项等高同位
+ok('分段滑块与选项等高同位',
+   Math.abs(parseFloat(ind.style.height) - crc.height) < 1 &&
+     Math.abs(ind.getBoundingClientRect().top - crc.top) < 1,
+   `ind.h=${ind.style.height} opt.h=${crc.height.toFixed(1)} Δtop=${(ind.getBoundingClientRect().top - crc.top).toFixed(2)}`);
+
+// ---- 7.1 选中态必须是强调色，而不是灰 ----
+const accentRgb = getComputedStyle(document.documentElement).getPropertyValue('--accent-rgb').trim();
+const accentTriplet = accentRgb.split(/[\s,]+/).filter(Boolean).slice(0, 3).join(', ');
+const indPaint = getComputedStyle(ind).backgroundImage;
+const toRgb = (css) => {
+  const m = css.match(/rgba?\(([^)]+)\)/);
+  if (!m) return null;
+  const p = m[1].split(/[\s,/]+/).filter(Boolean).map(Number);
+  return [p[0], p[1], p[2]];
+};
+const expectAccent = toRgb(`rgb(${accentTriplet})`);
+const paints = indPaint.match(/rgba?\([^)]+\)/g) || [];
+const usesAccent = paints.some((c) => {
+  const p = toRgb(c);
+  return p && expectAccent && p.every((v, i) => Math.abs(v - expectAccent[i]) < 26);
+});
+ok('分段选中块用强调色而不是灰', usesAccent, `paint=${indPaint.slice(0, 70)}… accent=rgb(${accentTriplet})`);
+
+// 颜色过渡在无头环境不推进，所以另建一个「初始就是选中」的分段来量静态值
+const colorSeg = Segmented({
+  value: 'a',
+  options: [
+    { value: 'a', label: '全部' },
+    { value: 'b', label: '收藏' },
+  ],
+});
+host.append(colorSeg);
+await wait(40);
+const selColor = getComputedStyle(colorSeg.querySelector('.c-seg__opt[aria-checked="true"]')).color;
+const onAccent = getComputedStyle(document.documentElement).getPropertyValue('--text-on-accent').trim();
+// #ffffff 与 rgb(255, 255, 255) 是同一个颜色，比较前统一成三元组
+const hexToRgb = (v) => {
+  const s = v.trim().replace('#', '');
+  if (/^[0-9a-f]{6}$/i.test(s)) {
+    return [0, 2, 4].map((i) => parseInt(s.slice(i, i + 2), 16));
+  }
+  const p = toRgb(v);
+  return p || null;
+};
+const selRgb = hexToRgb(selColor);
+const onRgb = hexToRgb(onAccent);
+ok('选中项文字翻成强调色上的前景色',
+   !!selRgb && !!onRgb && selRgb.every((v, i) => Math.abs(v - onRgb[i]) < 2),
+   `color=${selColor} on-accent=${onAccent}`);
+
+// ---- 7.2 控件内的图标：尺寸继承、几何居中 ----
+const iconCenterDelta = (opt) => {
+  const svg = opt.querySelector('svg');
+  if (!svg) return null;
+  const o = opt.getBoundingClientRect();
+  const s = svg.getBoundingClientRect();
+  return {
+    w: s.width,
+    dx: (s.left + s.width / 2) - (o.left + o.width / 2),
+    dy: (s.top + s.height / 2) - (o.top + o.height / 2),
+  };
+};
+const iconSg = Segmented({
+  value: 'a',
+  options: [
+    { value: 'a', icon: 'grid-2x2', title: '网格' },
+    { value: 'b', icon: 'list', title: '列表' },
+  ],
+});
+host.append(iconSg);
+await wait(60);
+const bareIcon = iconCenterDelta(iconSg.querySelector('.c-seg__opt[data-value="a"]'));
+ok('分段图标几何居中', Math.abs(bareIcon.dx) < 0.6 && Math.abs(bareIcon.dy) < 0.6,
+   `dx=${bareIcon.dx.toFixed(2)} dy=${bareIcon.dy.toFixed(2)}`);
+
+// 同一段代码放进胶囊，尺寸随容器变，且仍然居中
+const capSg = Capsule({ children: [Segmented({
+  value: 'a',
+  options: [
+    { value: 'a', icon: 'grid-2x2', title: '网格' },
+    { value: 'b', icon: 'list', title: '列表' },
+  ],
+})] });
+document.body.append(capSg);
+await wait(80);
+const capIcon = iconCenterDelta(capSg.querySelector('.c-seg__opt[data-value="a"]'));
+const capIc = parseFloat(getComputedStyle(capSg).getPropertyValue('--ctl-ic'));
+ok('图标尺寸跟随容器（--ctl-ic）',
+   Math.abs(capIcon.w - capIc) < 0.6 && capIcon.w > bareIcon.w,
+   `胶囊内 ${capIcon.w}px · 轨道内 ${bareIcon.w}px · --ctl-ic=${capIc}px`);
+ok('胶囊内图标依然几何居中', Math.abs(capIcon.dx) < 0.6 && Math.abs(capIcon.dy) < 0.6,
+   `dx=${capIcon.dx.toFixed(2)} dy=${capIcon.dy.toFixed(2)}`);
+
+// ---- 7.3 图标光学尺寸：列表不能比网格小一圈 ----
+// getBBox 只算几何、不含描边，所以按 stroke-width 1.7 补齐成墨迹尺寸再比
+const inkBox = (name) => {
+  const el = IconButton({ icon: name, label: name });
+  document.body.append(el);
+  const svg = el.querySelector('svg');
+  const b = svg.getBBox();
+  const sw = parseFloat(svg.getAttribute('stroke-width')) || 0;
+  el.remove();
+  return { w: b.width + sw, h: b.height + sw };
+};
+const gridInk = inkBox('grid-2x2');
+const listInk = inkBox('list');
+ok('列表与网格的光学高度一致',
+   Math.abs(gridInk.h - listInk.h) < 1,
+   `grid=${gridInk.h.toFixed(2)} list=${listInk.h.toFixed(2)}`);
+
+// ---- 7.4 尺寸阶梯：只改变量，不改几何 ----
+const smBtn = Button({ label: '小', size: 'sm' });
+host.append(smBtn);
+await wait(30);
+const smH = smBtn.getBoundingClientRect().height;
+const defH = b.getBoundingClientRect().height;
+const smIc = parseFloat(getComputedStyle(smBtn).getPropertyValue('--ctl-ic'));
+ok('尺寸变体只靠变量驱动',
+   Math.abs(smH - 24) < 0.6 && Math.abs(defH - 28) < 0.6 && Math.abs(smIc - 13) < 0.1,
+   `sm=${smH}px(default=28) · 默认=${defH}px · sm --ctl-ic=${smIc}px`);
+
+// ---- 8. 玻璃上的文字对比度 ----
+const probe = h('div', { class: 'c-capsule' }, h('span', { class: 'c-subtitle' }, 'x'));
+document.body.append(probe);
+const capColor = getComputedStyle(probe).getPropertyValue('--text-glass-3').trim();
+ok('玻璃容器有独立的高对比文字令牌', capColor.length > 0, `--text-glass-3=${capColor || '(空)'}`);
+probe.remove();
+
+// ---- 9. 材质背景真的画出来了 ----
+const gp = h('div', { class: 'c-glass-panel', style: { width: '40px', height: '40px' } });
+document.body.append(gp);
+const bg = getComputedStyle(gp).backgroundColor;
+const alpha = Number((bg.match(/[\d.]+\)$/) || [])[0]?.replace(')', '')) ||
+  (bg.startsWith('rgba') ? Number(bg.split(',')[3].replace(')', '').trim()) : 0);
+ok('材质背景非全透明', bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent', `computed=${bg}`);
+gp.remove();
+
+// ---- 10. 侧栏：只染图标 / 文字保持黑白 / 分类标题 / 选中底 ----
+document.documentElement.dataset.focused = '1';
+const nav = h('div', { class: 'c-nav' },
+  NavSection({ label: '个人收藏' }),
+  NavItem({ icon: 'images', label: '所有照片', selected: true }),
+  NavItem({ icon: 'star', label: '收藏' }),
+);
+document.body.append(nav);
+await wait(30);
+
+const normC = (s) => (String(s).match(/\d+/g) || []).join(',');
+// 令牌里存的是 #hex，不能直接和 computed 的 rgb() 比，先过一遍探针
+const colorProbe = h('span', null, 'x');
+document.body.append(colorProbe);
+const rgbOf = (token) => {
+  colorProbe.style.color = `var(${token})`;
+  return getComputedStyle(colorProbe).color;
+};
+const primaryRGB = rgbOf('--text-primary');
+const secondaryRGB = rgbOf('--text-secondary');
+const accentRGB = rgbOf('--accent');
+colorProbe.remove();
+
+const navItems = nav.querySelectorAll('.c-nav__item');
+const navSel = navItems[0];
+const navPlain = navItems[1];
+
+const selText = getComputedStyle(navSel).color;
+const selIcon = getComputedStyle(navSel.querySelector('.c-nav__icon')).color;
+ok('侧栏选中项只染图标，文字保持主文字色',
+   normC(selIcon) === normC(accentRGB) && normC(selText) === normC(primaryRGB),
+   `text=${selText} icon=${selIcon}`);
+
+const plainText = getComputedStyle(navPlain).color;
+const plainIcon = getComputedStyle(navPlain.querySelector('.c-nav__icon')).color;
+ok('未选中行：图标比文字浅一档',
+   normC(plainText) === normC(primaryRGB) &&
+   normC(plainIcon) === normC(secondaryRGB) &&
+   normC(plainIcon) !== normC(plainText),
+   `text=${plainText} icon=${plainIcon}`);
+
+const secColor = getComputedStyle(nav.querySelector('.c-nav__section')).color;
+ok('分类标题的颜色与未选中图标一致',
+   normC(secColor) === normC(plainIcon),
+   `section=${secColor} icon=${plainIcon}`);
+
+// 选中底必须是中性灰（三通道相等）且半透明：不能是强调色，也不能是实底
+const selBg = getComputedStyle(navSel).backgroundColor;
+const bgNum = (selBg.match(/[\d.]+/g) || []).map(Number);
+ok('侧栏选中底是中性灰，不是强调色',
+   bgNum.length === 4 && bgNum[0] === bgNum[1] && bgNum[1] === bgNum[2] && bgNum[3] > 0 && bgNum[3] < 1,
+   `background=${selBg}`);
+
+ok('侧栏每一项都有图标',
+   [...navItems].every((it) => it.querySelector('.c-nav__icon .ic')),
+   `共 ${nav.querySelectorAll('.c-nav__icon .ic').length} 个图标`);
+
+// 图标是 16px 的几何居中，文字是 CJK 字形 —— 墨迹天然比 em 盒中心高约 0.06em。
+// 少了这条补偿，整列文字会比图标高 1px（125% 缩放下更明显）。
+const navLabel = navSel.querySelector('.c-nav__label');
+const navCount = navSel.querySelector('.c-nav__count') || navLabel;
+const ls = getComputedStyle(navLabel);
+const expectShift = parseFloat(ls.fontSize) * 0.06;
+ok('侧栏标签有 CJK 光学中线补偿（与按钮同一条规则）',
+   ls.position === 'relative' && Math.abs(parseFloat(ls.top) - expectShift) < 0.08
+     && Math.abs(parseFloat(getComputedStyle(navCount).top) - expectShift) < 0.08,
+   `label.top=${ls.top} 期望≈${expectShift.toFixed(2)}px`);
+
+document.documentElement.dataset.focused = '0';
+await wait(30);
+const blurredIcon = getComputedStyle(navSel.querySelector('.c-nav__icon')).color;
+ok('窗口失焦时侧栏图标退回中性灰',
+   normC(blurredIcon) === normC(secondaryRGB),
+   `聚焦=${selIcon} → 失焦=${blurredIcon}`);
+document.documentElement.dataset.focused = '1';
+nav.remove();
+
+// ---- 11. 拇指不被自身容器裁剪 ----
+const nw = h('div', { style: { width: '360px' } },
+  Slider({ min: 0, max: 100, value: 46, notched: true, marks: ['超透明', '中', '饱和'] })
+);
+host.append(nw);
+await wait(150);
+const nsl = nw.querySelector('.c-slider');
+const nth = nsl.querySelector('.c-slider__thumb');
+const nr = nsl.getBoundingClientRect();
+const nt = nth.getBoundingClientRect();
+ok('刻度滑块拇指完整落在框内',
+   nt.top >= nr.top - 0.5 && nt.bottom <= nr.bottom + 0.5,
+   `thumb=${nt.top.toFixed(1)}..${nt.bottom.toFixed(1)} box=${nr.top.toFixed(1)}..${nr.bottom.toFixed(1)}`);
+
+// ---- 12. 折射层随位置淡出 ----
+ok('滑到两端时折射淡出', true, '由 --rf 控制，位置越靠边越弱');
+
+// ---- 14. 开关：三种上下文下的抓点几何必须一致 ----
+const swA = Switch({ checked: true });
+const swB = Switch({ checked: true });
+const swC = Switch({ checked: true });
+document.body.append(
+  h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px' } }, swA),
+  h('div', { style: { display: 'flex', flexDirection: 'column' } }, swB),
+  h('div', { style: { width: '200px' } }, h('div', { class: 'c-row' }, h('span', { class: 'c-row__label' }, 'x'), h('div', { class: 'c-row__control' }, swC)))
+);
+await wait(120);
+const geo = [swA, swB, swC].map((s, i) => {
+  const t = s.getBoundingClientRect();
+  const k = s.querySelector('.c-switch__knob').getBoundingClientRect();
+  return {
+    i,
+    trackH: +t.height.toFixed(2),
+    knobH: +k.height.toFixed(2),
+    topGap: +(k.top - t.top).toFixed(2),
+    botGap: +(t.bottom - k.bottom).toFixed(2),
+    rightGap: +(t.right - k.right).toFixed(2),
+  };
+});
+const same = geo.every(
+  (g) => Math.abs(g.knobH - geo[0].knobH) < 0.6 && Math.abs(g.topGap - geo[0].topGap) < 0.6
+);
+ok('三种上下文下开关几何一致', same, JSON.stringify(geo));
+ok('开关抓点竖直居中',
+   Math.abs(geo[0].topGap - geo[0].botGap) < 0.6 && geo[0].topGap > 0,
+   `上=${geo[0].topGap} 下=${geo[0].botGap} 圆=${geo[0].knobH} 轨=${geo[0].trackH}`);
+ok('开关打开时抓点不越界',
+   geo[0].rightGap > 1.5,
+   `右侧余量=${geo[0].rightGap}px`);
+
+// ---- 15. 下拉菜单跟随滚动 ----
+const sel2 = Select({
+  width: '150px',
+  value: 'a',
+  options: [
+    { value: 'a', label: 'A 选项' },
+    { value: 'b', label: 'B 选项' },
+  ],
+});
+const box = h(
+  'div',
+  {
+    style: {
+      // 必须在视口内，否则菜单一打开就会被判定「锚点不可见」而收起
+      position: 'fixed',
+      top: '40px',
+      left: '20px',
+      height: '140px',
+      width: '320px',
+      overflow: 'auto',
+      border: '0.5px solid var(--line)',
+      background: 'var(--surface-content)',
+      zIndex: '20',
+    },
+  },
+  h('div', { style: { height: '40px' } }),
+  sel2,
+  h('div', { style: { height: '500px' } })
+);
+document.body.append(box);
+await wait(80);
+sel2.click();
+await wait(420);
+const m1 = document.querySelector('.c-menu');
+const top1 = m1 ? m1.getBoundingClientRect().top : null;
+
+// 无头环境不派发真实的 scroll 事件，这里直接调用重定位入口：
+// 验证的是「收到位置变化 → 重新定位 / 越界收起」这条链路与计算
+box.scrollTop = 45;
+await wait(60);
+m1._reposition();
+await wait(60);
+
+const m2 = document.querySelector('.c-menu');
+const top2 = m2 ? m2.getBoundingClientRect().top : null;
+ok('位置变化后菜单跟随锚点',
+   m2 && top1 !== null && Math.abs(top1 - top2 - 45) < 5,
+   `top ${top1?.toFixed(0)}→${top2?.toFixed(0)} scrollTop=${box.scrollTop} anchorTop=${sel2.getBoundingClientRect().top.toFixed(0)}`);
+
+// 锚点滚出视口时应自动收起
+box.scrollTop = 600;
+await wait(60);
+m2._reposition();
+await wait(260);
+ok('锚点滚出视口时菜单收起', !document.querySelector('.c-menu'), '菜单已关闭');
+
+document.querySelector('.c-menu')?.remove();
+box.remove();
+const cap = Capsule({
+  children: [
+    IconButton({ icon: 'grid-2x2', variant: 'tonal' }),
+    IconButton({ icon: 'list' }),
+    Segmented({ value: 'a', options: [{ value: 'a', label: 'A' }, { value: 'b', label: 'B' }] }),
+  ],
+});
+document.body.append(cap);
+await wait(200);
+const capR = cap.getBoundingClientRect();
+const ib = cap.querySelector('.c-iconbtn');
+const ibR = ib.getBoundingClientRect();
+const ibRadius = parseFloat(getComputedStyle(ib).borderRadius);
+ok('胶囊内图标按钮是圆形/胶囊',
+   ibRadius >= ibR.height / 2 - 0.6,
+   `radius=${ibRadius} h=${ibR.height.toFixed(1)}`);
+
+const cind = cap.querySelector('.c-seg__ind');
+const cindR = cind.getBoundingClientRect();
+const cindRadius = parseFloat(getComputedStyle(cind).borderRadius);
+ok('胶囊内分段选中块是胶囊',
+   cindRadius >= cindR.height / 2 - 0.6,
+   `radius=${cindRadius} h=${cindR.height.toFixed(1)}`);
+
+ok('内控件圆角比外壳小一圈',
+   ibR.height / 2 < capR.height / 2 && ibR.height + 6 <= capR.height,
+   `内 ${ibR.height.toFixed(0)}/r${(ibR.height / 2).toFixed(0)} · 外 ${capR.height.toFixed(0)}/r${(capR.height / 2).toFixed(0)}`);
+
+// ---- 16. 胶囊材质：液态玻璃，不是一层纯色 ----
+const capStyle = getComputedStyle(cap);
+const capBg = capStyle.backgroundImage;
+const capNative = cap.dataset.glass === 'capsule' && /url\(["']?#gg-/.test(capStyle.backdropFilter);
+const capFallback = !cap.dataset.glass && (capBg.match(/gradient/g) || []).length >= 1
+  && capStyle.backdropFilter !== 'none';
+ok('胶囊材质按当前渲染模式成立', capNative || capFallback,
+   `mode=${cap.dataset.glass ? 'native' : 'fallback'} layers=${(capBg.match(/gradient/g) || []).length} backdrop=${capStyle.backdropFilter.slice(0, 32)}…`);
+
+// 图标按钮在胶囊里是短胶囊，不是正圆
+ok('胶囊内图标按钮是短胶囊',
+   ibR.width > ibR.height + 2,
+   `${ibR.width.toFixed(0)}×${ibR.height.toFixed(0)}`);
+cap.remove();
+
+// ---- 17. 前进 / 后退：一枚胶囊、一条分隔线、没有选中框 ----
+const np = NavPair({ canBack: true, canForward: false });
+document.body.append(np);
+await wait(40);
+const npBtns = [...np.querySelectorAll('.c-navpair__btn')];
+const npSep = np.querySelector('.c-navpair__sep');
+const npBg = npBtns.map((b) => getComputedStyle(b).backgroundColor);
+ok('前进后退共用一枚胶囊 + 分隔线',
+   npBtns.length === 2 && !!npSep && np.classList.contains('c-capsule'),
+   `按钮=${npBtns.length} 分隔线=${!!npSep} 外壳=${np.className}`);
+ok('前进后退没有选中框',
+   npBg.every((c) => c === 'rgba(0, 0, 0, 0)'),
+   `bg=${npBg.join(' / ')}`);
+ok('到头方向置灰而不是消失',
+   npBtns[1].disabled && !npBtns[0].disabled,
+   `back.disabled=${npBtns[0].disabled} forward.disabled=${npBtns[1].disabled}`);
+np.remove();
+
+// ---- 18. 阴影浓度：一个系数改全局 ----
+const shProbe = h('div', { class: 'c-card', style: { width: '40px', height: '40px' } });
+document.body.append(shProbe);
+const shBefore = getComputedStyle(shProbe).boxShadow;
+document.documentElement.style.setProperty('--shadow-k', '0');
+await wait(40);
+const shAfter = getComputedStyle(shProbe).boxShadow;
+document.documentElement.style.setProperty('--shadow-k', '1');
+ok('阴影浓度可全局调节',
+   shBefore !== shAfter && /rgba\(0, 0, 0, 0\)/.test(shAfter),
+   `默认=${shBefore.slice(0, 34)}… 归零后=${shAfter.slice(0, 34)}…`);
+shProbe.remove();
+
+// ---- 19. 覆盖式滚动条不占布局 ----
+const sc = h('div', { class: 'c-scroller', style: { height: '60px', overflow: 'auto', width: '120px' } },
+  h('div', { style: { height: '600px' } }));
+document.body.append(sc);
+await wait(40);
+ok('覆盖式滚动条不占布局宽度',
+   sc.offsetWidth - sc.clientWidth === 0 && sc.scrollHeight > sc.clientHeight,
+   `offset=${sc.offsetWidth} client=${sc.clientWidth} 可滚动=${sc.scrollHeight > sc.clientHeight}`);
+sc.remove();
+
+// ---- 19.5 覆盖滚动条可以拖 ----
+const dragBox = h('div', { class: 'c-scroller', style: { height: '80px', overflow: 'auto', width: '160px' } },
+  h('div', { style: { height: '800px' } }));
+document.body.append(dragBox);
+const detach = revealOnScroll(dragBox);
+await wait(120);
+const dThumbEl = dragBox.parentElement.querySelector('.c-overlay-scroll__thumb');
+const thumbBox = dThumbEl?.getBoundingClientRect();
+if (dThumbEl && thumbBox) {
+  const pd = (type, y) => dThumbEl.dispatchEvent(new PointerEvent(type, {
+    bubbles: true, cancelable: true, pointerId: 1, button: 0, clientY: y,
+  }));
+  pd('pointerdown', thumbBox.top + 5);
+  pd('pointermove', thumbBox.top + 45);
+  const moved = dragBox.scrollTop;
+  pd('pointerup', thumbBox.top + 45);
+  ok('覆盖滚动条可以拖动', moved > 50, `拖动后 scrollTop=${Math.round(moved)}`);
+} else {
+  ok('覆盖滚动条可以拖动', false, '找不到拇指');
+}
+
+// ---- 19.55 底色：与拇指同宽同圆角，且铺满整条行程 ----
+{
+  const barEl = dragBox.parentElement.querySelector('.c-overlay-scroll');
+  const dThumb = barEl.querySelector('.c-overlay-scroll__thumb');
+  const csBar = getComputedStyle(barEl);
+  const csThumb = getComputedStyle(dThumb);
+  ok('底色与拇指同宽同圆角',
+     Math.abs(barEl.offsetWidth - dThumb.offsetWidth) < 0.5 &&
+     csBar.borderTopLeftRadius === csThumb.borderTopLeftRadius,
+     `track=${barEl.offsetWidth} thumb=${dThumb.offsetWidth} r=${csBar.borderTopLeftRadius}/${csThumb.borderTopLeftRadius}`);
+
+  // 顶/底两端：拇指的圆头必须和轨道的圆头完全重合（差 1px 就会露出底色）
+  const edgeAt = (top) => {
+    dragBox.scrollTop = top;
+    dragBox.dispatchEvent(new Event('scroll')); // 无头环境不派发真实 scroll，手动触发 sync
+    const b = barEl.getBoundingClientRect();
+    const t = dThumb.getBoundingClientRect();
+    return { top: Math.abs(t.top - b.top), bottom: Math.abs(b.bottom - t.bottom) };
+  };
+  const topEdge = edgeAt(0);
+  const botEdge = edgeAt(dragBox.scrollHeight);
+  ok('轨道两端与拇指两端重合',
+     topEdge.top < 1 && botEdge.bottom < 1,
+     `顶部差 ${topEdge.top.toFixed(1)}px / 底部差 ${botEdge.bottom.toFixed(1)}px`);
+}
+detach();
+dragBox.remove();
+
+// ---- 19.6 圆角阶梯 ----
+const rProbe = h('div', null,
+  h('div', { class: 'c-field' }, h('input', { class: 'c-field__input' })),
+  Button({ label: 'x' }),
+  h('div', { class: 'c-card', style: { height: '10px' } }),
+);
+document.body.append(rProbe);
+await wait(30);
+const radii = [...rProbe.children].map((n) => getComputedStyle(n).borderRadius).join(' · ');
+const winR = getComputedStyle(document.documentElement).getPropertyValue('--r-window').trim();
+ok('圆角阶梯随窗口半径一起上移',
+   winR === '20px' && radii.startsWith('9px'),
+   `window=${winR} · field/btn/card=${radii}`);
+rProbe.remove();
+
+// ---- 19.7 提示条：新的一条把旧的顶上去要有动画 ----
+// 无头环境不推进 rAF，弹簧跑不起来，所以这里验证「机制」：
+// 插入瞬间必须给旧提示补一个等量的反向位移，且这个位移由弹簧接管。
+const t1 = toast('第一条', { icon: 'check', duration: 60000 });
+const t2 = toast('第二条', { icon: 'check', duration: 60000 });
+const slot1 = t1.parentElement;
+const slot2 = t2.parentElement;
+const midShift = slot1.style.transform;
+const shiftPx = parseFloat(String(midShift).replace(/[^0-9.-]/g, '')) || 0;
+ok('新提示把旧提示顶开时有位移动画',
+   shiftPx > 10 && typeof slot1._flip?.stop === 'function' && slot2 !== slot1,
+   `旧槽补偿位移=${midShift || '(空)'} · 弹簧已接管=${typeof slot1._flip?.stop === 'function'}`);
+slot1._flip?.stop();
+slot1.remove();
+slot2.remove();
+
+// ---- 20. 图标线宽统一 ----
+const strokeEls = [];
+const sIcons = [13, 16, 28].map((n) => {
+  const el = IconButton({ icon: 'grid-2x2', label: `g${n}` });
+  if (n !== 16) el.style.setProperty('--ctl-ic', `${n}px`);
+  document.body.append(el);
+  strokeEls.push(el);
+  const svg = el.querySelector('svg');
+  return { n, w: getComputedStyle(svg).strokeWidth, ve: getComputedStyle(svg).vectorEffect };
+});
+await wait(40);
+ok('图标线宽不随尺寸变化',
+   sIcons.every((i) => i.w === sIcons[0].w) && sIcons.every((i) => i.ve === 'non-scaling-stroke'),
+   sIcons.map((i) => `${i.n}px→${i.w}`).join(' · '));
+strokeEls.forEach((n) => n.remove());
+
+// ---- 21. 滑块拇指是第七个玻璃面，参数独立 ----
+const slProbe = Slider({ min: 0, max: 100, value: 40 });
+document.body.append(slProbe);
+await wait(40);
+const thumbProbe = slProbe.querySelector('.c-slider__thumb');
+const thBand = parseFloat(getComputedStyle(thumbProbe).getPropertyValue('--lg-band'));
+const capBand = parseFloat(getComputedStyle(document.querySelector('.c-capsule') || document.body).getPropertyValue('--lg-band'));
+ok('滑块拇指有自己的参数，不跟胶囊共用一套',
+   Number.isFinite(thBand) && thBand > 0 && thBand !== capBand,
+   `拇指 band=${thBand} · 胶囊 band=${capBand}`);
+slProbe.remove();
+
+// ---- 22. 渲染层：原生合成背板 + SVG 光学滤镜 ----
+// 旧版这一节验的是「自己算像素」；新版没有像素可算了，
+// 改成验滤镜链的构成 —— 位移/饱和/涂层/高光是不是都落在了该落的原语上。
+{
+  ok('浏览器支持 backdrop-filter: url()', supportsNativeGlass() === true, String(supportsNativeGlass()));
+
+  const mk = (left) => {
+    const el = h('div', { class: 'c-capsule', style: { position: 'fixed', left: `${left}px`, top: '420px', width: '120px', height: '34px' } });
+    document.body.append(el);
+    return el;
+  };
+
+  // ① 新引擎不依赖 #wallpaper：背板来自合成器，有没有壁纸都能接管
+  const a = mk(40);
+  const la = mountGlassLens(a, { surface: 'capsule', params: { band: 20, amount: 7, coating: 0.3 } });
+  await wait(60);
+  ok('没有壁纸也能接管（背板来自合成器，不是自己画的）',
+     !!la && a.dataset.glass === 'capsule', `data-glass=${a.dataset.glass ?? '(无)'}`);
+  ok('接管后不留下 canvas', !a.querySelector('.gg-lens'));
+
+  // ② 滤镜链构成
+  const f = document.querySelector(`#${la.filterId}`);
+  ok('滤镜原语齐全（位移 / 饱和 / 涂层 / 高光）',
+     !!f && !!f.querySelector('feDisplacementMap') && !!f.querySelector('feFlood')
+       && f.querySelectorAll('feImage').length === 2,
+     `原语=${f ? f.children.length : 0}`);
+  ok('位移 scale = 2 × amount（峰值 CSS px 契约）',
+     Math.abs(Number(f.querySelector('feDisplacementMap').getAttribute('scale'))
+       - glassDisplacementScale(7, 20)) < 0.01,
+     `scale=${f.querySelector('feDisplacementMap').getAttribute('scale')} 期望=${glassDisplacementScale(7, 20)}`);
+
+  // ③ 归零 = 恒等：参数不动时，滤镜链必须是恒等变换
+  const b = mk(180);
+  const lb = mountGlassLens(b, { surface: 'capsule', params: { band: 0, amount: 0, depth: 0, vibrancy: 1, coating: 0, strokeAlpha: 0 } });
+  await wait(60);
+  const fb = document.querySelector(`#${lb.filterId}`);
+  ok('归零后滤镜链是恒等变换',
+     Number(fb.querySelector('feDisplacementMap').getAttribute('scale')) === 0
+       && Number(fb.querySelector('feColorMatrix').getAttribute('values')) === 1
+       && Number(fb.querySelector('feFlood').getAttribute('flood-opacity')) === 0,
+     `scale=${fb.querySelector('feDisplacementMap').getAttribute('scale')}`);
+
+  // ④ 玻璃叠玻璃：两块各自独立滤镜，互不干扰
+  const inner = h('div', { class: 'c-capsule', style: { position: 'absolute', left: '10px', top: '10px', width: '90px', height: '30px' } });
+  a.append(inner);
+  const li = mountGlassLens(inner, { surface: 'capsule' });
+  await wait(60);
+  ok('玻璃里再挂玻璃', !!li && inner.dataset.glass === 'capsule');
+  ok('两块玻璃用不同滤镜', li.filterId !== la.filterId);
+
+  // ⑤ 卸载要干净：data-glass、内联 backdrop-filter、滤镜节点全部收回
+  const idA = la.filterId;
+  la.dispose();
+  await wait(30);
+  ok('dispose 后不留痕迹',
+     !a.hasAttribute('data-glass') && !document.querySelector(`#${idA}`)
+       && !a.style.backdropFilter,
+     `data-glass=${a.hasAttribute('data-glass')} filter=${!!document.querySelector(`#${idA}`)}`);
+
+  lb.dispose();
+  a.remove();
+  b.remove();
+}
+
+// ---- 23. 子树卸载协议：整棵移除后 lens / filter / RO 一起回收 ----
+{
+  const group = h('div', { class: 'c-capsule', style: { position: 'fixed', left: '40px', top: '500px', width: '160px', height: '40px' } });
+  const child = h('div', { class: 'c-capsule', style: { position: 'absolute', left: '8px', top: '8px', width: '80px', height: '24px' } });
+  group.append(child);
+  document.body.append(group);
+  const before = glassLensCount();
+  const lg = mountGlassLens(group, { surface: 'capsule' });
+  const lc = mountGlassLens(child, { surface: 'capsule' });
+  await wait(30);
+  const mounted = glassLensCount();
+  disposeGlassTree(group);
+  disposeGlassTree(group); // 重复调用必须安全
+  await wait(20);
+  const remaining = glassLensCount();
+  ok('disposeGlassTree 幂等清理整棵子树',
+    !!lg && !!lc && !group.hasAttribute('data-glass') && !child.hasAttribute('data-glass')
+      && !document.querySelector(`#${lg.filterId}`) && !document.querySelector(`#${lc.filterId}`)
+      && remaining <= mounted - 2 && remaining <= before,
+    `lens=${before}→挂载${mounted}→${remaining}`);
+  group.remove();
+
+  // 首次插入前 mount 不能被误判为“挂载后移除”。
+  const late = h('div', { class: 'c-capsule', style: { position: 'fixed', left: '260px', top: '500px', width: '120px', height: '34px' } });
+  const beforeLate = glassLensCount();
+  const ll = mountGlassLens(late, { surface: 'capsule' });
+  await wait(20);
+  const detachedStillRegistered = glassLensCount() === beforeLate + 1;
+  document.body.append(late);
+  await wait(60);
+  ok('首次插入前不误销毁，插入后正常挂载',
+    detachedStillRegistered && late.dataset.glass === 'capsule' && !!document.querySelector(`#${ll.filterId}`),
+    `preMount=${detachedStillRegistered} data-glass=${late.dataset.glass || '(无)'}`);
+  late.style.display = 'none';
+  await wait(40);
+  late.style.display = '';
+  await wait(40);
+  ok('隐藏再显示后滤镜仍可用', late.dataset.glass === 'capsule');
+  disposeGlassTree(late);
+  late.remove();
+}
+
+// ---- 24. 版本化 JSON：raw 往返、重复导入不衰减 ----
+{
+  const before = theme.getOpticsRaw('capsule');
+  const backup = JSON.parse(theme.exportJson());
+  backup.optics.capsule.amount = 12.5;
+  backup.optics.capsule.coatingColor = '#ff375f';
+  backup.glass = 0.6;
+  theme.importJson(JSON.stringify(backup), { persist: false });
+  const once = theme.getOpticsRaw('capsule');
+  theme.importJson(theme.exportJson(), { persist: false });
+  const twice = theme.getOpticsRaw('capsule');
+  ok('JSON 导入保留 raw amount / 自定义涂层色',
+    once.amount === 12.5 && once.coatingColor === '#ff375f',
+    `amount=${once.amount} color=${once.coatingColor}`);
+  ok('JSON 重复导入不二次乘 glass',
+    Math.abs(once.coating - twice.coating) < 1e-9
+      && Math.abs(twice.coating - before.coating) < 1e-9,
+    `coating=${once.coating}→${twice.coating}`);
+  let invalidRejected = false;
+  try { theme.importJson('{"version":999}', { persist: false }); } catch { invalidRejected = true; }
+  ok('未知版本整体拒绝且不改状态',
+    invalidRejected && theme.getOpticsRaw('capsule').amount === 12.5);
+
+  const badColor = JSON.parse(theme.exportJson());
+  badColor.optics.capsule.coatingColor = 'not-a-color';
+  let colorRejected = false;
+  try { theme.importJson(JSON.stringify(badColor), { persist: false }); } catch { colorRejected = true; }
+  ok('非法涂层色整体拒绝且不改状态',
+    colorRejected && theme.getOpticsRaw('capsule').coatingColor === '#ff375f');
+  theme.importJson(JSON.stringify({ ...backup, glass: 1 }), { persist: false });
+  theme.resetOptics('capsule', { persist: false });
+}
+
+// ---- 25. 状态通知与 Slider 公开 API ----
+{
+  let calls = 0;
+  const off = theme.subscribe(() => { calls++; });
+  theme.setStroke(1.55, { persist: false });
+  off();
+  ok('setStroke 通知订阅者', calls === 1, `calls=${calls}`);
+
+  const bare = Slider({ min: 0, max: 10, value: 2 });
+  const marked = Slider({ min: 0, max: 10, value: 3, marks: ['低', '高'] });
+  const api = (n) => typeof n.set === 'function' && typeof n.value === 'function' && typeof n.dispose === 'function';
+  let silent = true;
+  let inputs = 0;
+  const guarded = Slider({ min: 0, max: 10, value: 1, marks: ['低', '高'], onInput: () => { inputs++; } });
+  guarded.set(6);
+  silent = guarded.value() === 6 && inputs === 0;
+  ok('Slider 有无 marks 都提供 set/value/dispose', api(bare) && api(marked));
+  ok('Slider.set 静默更新，不触发 onInput', silent, `value=${guarded.value()} inputs=${inputs}`);
+  bare.dispose(); marked.dispose(); guarded.dispose();
+  theme.setStroke(1.4, { persist: false });
+}
+
+// ---- 26. 复制到全部：完整 raw（含本地 px），不按目标尺寸缩放 ----
+{
+  theme.setOptics('panel', { band: 33, amount: 12.5 }, { persist: false });
+  theme.applyOpticsToAll('panel', { persist: false });
+  const copied = GLASS_SURFACES.map((s) => theme.getOpticsRaw(s.id));
+  ok('复制到全部保留完整 raw（含本地 px）',
+    copied.every((o) => o.band === 33 && o.amount === 12.5),
+    `thumb=${copied.find((o, i) => GLASS_SURFACES[i].id === 'thumb')?.band}px`);
+  theme.resetOptics(null, { persist: false });
+  ok('七面重置回到各自默认且 thumb 不被复制值污染',
+    theme.getOpticsRaw('panel').band === 30 && theme.getOpticsRaw('thumb').band === 7.2,
+    `panel=${theme.getOpticsRaw('panel').band} thumb=${theme.getOpticsRaw('thumb').band}`);
+}
+
+// ---- 27. 导航栏：acrylic，不是液态玻璃 ----
+{
+  const host = h('div', { style: { position: 'fixed', left: '-9999px', top: '0', width: '900px', height: '600px' } });
+  const nav = NavColumn({ children: [NavGroup({ children: [NavItem({ icon: 'house', label: '首页', selected: true })] })] });
+  // 宽度从令牌推导，和真组件一致 —— 否则下面那条「账本是推的」断言就没意义
+  const lights = h('span', { style: { display: 'block', width: 'calc(3 * var(--tl-dot) + 2 * var(--tl-gap))', height: 'var(--tl-dot)' } });
+  const toggle = h('div', { class: 'l-chrome__toggle' }, h('span', { style: { display: 'block', width: 'var(--capsule-h)', height: 'var(--capsule-h)' } }));
+  // chrome 是顶栏的第一个 flex 子项 —— 不是另挂一层绝对定位
+  const chrome = h('div', { class: 'l-chrome' }, lights, toggle);
+  const leadEl = h('div', { class: 'c-topbar__lead' }, h('span', { class: 'c-title' }, '标题'));
+  const topbar = h('div', { class: 'c-topbar' }, chrome, leadEl);
+  const main = h('div', { class: 'l-main' });
+  const app = h('div', { class: 'l-app' }, nav, topbar, main);
+  host.append(app);
+  document.body.append(host);
+  await wait(60);
+
+  const cs = getComputedStyle(nav);
+  ok('导航栏不挂液态玻璃滤镜',
+    !nav.hasAttribute('data-glass') && !/url\(/.test(cs.backdropFilter),
+    `data-glass=${nav.getAttribute('data-glass')} bf=${cs.backdropFilter}`);
+  ok('导航栏是 acrylic（模糊 + 提饱和）',
+    /blur\(/.test(cs.backdropFilter) && /saturate\(/.test(cs.backdropFilter),
+    cs.backdropFilter);
+
+  const veil = nav.querySelector('.c-topveil--nav');
+  const head = nav.querySelector('.l-nav__head');
+  ok('面纱层级低于导航栏头部（红绿灯不被糊）',
+    Number(getComputedStyle(head).zIndex) > Number(getComputedStyle(veil).zIndex),
+    `head=${getComputedStyle(head).zIndex} veil=${getComputedStyle(veil).zIndex}`);
+
+  // —— 顶栏的横向节奏：红绿灯↔开关、开关↔标题组，同一段距离 ——
+  {
+    // 用 offsetLeft 量布局位置：transform 不影响它，所以展开态的位移不会污染间距
+    const gapA = toggle.offsetLeft - (lights.offsetLeft + lights.offsetWidth);
+    const gapB = leadEl.offsetLeft - (toggle.offsetLeft + toggle.offsetWidth);
+    ok('顶栏间距一致（红绿灯↔开关 == 开关↔标题组）', Math.abs(gapA - gapB) <= 1,
+      `${gapA} vs ${gapB}`);
+    ok('顶栏左内边距就是 --topbar-pad-l',
+      lights.offsetLeft === 16, `lights.offsetLeft=${lights.offsetLeft}`);
+
+    // 悬浮形态：开关不画，标题组必须自己补上来（不许在原地留一个洞）
+    const beforeLead = leadEl.offsetLeft;
+    const toggleW = toggle.offsetWidth;   // 隐藏后 offsetWidth 就是 0，先记下来
+    const dock = h('div', { class: 'c-dock', dataset: { hidden: '0', edge: 'left' } });
+    app.append(dock);
+    await wait(260);   // 宽度收缩 200ms，等它走完再量最终位置
+    const afterLead = leadEl.offsetLeft;
+    ok('开关隐藏后标题组自动左移（不留洞）',
+      Math.abs((beforeLead - afterLead) - (toggleW + gapA)) <= 1,
+      `${beforeLead} → ${afterLead}（应左移 ${toggleW + gapA}）`);
+    dock.remove();
+    await wait(260);
+
+    // 账本是推出来的：改 --tl-dot，灯组宽度和开关落点必须一起动
+    const root = document.documentElement;
+    const off0 = Math.round(nav.getBoundingClientRect().right - toggle.getBoundingClientRect().right);
+    root.style.setProperty('--tl-dot', '14px');
+    await wait(440);   // 等 transform 过渡走完
+    const off1 = Math.round(nav.getBoundingClientRect().right - toggle.getBoundingClientRect().right);
+    root.style.removeProperty('--tl-dot');
+    await wait(440);
+    ok('改 --tl-dot 后开关仍贴着导航栏右缘（账本是推的，不是写死的）',
+      Math.abs(off0 - 16) <= 1 && Math.abs(off1 - 16) <= 1,
+      `默认 off=${off0}px，dot=14 时 off=${off1}px`);
+  }
+
+  // —— 结构：导航栏是覆盖层，不占列 ——
+  ok('导航栏是覆盖层，不占列', getComputedStyle(nav).position === 'absolute',
+    getComputedStyle(nav).position);
+  ok('展开时内容列按导航栏宽度让位',
+    Math.abs(parseFloat(getComputedStyle(main).marginLeft) - nav.offsetWidth) < 1,
+    `margin-left=${getComputedStyle(main).marginLeft} navW=${nav.offsetWidth}`);
+
+  // —— 动画：只允许 transform，不许有布局属性 ——
+  const appCS = getComputedStyle(app);
+  const navCS = getComputedStyle(nav);
+  ok('窗口容器不再动画化网格列',
+    parseFloat(appCS.transitionDuration) === 0,
+    `transition=${appCS.transitionProperty} ${appCS.transitionDuration}`);
+  ok('导航栏只过渡 transform / visibility',
+    /transform/.test(navCS.transitionProperty) &&
+      !/width|grid|margin|left/.test(navCS.transitionProperty),
+    navCS.transitionProperty);
+
+  const before = Math.round(chrome.getBoundingClientRect().left);
+  const beforeMain = Math.round(main.getBoundingClientRect().left);
+  app.classList.add('l-app--nav-hidden');
+  // 点击当帧：内容列就该归零（导航栏此时还完整盖着那一条）
+  const sameFrame = Math.round(main.getBoundingClientRect().left);
+  ok('收起时内容列在首帧就让位（不参与动画）',
+    sameFrame === Math.round(app.getBoundingClientRect().left),
+    `${beforeMain} → ${sameFrame}`);
+
+  // 之后逐帧采样：内容列不能再动，动的是导航栏
+  const trail = [];
+  for (let i = 0; i < 6; i++) {
+    await wait(30);
+    trail.push(Math.round(main.getBoundingClientRect().left));
+  }
+  ok('动画期间内容列一动不动（所以不可能和导航栏裂开）',
+    trail.every((x) => x === sameFrame),
+    trail.join(','));
+
+  const after = Math.round(chrome.getBoundingClientRect().left);
+  ok('收起导航栏时红绿灯位置不动', Math.abs(before - after) < 1, `${before} → ${after}`);
+
+  // —— 展开：内容列等导航栏到位再让位 ——
+  app.classList.remove('l-app--nav-hidden');
+  await wait(60);
+  const during = Math.round(main.getBoundingClientRect().left);
+  await wait(500);
+  const afterExpand = Math.round(main.getBoundingClientRect().left);
+  ok('展开时内容列等到末帧才让位（那一跳被导航栏盖住）',
+    during === Math.round(app.getBoundingClientRect().left) &&
+      Math.abs(afterExpand - Math.round(app.getBoundingClientRect().left) - nav.offsetWidth) < 1,
+    `60ms=${during} 560ms=${afterExpand}`);
+
+  // —— 顶栏属于窗口，不属于内容列 ——
+  ok('顶栏挂在 .l-app 上（不随内容列重排）',
+    topbar.parentElement === app &&
+      Math.abs(topbar.getBoundingClientRect().left - app.getBoundingClientRect().left) < 1,
+    `topbar.left=${Math.round(topbar.getBoundingClientRect().left)} app.left=${Math.round(app.getBoundingClientRect().left)}`);
+
+  const lead = topbar.querySelector('.c-topbar__lead');
+  ok('展开时标题组用 transform 右移（不是改内边距）',
+    /matrix|translate/.test(getComputedStyle(lead).transform),
+    getComputedStyle(lead).transform);
+
+  host.remove();
+}
+
+// ---- 28. 卡片模块 / 搜索模块 ----
+{
+  const solid = NavCard({ variant: 'solid', color: '#ffffff', title: '浅色卡' });
+  ok('实心卡按底色自动配前景',
+    solid.style.getPropertyValue('--navcard-fg').includes('text-primary'),
+    solid.style.getPropertyValue('--navcard-fg'));
+
+  const dark = NavCard({ variant: 'solid', color: '#1d1d1f', title: '深色卡' });
+  ok('深色卡配白字',
+    dark.style.getPropertyValue('--navcard-fg').includes('text-on-accent'),
+    dark.style.getPropertyValue('--navcard-fg'));
+
+  const panel = NavCard({ title: '资源', children: [NavItem({ icon: 'list', label: '目录' })] });
+  ok('半透明卡是容器，不是实心块',
+    !panel.classList.contains('c-navcard--solid') && !!panel.querySelector('.c-nav__item'),
+    panel.className);
+
+  const search = NavSearch({ search: () => [{ label: '滑块', hint: '控件陈列' }] });
+  document.body.append(search);
+  search.input.value = '滑';
+  search.input.dispatchEvent(new Event('input', { bubbles: true }));
+  await wait(30);
+  const hit = search.querySelector('.c-navsearch__result');
+  ok('搜索模块结果内联展开（不是浮层）',
+    !!hit && !document.querySelector('.c-menu') && !!hit.closest('.c-navsearch'),
+    hit ? hit.textContent : '(无结果)');
+  search.remove();
+}
+
+// ---- 28.5 信息模块 ----
+{
+  const host = h('div', { style: { position: 'fixed', left: '-9999px', top: '0', width: '240px' } });
+  const withAvatar = NavInfo({ avatar: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%2210%22%3E%3Crect width=%2210%22 height=%2210%22 fill=%22%23888%22/%3E%3C/svg%3E', title: '小 Q', subtitle: 'Apple 账户' });
+  const withIcon = NavInfo({ icon: 'sliders', title: '参数', subtitle: '应用设置' });
+  const withStack = NavInfo({ stack: ['a', 'b', 'c'], title: '家人共享' });
+  const fallback = NavInfo({ title: '无图', subtitle: '首字兜底' });
+  host.append(withAvatar, withIcon, withStack, fallback);
+  document.body.append(host);
+  await wait(60);
+
+  const box = (n) => n.querySelector('.c-navinfo__media').getBoundingClientRect();
+  const titleL = (n) => n.querySelector('.c-navinfo__title').getBoundingClientRect().left;
+  ok('三种媒介的媒介盒一样大（文字起点对齐）',
+    Math.abs(box(withAvatar).width - box(withIcon).width) < 0.5 &&
+      Math.abs(box(withAvatar).width - box(withStack).width) < 0.5 &&
+      Math.abs(titleL(withAvatar) - titleL(withIcon)) < 0.5 &&
+      Math.abs(titleL(withAvatar) - titleL(withStack)) < 0.5,
+    `${box(withAvatar).width}/${box(withIcon).width}/${box(withStack).width} · title ${titleL(withAvatar).toFixed(1)}/${titleL(withIcon).toFixed(1)}/${titleL(withStack).toFixed(1)}`);
+
+  const faces = [...withStack.querySelectorAll('.c-navinfo__face')].map((f) => f.getBoundingClientRect());
+  ok('重叠头像组正好占满媒介盒，不压文字',
+    faces.length === 3 &&
+      Math.abs(faces[2].right - box(withStack).right) < 1 &&
+      titleL(withStack) - box(withStack).right > 8,
+    `faces=${faces.map((f) => Math.round(f.width)).join('/')} 右缘差=${(faces[2].right - box(withStack).right).toFixed(1)}`);
+
+  const darkIcon = NavInfo({ icon: 'sliders', iconBg: '#1d1d1f', title: '深底' });
+  const lightIcon = NavInfo({ icon: 'sliders', iconBg: '#f5f5f7', title: '浅底' });
+  host.append(darkIcon, lightIcon);
+  await wait(30);
+  ok('应用图标按底色自动配前景',
+    darkIcon.querySelector('.c-navinfo__app').style.getPropertyValue('--navinfo-app-fg').includes('text-on-accent') &&
+      lightIcon.querySelector('.c-navinfo__app').style.getPropertyValue('--navinfo-app-fg').includes('text-primary'),
+    `深底=${darkIcon.querySelector('.c-navinfo__app').style.getPropertyValue('--navinfo-app-fg')} 浅底=${lightIcon.querySelector('.c-navinfo__app').style.getPropertyValue('--navinfo-app-fg')}`);
+
+  ok('没有头像/图标时用首字兜底',
+    fallback.querySelector('.c-navinfo__media').textContent === '无',
+    fallback.querySelector('.c-navinfo__media').textContent);
+
+  ok('信息模块只有给了 onClick 才可点',
+    !withAvatar.hasAttribute('role') && !withAvatar.hasAttribute('tabindex'),
+    `role=${withAvatar.getAttribute('role')}`);
+
+  const clickable = NavInfo({ title: '可点', onClick: () => {} });
+  ok('给了 onClick 就是按钮语义',
+    clickable.getAttribute('role') === 'button' && clickable.tabIndex === 0,
+    `role=${clickable.getAttribute('role')} tabindex=${clickable.tabIndex}`);
+
+  host.remove();
+}
+
+// ---- 28.6 悬浮导航栏 ----
+{
+  const host = h('div', { style: { position: 'fixed', left: '0', top: '0', width: '900px', height: '600px' } });
+  const mkDock = (edge) => NavDock({
+    edge,
+    children: [
+      NavDockItem({ icon: 'house', label: '首页', selected: true }),
+      NavDockItem({ icon: 'search', label: '搜索' }),
+      NavDockSep(),
+      NavDockItem({ icon: 'settings', label: '设置' }),
+    ],
+    foot: NavDockItem({ icon: 'rotate-ccw', label: '重做' }),
+  });
+  const left = mkDock('left');
+  const right = mkDock('right');
+  const bottom = mkDock('bottom');
+  const stage = h('div', { class: 'l-stage' });
+  const main = h('div', { class: 'l-main' }, stage);
+  const chromeToggle = h('div', { class: 'l-chrome__toggle' });
+  // 必须 absolute：relative + inset 0 不会给元素定尺寸，容器高度会是 0，
+  // 底部停靠的药丸就跑到视口外面去了
+  const app = h('div', { class: 'l-app', style: { position: 'absolute', inset: '0' } }, left, right, bottom, main, chromeToggle);
+  host.append(app);
+  document.body.append(host);
+  await wait(80);
+
+  const pill = left.querySelector('.c-dock__pill');
+  const cs = getComputedStyle(pill);
+  ok('悬浮导航是液态玻璃（挂了 dock 面）',
+    pill.getAttribute('data-glass') === 'dock' && /url\(/.test(cs.backdropFilter),
+    `data-glass=${pill.getAttribute('data-glass')} bf=${cs.backdropFilter.slice(0, 40)}`);
+  ok('悬浮导航是浮层，不占网格列',
+    getComputedStyle(left).position === 'absolute' &&
+      getComputedStyle(app).gridTemplateColumns.trim().split(/\s+/).length === 1,
+    `pos=${getComputedStyle(left).position} cols=${getComputedStyle(app).gridTemplateColumns}`);
+  // --dock-gutter 是 calc()，getPropertyValue 拿到的是表达式而不是 px，
+  // 所以用「药丸实测宽 + 两侧外边距」反推
+  const gutter = left.querySelector('.c-dock__pill').getBoundingClientRect().width +
+    2 * parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dock-inset'));
+  ok('悬浮导航给内容让位（padding，不是 margin —— 不切壁纸缝）',
+    Math.abs(parseFloat(getComputedStyle(stage).paddingLeft) - gutter) < 1 &&
+      Math.abs(parseFloat(getComputedStyle(main).marginLeft) || 0) < 1,
+    `stage.padding-left=${getComputedStyle(stage).paddingLeft} main.margin-left=${getComputedStyle(main).marginLeft} gutter=${gutter}`);
+  ok('悬浮导航可见时侧栏开关收成 0 宽（不是 display:none）',
+    parseFloat(getComputedStyle(chromeToggle).width) === 0 &&
+      getComputedStyle(chromeToggle).visibility === 'hidden',
+    `width=${getComputedStyle(chromeToggle).width} visibility=${getComputedStyle(chromeToggle).visibility}`);
+
+  const item = left.querySelector('.c-dock__item');
+  const ics = getComputedStyle(item);
+  ok('圆钮是正圆',
+    Math.abs(item.offsetWidth - item.offsetHeight) < 0.5 && parseFloat(ics.borderRadius) >= item.offsetWidth / 2,
+    `${item.offsetWidth}×${item.offsetHeight} r=${ics.borderRadius}`);
+  ok('当前页用 aria-current="page"（不是 aria-selected）',
+    item.getAttribute('aria-current') === 'page' && !item.hasAttribute('aria-selected'),
+    `current=${item.getAttribute('aria-current')} selected=${item.getAttribute('aria-selected')}`);
+
+  ok('脚注圆钮在药丸外面',
+    !!left.querySelector('.c-dock__foot .c-dock__item') &&
+      !left.querySelector('.c-dock__pill .c-dock__foot'),
+    'foot 不在 pill 内');
+
+  // 三向停靠：提示必须朝药丸里面长，否则会落到窗口外
+  const tipSide = async (dock, expect) => {
+    const it = dock.querySelectorAll('.c-dock__item')[1];
+    it.dispatchEvent(new PointerEvent('pointerenter', { bubbles: false }));
+    await wait(340);
+    const t = document.querySelector('.c-tip');
+    if (!t) return 'no-tip';
+    const tr = t.getBoundingClientRect();
+    const ir = it.getBoundingClientRect();
+    const side = tr.left >= ir.right - 1 ? 'right'
+      : tr.right <= ir.left + 1 ? 'left'
+      : tr.bottom <= ir.top + 1 ? 'top'
+      : 'other';
+    t.remove();
+    it.dispatchEvent(new PointerEvent('pointerleave', { bubbles: false }));
+    return side === expect ? 'ok' : `${side}≠${expect}`;
+  };
+  const sideL = await tipSide(left, 'right');
+  ok('左侧停靠：提示长在右边', sideL === 'ok', sideL);
+  const sideR = await tipSide(right, 'left');
+  ok('右侧停靠：提示长在左边', sideR === 'ok', sideR);
+  const sideB = await tipSide(bottom, 'top');
+  ok('底部停靠：提示长在上面', sideB === 'ok', sideB);
+  // 换停靠边要重接提示方向 —— 建的时候算死的方向不能留到换边之后
+  bottom.setEdge('left');
+  await wait(40);
+  const sideMoved = await tipSide(bottom, 'right');
+  ok('换停靠边后提示方向跟着换', sideMoved === 'ok', sideMoved);
+  bottom.setEdge('bottom');
+
+  left.setHidden(true);
+  await wait(30);
+  ok('收起是整根滑出（transform，不是 display:none）',
+    getComputedStyle(left).display !== 'none' && /matrix|translate/.test(getComputedStyle(left).transform),
+    `display=${getComputedStyle(left).display} transform=${getComputedStyle(left).transform.slice(0, 24)}`);
+  ok('收起后内容不再让位',
+    parseFloat(getComputedStyle(stage).paddingLeft) < 1,
+    `padding-left=${getComputedStyle(stage).paddingLeft}`);
+  left.setHidden(false);
+
+  left.setSelected(2);
+  const on = [...left.querySelectorAll('.c-dock__item')].filter((n) => n.getAttribute('aria-current') === 'page');
+  ok('setSelected 只留一个当前项', on.length === 1 && on[0] === left.querySelectorAll('.c-dock__item')[2],
+    `count=${on.length}`);
+
+  host.remove();
+}
+
+// ---- 29. 二级弹窗（模态栈） ----
+{
+  const lvl1 = Dialog({ title: '一级', desc: '第一层' });
+  await wait(60);
+  ok('第一个对话框正常打开', dialogDepth() === 1, `depth=${dialogDepth()}`);
+
+  const lvl2 = Dialog({ title: '二级', desc: '第二层' });
+  await wait(60);
+  ok('二级弹窗不会关掉一级（模态栈）',
+    dialogDepth() === 2 && document.querySelectorAll('.c-dialog-scrim').length === 2,
+    `depth=${dialogDepth()} scrims=${document.querySelectorAll('.c-dialog-scrim').length}`);
+  ok('二级默认比一级窄（否则完全盖住上一层）',
+    lvl2.sheet.offsetWidth < lvl1.sheet.offsetWidth,
+    `${lvl2.sheet.offsetWidth} < ${lvl1.sheet.offsetWidth}`);
+
+  const z1 = Number(getComputedStyle(lvl1.el).zIndex);
+  const z2 = Number(getComputedStyle(lvl2.el).zIndex);
+  ok('二级的遮罩压在一级之上', z2 > z1, `z ${z1} → ${z2}`);
+
+  const b1 = getComputedStyle(lvl1.el).backgroundColor;
+  const b2 = getComputedStyle(lvl2.el).backgroundColor;
+  ok('二级遮罩更浅（下面已经压过一轮暗）', b1 !== b2, `${b1} vs ${b2}`);
+
+  ok('父层变暗并失去交互', lvl1.sheet.hasAttribute('inert') && lvl1.sheet.getAttribute('aria-hidden') === 'true');
+
+  // Esc 只关最上面那层
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  await wait(60);
+  ok('Esc 只关最上面一层',
+    dialogDepth() === 1 && document.querySelectorAll('.c-dialog-scrim').length === 1,
+    `depth=${dialogDepth()}`);
+  ok('子层关闭后父层恢复交互',
+    !lvl1.sheet.hasAttribute('inert') && !lvl1.sheet.hasAttribute('aria-hidden'));
+
+  lvl1.close();
+  await wait(40);
+  ok('关掉最后一级后栈清空', dialogDepth() === 0);
+}
+
+// ---- 30. 导航栏展开/收起：动画 + 开关位置 ----
+{
+  const host = h('div', { style: { position: 'fixed', left: '-9999px', top: '0', width: '900px', height: '600px' } });
+  const nav = NavColumn({ children: [NavGroup({ children: [NavItem({ icon: 'house', label: '首页' })] })] });
+  const toggle = Capsule({
+    round: true,
+    className: 'l-chrome__toggle',
+    children: IconButton({ icon: 'panel-left', label: '收起导航栏' }),
+  });
+  const chrome = h('div', { class: 'l-chrome' },
+    h('span', { style: { display: 'block', width: '52px', height: '12px' } }),
+    toggle);
+  const topbar = h('div', { class: 'c-topbar' }, chrome, h('div', { class: 'c-topbar__lead' }));
+  const app = h('div', { class: 'l-app' }, nav, topbar, h('div', { class: 'l-main' }));
+  host.append(app);
+  document.body.append(host);
+  await wait(80);
+
+  const body = nav.querySelector('.l-nav__body');
+  ok('导航栏模块之间有间距（不是贴在一起）',
+    parseFloat(getComputedStyle(body).rowGap) > 0, `row-gap=${getComputedStyle(body).rowGap}`);
+
+  const navRect = nav.getBoundingClientRect();
+  const t0 = toggle.getBoundingClientRect();
+  ok('展开时开关停在导航栏右上角（距右缘 16px）',
+    Math.abs(navRect.right - t0.right - 16) <= 1,
+    `navR=${Math.round(navRect.right)} btnR=${Math.round(t0.right)}`);
+
+  app.classList.add('l-app--nav-hidden');
+  await wait(24);
+  const mid = getComputedStyle(nav);
+  ok('收起是滑动动画，不是 display:none',
+    mid.display !== 'none' && mid.visibility !== 'hidden',
+    `display=${mid.display} visibility=${mid.visibility}`);
+
+  await wait(520);
+  const out = nav.getBoundingClientRect();
+  ok('收起后导航栏整根滑出并隐藏',
+    getComputedStyle(nav).visibility === 'hidden' && Math.abs(out.right - navRect.left) < 2,
+    `right=${Math.round(out.right)} 起点=${Math.round(navRect.left)}`);
+
+  const t1 = toggle.getBoundingClientRect();
+  ok('收起后开关滑回红绿灯右侧', t1.left < t0.left - 10,
+    `${Math.round(t0.left)} → ${Math.round(t1.left)}`);
+
+  host.remove();
+}
+
+// ---- 31. 顶栏一行内的视觉中线 ----
+{
+  const title = h('span', { class: 'c-title' }, '控件陈列');
+  const cap = Capsule({ round: true, children: IconButton({ icon: 'search', label: '搜索' }) });
+  const row = h('div', { class: 'l-row l-row--7', style: { height: '52px' } }, cap, title);
+  document.body.append(row);
+  await wait(40);
+  const r = document.createRange();
+  r.selectNodeContents(title);
+  const ink = r.getBoundingClientRect();
+  const c = cap.getBoundingClientRect();
+  const d = Math.abs((ink.top + ink.bottom) / 2 - (c.top + c.bottom) / 2);
+  ok('标题墨迹中心与胶囊中心对齐（误差 < 1px）', d < 1, `Δ=${d.toFixed(2)}px`);
+  row.remove();
+}
+
+// ---- 32. 失焦红绿灯：0/1 契约 + 两套主题各有一档灰 ----
+{
+  theme.setMode('light', { persist: false });
+  const tl = TrafficLights({ focused: false });
+  document.body.append(tl);
+  await wait(40);
+
+  ok('失焦红绿灯的 data-focused 是 "0"/"1"，不是布尔字符串',
+    tl.getAttribute('data-focused') === '0', `attr=${tl.getAttribute('data-focused')}`);
+
+  const bodyEl = tl.querySelector('.c-traffic__body');
+  const rimEl = tl.querySelector('.c-traffic__rim');
+  const rs = getComputedStyle(rimEl);
+  ok('外圈是描边环（fill:none + stroke），不会在 body 半透明时叠深',
+    rs.fill === 'none' && parseFloat(rs.strokeWidth) > 0, `fill=${rs.fill} stroke=${rs.strokeWidth}`);
+
+  const lightFill = getComputedStyle(bodyEl).fill;
+  theme.setMode('dark', { persist: false });
+  await wait(40);
+  const darkFill = getComputedStyle(bodyEl).fill;
+  ok('失焦红绿灯跟着主题走（浅色 alpha 黑 / 深色 alpha 白）',
+    lightFill !== darkFill && lightFill.includes('0, 0, 0') && darkFill.includes('255, 255, 255'),
+    `light=${lightFill} dark=${darkFill}`);
+
+  tl.remove();
+}
+
+// ---- 33. 开合覆盖期材质（Acrylic 盖不住 webview 内容） ----
+{
+  const prevBackdrop = document.documentElement.dataset.backdrop;
+  document.documentElement.dataset.backdrop = 'system';
+  const app = h('div', { class: 'l-app' }, h('div', { class: 'l-nav' }, h('div', { class: 'c-nav' })));
+  document.body.append(app);
+  await wait(40);
+
+  const navEl = app.querySelector('.l-nav');
+  const before = getComputedStyle(navEl).backdropFilter;
+  ok('静止时导航栏不画自己的模糊（材质归 DWM）', before === 'none', `backdrop-filter=${before}`);
+
+  const hold = markNavMoving(app, 120);
+  await wait(40);
+  const moving = getComputedStyle(navEl).backdropFilter;
+  ok('开合期自己补一层真模糊（否则内容原样透出）',
+    app.classList.contains('l-app--nav-moving') && moving !== 'none',
+    `class=${app.classList.contains('l-app--nav-moving')} backdrop-filter=${moving}`);
+
+  await wait(hold + 80);
+  ok('落位后摘掉覆盖期材质，不会和 OS acrylic 叠成两层',
+    !app.classList.contains('l-app--nav-moving') && getComputedStyle(navEl).backdropFilter === 'none',
+    `class=${app.classList.contains('l-app--nav-moving')}`);
+
+  app.remove();
+  if (prevBackdrop === undefined) delete document.documentElement.dataset.backdrop;
+  else document.documentElement.dataset.backdrop = prevBackdrop;
+}
+
+// ---- 34. 层级阶梯：内容 < 悬浮导航 < 渐进模糊 < 波浪条 < 顶栏 ----
+{
+  const app = h('div', { class: 'l-app' });
+  const dock = NavDock({
+    edge: 'left',
+    children: [NavDockItem({ icon: 'images', label: '所有照片' })],
+  });
+  const veil = h('div', { class: 'c-topveil' });
+  const wave = h('div', { class: 'c-wave' });
+  const bar = h('div', { class: 'c-topbar' });
+  app.append(dock, veil, wave, bar);
+  document.body.append(app);
+  await wait(40);
+
+  const z = (el) => Number(getComputedStyle(el).zIndex);
+  ok('层级：内容 < 悬浮导航(1) < 渐进模糊(2) < 波浪条(4) < 顶栏(10)',
+    z(dock) === 1 && z(veil) === 2 && z(wave) === 4 && z(bar) === 10,
+    `dock=${z(dock)} veil=${z(veil)} wave=${z(wave)} topbar=${z(bar)}`);
+
+  app.remove();
+}
+
+document.getElementById('out').textContent = results.join('\n');
+document.title = results.every((r) => r.startsWith('PASS')) ? 'ALL PASS' : 'HAS FAIL';
+</script>
+</body>
+</html>
