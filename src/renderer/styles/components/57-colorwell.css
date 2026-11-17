@@ -1,0 +1,397 @@
+/* ==========================================================================
+   57. 颜色井 ColorWell
+   —— 一个色块按钮 + 一块浮起的取色面板（NSColorWell + 系统颜色面板）。
+      井是控件，面板是浮层：浮层用 L4 面（--surface-elevated + --shadow-popover），
+      不叠玻璃 —— 玻璃压在内容上会读成「一块玻璃开了个洞」。
+   ========================================================================== */
+
+/* 棋盘格：两种半透明灰（不是黑白）。井和面板都是棋盘格的宿主，
+   面板又是挂在 body 上的浮层、拿不到井的继承，所以这里并列声明一次。 */
+.c-colorwell,
+.c-colorpicker {
+  --cw-checker-a: rgb(128 128 128 / 0.28);
+  --cw-checker-b: rgb(128 128 128 / 0.1);
+}
+
+.c-colorwell {
+  position: relative;
+  flex: none;
+  display: block;
+  width: calc(var(--ctl-h, 28px) * 1.6);
+  height: var(--ctl-h, 28px);
+  padding: 2px;
+  border: 0;
+  border-radius: var(--ctl-r, var(--r-sm));
+  background: var(--surface-control);
+  box-shadow: inset 0 0 0 0.5px var(--line), var(--shadow-thumb);
+  appearance: none;
+  cursor: default;
+  transition:
+    background-color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out);
+}
+
+.c-colorwell:hover {
+  background: var(--surface-control-hover);
+}
+
+.c-colorwell:active {
+  background: var(--surface-control-active);
+}
+
+/* 焦点环放在井的外侧：里面是颜色，环压上去会改掉色块的边 */
+.c-colorwell:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 3px var(--accent-ring),
+    inset 0 0 0 0.5px var(--line-strong);
+}
+
+.c-colorwell[data-invalid="1"] {
+  box-shadow:
+    0 0 0 1px var(--danger),
+    inset 0 0 0 0.5px var(--line);
+}
+
+.c-colorwell[data-disabled="1"] {
+  opacity: 0.45;
+}
+
+/* 内层圆角 = 外层圆角 − 内边距（同心） */
+.c-colorwell__fill {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: calc(var(--ctl-r, var(--r-sm)) - 2px);
+  background-color: var(--cw-checker-b);
+  background-image:
+    linear-gradient(45deg, var(--cw-checker-a) 25%, transparent 25% 75%, var(--cw-checker-a) 75%),
+    linear-gradient(45deg, var(--cw-checker-a) 25%, transparent 25% 75%, var(--cw-checker-a) 75%);
+  background-size: 8px 8px;
+  background-position: 0 0, 4px 4px;
+  overflow: hidden;
+}
+
+.c-colorwell__fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--cw-color, transparent);
+}
+
+/* ==========================================================================
+   取色面板
+   ========================================================================== */
+
+.c-colorpicker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  width: 236px;
+  max-width: calc(100vw - 16px);
+  padding: var(--s-6);
+  border-radius: var(--r-md);
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-popover);
+  color: var(--text-primary);
+  transform-origin: var(--origin, top left);
+  will-change: transform, opacity;
+}
+
+.c-colorpicker:focus {
+  outline: none;
+}
+
+/* ---------------- 饱和度 / 亮度 ---------------- */
+
+.c-colorpicker__sv {
+  position: relative;
+  height: 120px;
+  border-radius: var(--r-sm);
+  /* 光谱本身：底色是当前色相，白、黑两层压出 S/V 平面。
+     这三处 hsl 代表的是「颜色」，不是界面材质，因此不受令牌约束。 */
+  background-color: hsl(var(--h, 211) 100% 50%);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+  overflow: hidden;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.c-colorpicker__sv:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 0.5px var(--line-strong), 0 0 0 2px var(--accent-ring);
+}
+
+.c-colorpicker__sv-white,
+.c-colorpicker__sv-black {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.c-colorpicker__sv-white {
+  background: linear-gradient(to right, hsl(0 0% 100%), hsl(0 0% 100% / 0));
+}
+
+.c-colorpicker__sv-black {
+  background: linear-gradient(to top, hsl(0 0% 0%), hsl(0 0% 0% / 0));
+}
+
+/* ---------------- 色相 / 不透明度 ---------------- */
+
+.c-colorpicker__hue,
+.c-colorpicker__alpha {
+  position: relative;
+  height: 10px;
+  border-radius: var(--r-pill);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+  cursor: default;
+  touch-action: none;
+}
+
+.c-colorpicker__hue {
+  /* 色相环展开成一条：这里必须是真实光谱，不能换成令牌 */
+  background: linear-gradient(
+    to right,
+    hsl(0 100% 50%),
+    hsl(60 100% 50%),
+    hsl(120 100% 50%),
+    hsl(180 100% 50%),
+    hsl(240 100% 50%),
+    hsl(300 100% 50%),
+    hsl(360 100% 50%)
+  );
+}
+
+.c-colorpicker__hue:focus-visible,
+.c-colorpicker__alpha:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 0.5px var(--line-strong), 0 0 0 2px var(--accent-ring);
+}
+
+/* 不透明度条：棋盘格在下，透明→当前的渐变在上 */
+.c-colorpicker__alpha {
+  background-color: var(--cw-checker-b);
+  background-image:
+    linear-gradient(45deg, var(--cw-checker-a) 25%, transparent 25% 75%, var(--cw-checker-a) 75%),
+    linear-gradient(45deg, var(--cw-checker-a) 25%, transparent 25% 75%, var(--cw-checker-a) 75%);
+  background-size: 6px 6px;
+  background-position: 0 0, 3px 3px;
+}
+
+.c-colorpicker__alpha-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* ---------------- 滑块拇指 ---------------- */
+
+.c-colorpicker__thumb {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: var(--r-pill);
+  background: var(--cw-color, var(--accent));
+  /* 拇指压在任意颜色上：内侧一圈暗环（浅色区可辨）+ 外侧一圈亮环（深色区可辨）。
+     和 .c-swatch 一样，这里的黑是「阴影」不是「表面色」，跟着 --shadow-k 走。 */
+  box-shadow:
+    inset 0 0 0 1px rgb(0 0 0 / calc(0.32 * var(--shadow-k))),
+    0 0 0 2px var(--line-highlight),
+    var(--shadow-thumb);
+  pointer-events: none;
+}
+
+.c-colorpicker__hue > .c-colorpicker__thumb,
+.c-colorpicker__alpha > .c-colorpicker__thumb {
+  top: 50%;
+}
+
+/* ---------------- 输入 ---------------- */
+
+.c-colorpicker__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.c-colorpicker__hex,
+.c-colorpicker__num {
+  flex: 1;
+  min-width: 0;
+  height: var(--ctl-h, 28px);
+  padding: 0 var(--s-3);
+  border: 0;
+  border-radius: var(--ctl-r, var(--r-sm));
+  background: var(--surface-control);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-12);
+  letter-spacing: var(--tracking-caption);
+  text-transform: uppercase;
+  transition:
+    background-color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out);
+}
+
+.c-colorpicker__hex {
+  text-align: left;
+}
+
+.c-colorpicker__num {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.c-colorpicker__hex:hover,
+.c-colorpicker__num:hover {
+  background: var(--surface-control-hover);
+}
+
+.c-colorpicker__hex:focus,
+.c-colorpicker__num:focus {
+  outline: none;
+  background: var(--surface-control-solid);
+  box-shadow:
+    inset 0 0 0 0.5px var(--line-strong),
+    0 0 0 3px var(--accent-ring);
+}
+
+/* 非法输入只闪一下，不长期标红 */
+.c-colorpicker__hex[data-invalid="1"],
+.c-colorpicker__num[data-invalid="1"] {
+  color: var(--danger);
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+
+.c-colorpicker__rgbrow {
+  gap: var(--s-4);
+}
+
+.c-colorpicker__field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--text-tertiary);
+}
+
+.c-colorpicker__fieldlabel {
+  flex: none;
+  font-size: var(--fs-11);
+  color: var(--text-secondary);
+}
+
+.c-colorpicker__field .c-colorpicker__num {
+  padding: 0 var(--s-2);
+}
+
+/* ---------------- 预设 ---------------- */
+
+.c-colorpicker__presets {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+
+.c-colorpicker__preset {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--sw, var(--accent));
+  box-shadow: inset 0 0 0 0.5px var(--line);
+  appearance: none;
+  cursor: default;
+  transition: transform var(--dur-1) var(--ease-out);
+}
+
+.c-colorpicker__preset:hover {
+  transform: scale(1.12);
+}
+
+.c-colorpicker__preset:active {
+  transform: scale(0.94);
+}
+
+.c-colorpicker__preset[aria-pressed="true"] {
+  outline: 1.5px solid var(--sw, var(--accent));
+  outline-offset: 2px;
+}
+
+.c-colorpicker__preset:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 2px;
+}
+
+/* ---------------- 取色器 ---------------- */
+
+.c-colorpicker__eyedropper {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--ctl-h, 28px);
+  height: var(--ctl-h, 28px);
+  padding: 0;
+  border: 0;
+  border-radius: var(--ctl-r, var(--r-sm));
+  background: var(--surface-control);
+  color: var(--text-secondary);
+  appearance: none;
+  cursor: default;
+  transition:
+    background-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out);
+}
+
+.c-colorpicker__eyedropper:hover {
+  background: var(--surface-control-hover);
+  color: var(--text-primary);
+}
+
+.c-colorpicker__eyedropper:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* ---------------- 页脚 ---------------- */
+
+.c-colorpicker__foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 0.5px solid var(--line-soft);
+}
+
+.c-colorpicker__hextext {
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  letter-spacing: var(--tracking-caption);
+  color: var(--text-primary);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.c-colorpicker__space {
+  font-size: var(--fs-11);
+  color: var(--text-tertiary);
+}
+
+/* ---------------- 只读 ---------------- */
+
+.c-colorpicker[aria-readonly="true"] .c-colorpicker__sv,
+.c-colorpicker[aria-readonly="true"] .c-colorpicker__hue,
+.c-colorpicker[aria-readonly="true"] .c-colorpicker__alpha,
+.c-colorpicker[aria-readonly="true"] .c-colorpicker__presets {
+  pointer-events: none;
+  opacity: 0.55;
+}

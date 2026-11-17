@@ -1,0 +1,50 @@
+/* ==========================================================================
+   3. 开关
+   ========================================================================== */
+
+.c-switch {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  width: 36px;
+  height: 21px;
+  padding: 2px;
+  border-radius: var(--r-pill);
+  background: var(--surface-control-active);
+  box-shadow: inset 0 0 0 0.5px var(--line-soft);
+  transition: background-color var(--dur-2) var(--ease-out);
+  transform: translateZ(0);
+}
+
+/* 用 flex 居中而不是 top:50% + 负 margin：
+   后者在分数像素高度下会算出 .5px，不同位置舍入方向不同，看起来就「各偏各的」。 */
+.c-switch__knob {
+  width: 17px;
+  height: 17px;
+  border-radius: var(--r-pill);
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / calc(0.26 * var(--shadow-k))), 0 0 0 0.5px rgb(0 0 0 / calc(0.05 * var(--shadow-k)));
+  transform: translateX(0);
+  will-change: transform;
+  transition: transform var(--dur-2) var(--ease-out);
+}
+
+.c-switch[aria-checked="true"] {
+  background: var(--accent);
+}
+
+.c-switch[aria-checked="true"] .c-switch__knob {
+  transform: translateX(15px);
+}
+
+/* 按下只做等比放大，避免横向拉伸把圆心挤偏 */
+.c-switch:active .c-switch__knob {
+  transform: translateX(0) scale(1.06);
+}
+
+.c-switch[aria-checked="true"]:active .c-switch__knob {
+  transform: translateX(15px) scale(1.06);
+}
+

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark" data-theme-mode="system" data-shell="host">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="icon" href="./assets/icons/icon-32.png" />
+<title>Lumina</title>
+<link rel="stylesheet" href="./app.css" />
+<style>
+  /* 库只负责控件；页面的高度链归页面自己。少了这三行，滚动会落到 window 上。 */
+  html, body { height: 100%; margin: 0; overflow: hidden; }
+  body { background: transparent; }
+
+  /* 首帧兜底：wasm 还没实例化时，先铺一层和 tokens.css 同调的底色，
+     避免白闪。真实壁纸层在 wasm 挂载后由 #wallpaper 接管。 */
+  html { background: #101014; }
+  html[data-theme="light"] { background: #f2f2f4; }
+</style>
+</head>
+<body>
+  <!-- 玻璃折的就是这一层。
+       用的是 tokens.css 里的合成壁纸（一层暖色径向渐变），不依赖桌面快照：
+       桌面快照要靠 WDA_EXCLUDEFROMCAPTURE 把窗口排除在截屏之外才不出现「镜中镜」，
+       代价是系统截图和任务栏预览也一起拍不到 —— 对一个相册软件不划算。 -->
+  <div id="wallpaper"></div>
+
+  <!-- bootstrap() 把根组件挂到 body，不需要容器。 -->
+  <div id="app"></div>
+
+  <script type="module">
+    // wasm-bindgen --target web 的产物。
+    import init from './pkg/lumina_ui.js';
+    await init();
+  </script>
+
+</body>
+</html>

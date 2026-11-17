@@ -1,0 +1,174 @@
+/* ==========================================================================
+   48. 分栏 SplitView
+   —— 可拖动、可折叠的分栏容器。分隔条命中区 9px，视觉只有中间 1px；
+      折叠后同一位置会冒出展开按钮，所以命中区不能跟着栏一起消失。
+   ========================================================================== */
+
+.c-split {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  align-items: stretch;
+}
+
+.c-split[data-axis="x"] {
+  flex-direction: row;
+  /* 作为 flex 子项时不写宽度就会按内容收缩 —— 分栏必须自己铺满主轴。
+     调用方给了内联宽高（例如固定 700×160）仍然优先，内联样式压过这里。 */
+  width: 100%;
+}
+
+.c-split[data-axis="y"] {
+  flex-direction: column;
+  height: 100%;
+}
+
+/* 宽度由 JS 写进 --pane-size：flex-basis 读它，改一个自定义属性就够。
+   flex-shrink 必须是 0 —— 尺寸由约束求解器负责，浏览器再插一脚就会算出第三种结果。 */
+.c-split__pane {
+  flex: 0 0 var(--pane-size, 0px);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.c-split[data-axis="y"] > .c-split__pane {
+  min-height: 0;
+}
+
+/* 折叠：栏本身不占位置，内容也不能再被 Tab 进去（inert 由 JS 加） */
+.c-split__pane[data-collapsed="1"] {
+  display: none;
+}
+
+/* ---------------- 分隔条 ---------------- */
+
+.c-split__sep {
+  position: relative;
+  flex: 0 0 9px;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.c-split[data-axis="x"] > .c-split__sep {
+  cursor: col-resize;
+}
+
+.c-split[data-axis="y"] > .c-split__sep {
+  cursor: row-resize;
+}
+
+/* 1px 视觉线画在 9px 命中区正中间 */
+.c-split__sep::before {
+  content: "";
+  position: absolute;
+  background: var(--line);
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+
+.c-split[data-axis="x"] > .c-split__sep::before {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-0.5px);
+}
+
+.c-split[data-axis="y"] > .c-split__sep::before {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  transform: translateY(-0.5px);
+}
+
+.c-split__sep:hover::before,
+.c-split__sep[data-active="1"]::before {
+  background: var(--accent-ring);
+}
+
+/* 命中区只有 9px，焦点环画在外侧会盖住两侧内容，所以内缩 */
+.c-split__sep:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: -2px;
+  border-radius: var(--r-xs);
+}
+
+.c-split__sep[data-disabled="1"] {
+  cursor: default;
+}
+
+.c-split__sep[data-disabled="1"]::before {
+  background: var(--line-soft);
+}
+
+/* ---------------- 折叠后的展开按钮 ---------------- */
+
+.c-split__expand {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-card);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+  transition: background-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out);
+}
+
+.c-split__expand[hidden] {
+  display: none;
+}
+
+.c-split__expand:hover {
+  background: var(--surface-card-hover);
+  color: var(--text-primary);
+}
+
+.c-split__expand:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 1px;
+}
+
+.c-split__expand-icon {
+  display: grid;
+  place-items: center;
+}
+
+/* ---------------- 窄容器 ---------------- */
+
+/* 装不下时不再把每栏压成一条线：容器改出滚动，栏用 min 撑住，
+   所以内容不会被静默裁掉，分隔条也还够得着。 */
+.c-split[data-overflow="1"] {
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.c-split[data-overflow="1"] > .c-split__pane {
+  flex-shrink: 0;
+  min-width: var(--pane-min, 0px);
+}
+
+.c-split[data-axis="y"][data-overflow="1"] > .c-split__pane {
+  min-width: 0;
+  min-height: var(--pane-min, 0px);
+}
+
+/* 拖动期间光标由 43-resizer.css 的 html[data-resizing] 统一接管，
+   这里只补一条：拖的时候不要选中面板里的文字。 */
+@media (prefers-reduced-motion: reduce) {
+  .c-split__sep::before,
+  .c-split__expand {
+    transition-duration: 1ms;
+  }
+}

@@ -4,7 +4,7 @@
 // 每个动作完成后发一条总线事件，页面按需局部刷新。
 // ============================================================
 
-import { toast } from '../ui/kit.js';
+import { toast } from '../ui/overlays/toast.js';
 import * as api from './api.js';
 import { S, setFavorites, setScanResult, invalidateAll, totalCount } from './state.js';
 import { confirm, choose, prompt } from './dialog.js';

@@ -1,0 +1,152 @@
+/* ==========================================================================
+   25. 列表 List
+   —— 通用列表。缩略图只是它的「leading 可以放图片」这一种情况，
+      不是反过来：列表不假设内容是照片。
+   ========================================================================== */
+
+.c-list {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* inset：一块圆角卡里的分组列表（设置页、检查器）。圆角与行同心 */
+.c-list--inset {
+  border-radius: var(--r-lg);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.c-list__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  min-height: var(--list-row-h, 38px);
+  padding: var(--s-3) var(--s-7);
+  color: var(--text-primary);
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+
+.c-list--inset .c-list__row {
+  padding-left: var(--s-5);
+  padding-right: var(--s-5);
+}
+
+/* 行分隔线：从文字左缘起画，不横穿 leading 图标 —— macOS 的做法 */
+.c-list__row + .c-list__row::before {
+  content: "";
+  position: absolute;
+  left: var(--s-7);
+  right: var(--s-7);
+  top: 0;
+  height: 0.5px;
+  background: var(--line-soft);
+}
+
+.c-list--inset .c-list__row + .c-list__row::before {
+  left: var(--s-5);
+  right: var(--s-5);
+}
+
+.c-list--flush .c-list__row + .c-list__row::before {
+  left: 0;
+  right: 0;
+}
+
+.c-list__row--interactive:hover {
+  background: var(--surface-hover);
+}
+
+.c-list__row--interactive:active {
+  background: var(--surface-selection);
+}
+
+/* 可选中列表用 roving tabindex：焦点环必须画出来，否则键盘用户不知道在哪一行 */
+.c-list__row:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: -2px;
+}
+
+/* 选中：强调色淡底 + 主文字。不用实心强调色 —— 列表里往往有副标题和图标，
+   实心底会把它们一起吃掉，读不出层次。 */
+.c-list__row[aria-selected="true"] {
+  background: var(--accent-soft);
+}
+
+.c-list__row[aria-selected="true"] .c-list__icon {
+  color: var(--accent);
+}
+
+.c-list__leading {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: var(--text-secondary);
+}
+
+.c-list__icon {
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+}
+
+.c-list__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.c-list__title {
+  font-size: var(--fs-13);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.c-list__subtitle {
+  font-size: var(--fs-11);
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.c-list__meta {
+  flex: none;
+  font-size: var(--fs-11);
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-caption);
+}
+
+.c-list__trailing {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  color: var(--text-tertiary);
+}
+
+.c-list__header {
+  padding: var(--s-5) var(--s-7) var(--s-2);
+  font-size: var(--fs-11);
+  font-weight: 500;
+  letter-spacing: var(--tracking-section);
+  color: var(--text-secondary);
+  user-select: none;
+}
+
+.c-list__empty {
+  padding: var(--s-9) var(--s-7);
+  text-align: center;
+  font-size: var(--fs-12);
+  color: var(--text-tertiary);
+}
+

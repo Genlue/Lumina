@@ -1,0 +1,51 @@
+/* ==========================================================================
+   53. 工具栏溢出 ToolbarOverflow
+   —— 一行放不下的次要动作收进「更多」。宽度计算全在 JS 里，
+      这里只负责三件事：横向排列、测量态不可见、隐藏项真的不占位。
+   ========================================================================== */
+
+.c-toolbaroverflow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  /* min-width:0 让它在 flex 行里能被压窄；max-width:100% 防止在
+     max-content 父级里被内容撑破 —— 两个一起才能量到稳定的可用宽度。 */
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: nowrap;
+  /* 工具栏里的标签不换行：换行会让「自然宽度」变得毫无意义 */
+  white-space: nowrap;
+}
+
+/* 子项一律不收缩。让 flex 自动压缩的话，量到的宽度就永远等于可用宽度，
+   溢出判定会失效（永远「刚好放得下」）。 */
+.c-toolbaroverflow > * {
+  flex: none;
+}
+
+/* 测量态：元素照常参与布局（offsetWidth 可读），但不画出来。
+   同一帧内会摘掉这个属性，用户看不到中间过程。 */
+.c-toolbaroverflow[data-measuring="1"] {
+  visibility: hidden;
+}
+
+.c-toolbaroverflow[data-measuring="1"] > * {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* hidden 属性要压过组件自己的 display（.c-btn / .c-iconbtn 都是 inline-flex），
+   否则「已收进菜单」的按钮还会留在原位。 */
+.c-toolbaroverflow > [hidden],
+.c-toolbaroverflow__more[hidden] {
+  display: none;
+}
+
+.c-toolbaroverflow__more {
+  flex: none;
+}
+
+.c-toolbaroverflow__more[aria-expanded="true"] {
+  background: var(--surface-control-active);
+  color: var(--text-primary);
+}

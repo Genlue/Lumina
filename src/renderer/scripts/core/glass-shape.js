@@ -103,6 +103,48 @@ export function polygonField(px, py, verts, out) {
   return out;
 }
 
+/**
+ * 四角半径不同的圆角矩形 → 多边形顶点环（元素本地像素，左上角为原点）。
+ *
+ * 解析式 SDF 只认一个 radius，可贴边面板天然是「外侧圆、贴边侧方」——
+ * 只读 borderTopLeftRadius 会让四个角都按圆角算，贴边那一侧被磨圆，
+ * 抽屉就浮起来了。四角一致时仍走解析式；只有不一致才折线化。
+ *
+ * 半径按 CSS 的规则先等比收缩：相邻两角之和超过边长时四角一起缩。
+ * arcStep 是折线步长（px），半径 20 时最大偏差约 0.2px，肉眼不可见。
+ */
+export function roundedRectPolygon(w, h, radii, arcStep = 2) {
+  const [tl, tr, br, bl] = (radii || []).map((r) => Math.max(0, Number(r) || 0));
+  const shrink = Math.min(
+    1,
+    w / Math.max(tl + tr, 1e-6),
+    h / Math.max(tr + br, 1e-6),
+    w / Math.max(bl + br, 1e-6),
+    h / Math.max(tl + bl, 1e-6)
+  );
+  const [a, b, c, d] = [tl, tr, br, bl].map((r) => r * shrink);
+
+  const pts = [];
+  const arc = (cx, cy, r, from, to) => {
+    if (r <= 0.01) {
+      pts.push([cx, cy]);
+      return;
+    }
+    const steps = Math.max(2, Math.ceil((Math.abs(to - from) * r) / arcStep));
+    for (let i = 0; i <= steps; i++) {
+      const ang = from + ((to - from) * i) / steps;
+      pts.push([cx + Math.cos(ang) * r, cy + Math.sin(ang) * r]);
+    }
+  };
+
+  // 顺时针：左上 → 右上 → 右下 → 左下（y 轴向下）
+  arc(a, a, a, Math.PI, Math.PI * 1.5);
+  arc(w - b, b, b, Math.PI * 1.5, Math.PI * 2);
+  arc(w - c, h - c, c, 0, Math.PI * 0.5);
+  arc(d, h - d, d, Math.PI * 0.5, Math.PI);
+  return pts;
+}
+
 /** 方向场的膨胀圆角：1.5× 圆角，且不超过短边一半 */
 export function glassGradientRadius(w, h, radius) {
   const short = Math.min(w, h);

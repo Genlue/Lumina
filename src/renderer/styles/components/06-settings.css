@@ -1,0 +1,76 @@
+/* ==========================================================================
+   6. 设置行 / 卡片 / 分组
+   ========================================================================== */
+
+.c-card {
+  border-radius: var(--r-lg);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.c-card__head {
+  padding: var(--s-5) var(--s-7) var(--s-3);
+  font-size: var(--fs-12);
+  font-weight: 500;
+  color: var(--text-secondary);
+  letter-spacing: var(--tracking-section);
+}
+
+.c-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-7);
+  min-height: 38px;
+  padding: var(--s-2) var(--s-7);
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+
+.c-row + .c-row {
+  box-shadow: inset 0 0.5px 0 var(--line-soft);
+}
+
+.c-row--stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-7);
+}
+
+.c-row--interactive:hover {
+  background: var(--surface-hover);
+}
+
+.c-row__label {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-13);
+  color: var(--text-primary);
+}
+
+.c-row__hint {
+  display: block;
+  margin-top: 1px;
+  font-size: var(--fs-11);
+  line-height: 1.4;
+  color: var(--text-tertiary);
+  letter-spacing: var(--tracking-caption);
+}
+
+.c-row__control {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex: none;
+}
+
+.c-row--stack .c-row__control {
+  width: 100%;
+}
+
+/* 控件行里的滑块需要更多空间 */
+.c-row__control--wide {
+  flex: 1;
+  max-width: 300px;
+}
+

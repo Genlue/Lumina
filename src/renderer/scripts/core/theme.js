@@ -19,6 +19,15 @@ import {
 
 const root = document.documentElement;
 const mq = window.matchMedia('(prefers-color-scheme: dark)');
+
+/**
+ * 桌面端由宿主告知的系统明暗（'light' / 'dark'），null = 不知道，退回 mq。
+ *
+ * 为什么不能只信 prefers-color-scheme：Windows 上它跟着**窗口主题**走，
+ * 而窗口主题在手动切过浅色以后会被宿主钉死。宿主先把窗口主题交还系统、
+ * 再回读，拿到的才是 OS 的真实偏好。
+ */
+let systemOverride = null;
 // 版本号进 key：改了默认值就换一档，避免旧存档把新默认值盖掉
 const KEY = 'lumina.appearance.v8';
 const THEME_JSON_VERSION = 1;
@@ -325,13 +334,29 @@ function save() {
 /* ---------------- 系统变化 ---------------- */
 
 mq.addEventListener('change', () => {
-  if (state.mode === 'system') apply();
+  // 桌面端以窗口主题为准：mq 这时反映的可能是宿主自己钉住的值，不是系统
+  if (state.mode === 'system' && !systemOverride) apply();
 });
+
+/**
+ * 宿主回报系统明暗。传 null 表示读不到，退回 prefers-color-scheme。
+ * 浏览器里没有宿主，保持 null 即可，行为和以前完全一样。
+ * @returns {boolean} 是否真的变了（没变就不会重绘）
+ */
+export function setSystemTheme(value) {
+  const next = value === 'dark' || value === 'light' ? value : null;
+  if (next === systemOverride) return false;
+  systemOverride = next;
+  if (state.mode === 'system') commit({ persist: false });
+  return true;
+}
 
 /* ---------------- 对外 API ---------------- */
 
 export const resolveTheme = (mode = state.mode) =>
-  mode === 'light' || mode === 'dark' ? mode : mq.matches ? 'dark' : 'light';
+  mode === 'light' || mode === 'dark'
+    ? mode
+    : systemOverride || (mq.matches ? 'dark' : 'light');
 
 export const theme = {
   init() {

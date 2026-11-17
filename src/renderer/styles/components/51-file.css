@@ -1,0 +1,200 @@
+/* ==========================================================================
+   51. 文件 FilePicker / DropZone
+
+   两块只解决「选到文件」，不解决「传」：上传是任务，失败要重试、要进度、
+   要能取消，那是另一套东西。这里把错误文案留在控件下方，任务状态交给调用方。
+
+   两个控件都是「真按钮 + 隐藏 input」的组合，隐藏 input 是兄弟节点而不是子节点：
+   button 里放 input 属于可交互元素嵌套，焦点与读屏都会乱。
+   ========================================================================== */
+
+/* —— FilePicker —— */
+
+.c-filepicker {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.c-filepicker__glyph {
+  display: grid;
+  place-items: center;
+  flex: none;
+  /* 跟随按钮文字色：primary 变体是白字，写死灰色会在蓝底上糊掉 */
+  color: currentColor;
+  opacity: 0.72;
+}
+
+/* 长文件名不能把按钮撑成布局里最宽的东西；完整名称走 title，截断只是视觉 */
+.c-filepicker__label {
+  min-width: 0;
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 只加一圈细描边：按钮本身还要能再点一次重选，不能染成「已失效」的样子。
+   放在 :focus-visible 之前，键盘聚焦时焦点环仍然由全局规则接管。 */
+.c-filepicker[aria-invalid="true"] {
+  outline: 1px solid var(--danger);
+  outline-offset: 1px;
+}
+
+/* —— 已选文件清单 —— */
+
+/* 清单是按钮的兄弟节点（塞进 button 会把块级内容读成按钮名）。
+   名称 + 大小 + 单个移除，尺寸走令牌，长文件名靠省略号收。 */
+.c-filepicker__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  max-width: 100%;
+  margin: var(--s-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.c-filepicker__item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  min-width: 0;
+  padding: 2px var(--s-1);
+  font-size: var(--fs-12);
+  line-height: var(--lh-snug);
+}
+
+.c-filepicker__item-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+/* 数字等宽：一列文件的大小右对齐后不会参差 */
+.c-filepicker__item-size {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary);
+}
+
+/* 移除是独立按钮，必须是真 button + aria-label，键盘才能直接 Tab 到 */
+.c-filepicker__remove {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out);
+}
+
+.c-filepicker__remove:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.c-filepicker__remove:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 1px;
+}
+
+.c-filepicker__remove-icon {
+  display: grid;
+  place-items: center;
+}
+
+/* —— DropZone —— */
+
+.c-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-3);
+  padding: var(--s-9);
+  border: 1.5px dashed var(--line-strong);
+  border-radius: var(--r-lg);
+  color: var(--text-secondary);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--dur-2) var(--ease-out),
+    background-color var(--dur-2) var(--ease-out);
+}
+
+.c-dropzone:hover {
+  background: var(--surface-hover);
+}
+
+.c-dropzone__label {
+  font-size: var(--fs-13);
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: var(--lh-snug);
+}
+
+.c-dropzone__hint {
+  font-size: var(--fs-11);
+  color: var(--text-tertiary);
+  line-height: var(--lh-snug);
+}
+
+.c-dropzone__browse {
+  margin-top: var(--s-3);
+  align-self: center;
+}
+
+/* 键盘用户唯一的入口就是这颗按钮，它必须比周围文字更「可点」 */
+.c-dropzone__browse:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 2px;
+}
+
+/* 错误描边先写：拖入时 over 态要盖过它，否则拖到一半边框还是红的 */
+.c-dropzone[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+/* 拖入高亮：描边转强调色 + 淡底。颜色之外还借底色变化，
+   深色主题下光靠描边深浅不容易分辨 */
+.c-dropzone[data-state="over"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+.c-dropzone[data-state="disabled"] {
+  opacity: 0.5;
+  pointer-events: none;
+  cursor: default;
+}
+
+/* —— 错误文案（两个控件共用一套排版） —— */
+
+.c-filepicker__error,
+.c-dropzone__error {
+  display: block;
+  margin-top: var(--s-2);
+  color: var(--danger);
+  font-size: var(--fs-11);
+  line-height: var(--lh-snug);
+}
+
+/* 多文件时错误会合并成一句，允许换行，别用省略号把后半句吃掉 */
+.c-dropzone__error {
+  max-width: 48ch;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c-dropzone {
+    transition: none;
+  }
+}

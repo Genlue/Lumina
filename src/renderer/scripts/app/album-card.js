@@ -5,7 +5,7 @@
 // ============================================================
 
 import { h } from '../core/dom.js';
-import { Tile } from '../ui/kit.js';
+import { Tile } from '../ui/content/tile.js';
 import * as api from './api.js';
 import { S, albumCover } from './state.js';
 import { fmtDay, lastSegment } from './util.js';

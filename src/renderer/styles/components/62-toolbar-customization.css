@@ -1,0 +1,251 @@
+/* ==========================================================================
+   62. 工具栏自定义 ToolbarCustomization
+   —— 「哪些项显示、按什么顺序」是应用设置，不是溢出。
+      面板是 L4 浮层：实心 elevated 面 + 弹层外影，不叠玻璃
+      （工具栏本身是 L1 玻璃，再压一块玻璃会读成两层材质打架）。
+   ========================================================================== */
+
+.c-toolbarcustom {
+  position: fixed;
+  z-index: 400; /* JS 按层深覆写为 900 + level * 20 */
+  display: flex;
+  flex-direction: column;
+  width: 300px;
+  min-width: 280px;
+  max-width: min(320px, calc(100vw - 16px));
+  /* 面板本身不滚；列表区滚，标题和「恢复默认」始终在视野里 */
+  max-height: 60vh;
+  padding: var(--s-5);
+  border-radius: var(--r-lg);
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-popover);
+  color: var(--text-primary);
+  font-size: var(--ctl-fs, var(--fs-13));
+  will-change: transform, opacity;
+}
+
+/* 面板是可聚焦容器（tabindex=-1），但出现时不该有一圈蓝边 */
+.c-toolbarcustom:focus,
+.c-toolbarcustom:focus-visible {
+  outline: none;
+}
+
+.c-toolbarcustom__hint {
+  margin: 0 0 var(--s-3);
+  padding: 0 var(--s-2);
+  font-size: var(--fs-11);
+  line-height: var(--lh-snug);
+  letter-spacing: var(--tracking-caption);
+  color: var(--text-tertiary);
+}
+
+.c-toolbarcustom__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+}
+
+/* 分隔线 + 小标题：两区之间只隔一条发丝线，不用卡片 */
+.c-toolbarcustom__section + .c-toolbarcustom__section {
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 0.5px solid var(--line-soft);
+}
+
+.c-toolbarcustom__title {
+  padding: 0 var(--s-2) var(--s-2);
+  font-size: var(--fs-11);
+  font-weight: 600;
+  line-height: var(--lh-snug);
+  letter-spacing: var(--tracking-section);
+  color: var(--text-secondary);
+}
+
+/* 分组小标题比区标题更轻一档：它只是切分，不是层级 */
+.c-toolbarcustom__group {
+  padding: var(--s-2) var(--s-2) var(--s-1);
+  font-size: var(--fs-11);
+  line-height: var(--lh-snug);
+  color: var(--text-tertiary);
+}
+
+.c-toolbarcustom__list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 行高 30：比默认控件 28 略高，给拖动手柄留出上下各 1px 的余量 */
+.c-toolbarcustom__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: 30px;
+  padding-right: var(--s-2);
+  border-radius: var(--r-sm);
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+
+.c-toolbarcustom__row:hover {
+  background: var(--surface-hover);
+}
+
+/* 拖动态：被拖的那一行始终比悬停更深，松手前就能看出「它正在被搬」 */
+.c-toolbarcustom__row[data-dragging="1"],
+.c-toolbarcustom__row[data-dragging="1"]:hover {
+  background: var(--surface-control-active);
+}
+
+.c-toolbarcustom__grip {
+  flex: none;
+  width: 18px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: none;
+  color: var(--text-quaternary);
+  cursor: grab;
+  /* 触摸拖动时不要让浏览器先滚列表 */
+  touch-action: none;
+  transition: color var(--dur-1) var(--ease-out);
+}
+
+.c-toolbarcustom__grip:hover,
+.c-toolbarcustom__grip:focus-visible {
+  color: var(--text-secondary);
+}
+
+.c-toolbarcustom__grip:active {
+  cursor: grabbing;
+}
+
+/* 真 checkbox 留在原地负责语义与焦点，视觉全部由 .__box 画 */
+.c-toolbarcustom__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.c-toolbarcustom__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  cursor: default;
+}
+
+.c-toolbarcustom__box {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-xs);
+  background: var(--surface-control);
+  box-shadow: inset 0 0 0 0.5px var(--line-strong);
+  /* 勾号本身常驻，用透明色藏起来 —— 切换时只动颜色，不做显隐跳变 */
+  color: transparent;
+  transition: background-color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+
+.c-toolbarcustom__row:hover .c-toolbarcustom__input:not(:checked) + .c-toolbarcustom__label .c-toolbarcustom__box {
+  background: var(--surface-control-hover);
+}
+
+.c-toolbarcustom__input:checked + .c-toolbarcustom__label .c-toolbarcustom__box {
+  background: var(--accent);
+  box-shadow: none;
+  color: var(--text-on-accent);
+}
+
+/* 键盘焦点落在隐形 input 上时，环画在可见的方框外 */
+.c-toolbarcustom__input:focus-visible + .c-toolbarcustom__label .c-toolbarcustom__box {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 1px;
+}
+
+/* 必需项：勾着、灰着、说明在旁边。不做成「看起来能点但点不动」的假按钮 */
+.c-toolbarcustom__input:disabled + .c-toolbarcustom__label {
+  cursor: default;
+}
+
+.c-toolbarcustom__ico {
+  flex: none;
+  display: grid;
+  color: var(--text-secondary);
+}
+
+.c-toolbarcustom__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  line-height: var(--lh-snug);
+}
+
+.c-toolbarcustom__req {
+  flex: none;
+  font-size: var(--fs-11);
+  color: var(--text-tertiary);
+}
+
+.c-toolbarcustom__empty {
+  margin: 0;
+  padding: var(--s-8) var(--s-4);
+  text-align: center;
+  font-size: var(--fs-12);
+  line-height: var(--lh-base);
+  color: var(--text-tertiary);
+}
+
+/* 某一段没有内容时的占位：不要撑出和真实列表一样的空白 */
+.c-toolbarcustom__empty--inline {
+  padding: var(--s-4);
+}
+
+.c-toolbarcustom__foot {
+  flex: none;
+  display: flex;
+  justify-content: flex-start;
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 0.5px solid var(--line-soft);
+}
+
+.c-toolbarcustom__reset,
+.c-toolbarcustom__close {
+  height: var(--ctl-h, 28px);
+  padding: 0 var(--s-4);
+  border: 0;
+  border-radius: var(--ctl-r, var(--r-sm));
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--fs-12);
+  cursor: default;
+  transition: background-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out);
+}
+
+.c-toolbarcustom__reset:hover,
+.c-toolbarcustom__close:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.c-toolbarcustom__reset:active,
+.c-toolbarcustom__close:active {
+  background: var(--surface-control-active);
+}

@@ -1,0 +1,272 @@
+/* ==========================================================================
+   58. 区间滑块 RangeSlider
+   —— 原型：NSSlider 的 range 形态。轨道一条、拇指两颗，两端各自是独立的
+   role="slider"（各自可 Tab、各自有 aria-valuenow），容器只是 role="group"。
+
+   布局不用像素：rail 铺满可用宽度，轨道在 rail 内左右各让半个拇指宽，
+   拇指用 `inset-inline-start: p%` + 负的一半宽居中。于是 p=0 / p=1 时拇指的
+   外沿刚好压在 rail 的两端 —— 容器多宽都不会越界，也不需要 ResizeObserver。
+
+   拇指的玻璃照 04-slider.css 的第七个面来（同一套 coating / 折射 / 色散），
+   但规则写在自己的选择器里：不给 .c-slider__thumb 加任何东西。
+   ========================================================================== */
+
+.c-rangeslider {
+  /* 拇指尺寸从控件高度派生：默认 28 → 20。想整体放大就改 --ctl-h。 */
+  --thumb-h: calc(var(--ctl-h, 28px) - 8px);
+  --thumb-w: var(--thumb-h);
+  --thumb-s: 1;
+  --thumb-op: 1;
+  --thumb-fade-out: 90ms cubic-bezier(0.2, 0.9, 0.1, 1);
+  --thumb-fade-in: 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  --p-lo: 0;
+  --p-hi: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  min-width: 0;
+  height: var(--ctl-h, 28px);
+  /* 拖动时不许页面跟着滚 */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+
+.c-rangeslider[aria-disabled="true"] {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* 校验失败：整条控件一圈警示色。用 outline 而不是给轨道加边框，
+   因为轨道只有 4px，加 1px 环会把药丸形状吃掉。 */
+.c-rangeslider[data-invalid="1"] {
+  outline: 1px solid var(--danger);
+  outline-offset: 3px;
+  border-radius: var(--r-sm);
+}
+
+.c-rangeslider__rail {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  /* 左右各让半个拇指：rail 的 0% / 100% 就是两颗拇指的圆心，
+     拇指外沿正好压在控件边缘，p 永远不会越界。 */
+  margin-inline: calc(var(--thumb-w) / 2);
+}
+
+/* 轨道：内侧凹陷，比表面低一层。与 rail 同宽 —— 端点就是拇指圆心 */
+.c-rangeslider__track {
+  position: absolute;
+  top: 50%;
+  inset-inline: 0;
+  height: 4px;
+  margin-top: -2px;
+  border-radius: var(--r-pill);
+  background: var(--surface-control-active);
+  box-shadow:
+    inset 0 0.5px 1.5px rgb(0 0 0 / calc(0.18 * var(--shadow-k))),
+    inset 0 -0.5px 0 rgb(255 255 255 / 0.45);
+  overflow: hidden;
+}
+
+/* 选中段：两个拇指之间的那一段。位置完全由 --p-lo / --p-hi 推出来，
+   与拇指共用同一组变量，所以拇指和色段永远对得上。 */
+.c-rangeslider__fill {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: calc(var(--p-lo) * 100%);
+  width: calc((var(--p-hi) - var(--p-lo)) * 100%);
+  border-radius: var(--r-pill);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 76%, #fff), var(--accent));
+  box-shadow: inset 0 0.5px 0 rgb(255 255 255 / 0.40);
+}
+
+/* 刻度：和轨道同起同止，所以第 0 / 最后一根正好压在两端的拇指下面 */
+.c-rangeslider__ticks {
+  position: absolute;
+  top: 50%;
+  inset-inline: 0;
+  height: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.c-rangeslider__tick {
+  position: absolute;
+  top: 50%;
+  width: 1px;
+  height: calc(var(--thumb-h) * 0.5);
+  transform: translate(-50%, -50%);
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--text-tertiary) 60%, transparent);
+}
+
+/* 拇指的模糊半径要能过渡。注册成 <length> 才能插值 ——
+   带 url() 的滤镜列表不可插值，直接过渡 backdrop-filter 会变成硬切。 */
+@property --thumb-blur-px {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 5.4px;
+}
+
+/* 玻璃药丸：与单值滑块同一套光学（第七个面 thumb），只是多了一颗 */
+.c-rangeslider__thumb {
+  --thumb-blur-px: calc((4px + 14px * var(--lg)) * var(--glass-blur-k, 0.3));
+  position: absolute;
+  top: 50%;
+  inset-inline-start: calc(var(--p, 0) * 100%);
+  z-index: 4;
+  width: var(--thumb-w);
+  height: var(--thumb-h);
+  margin-top: calc(var(--thumb-h) / -2);
+  margin-inline-start: calc(var(--thumb-w) / -2);
+  border-radius: calc(var(--thumb-h) / 2);
+  overflow: hidden;
+  background:
+    /* 基础涂层：与其它六个面同一套 coating/coatingColor */
+    linear-gradient(
+      color-mix(in srgb, var(--lg-coating-color, rgb(var(--glass-rgb))) calc(var(--lg-coating) * 100%), transparent),
+      color-mix(in srgb, var(--lg-coating-color, rgb(var(--glass-rgb))) calc(var(--lg-coating) * 100%), transparent)
+    ),
+    radial-gradient(
+      115% 150% at 4% 50%,
+      rgb(255 255 255 / 0) 44%,
+      rgb(255 255 255 / calc(0.8 * var(--lg-css-stroke-alpha, var(--lg-stroke-alpha)) * var(--rf, 1))) 53%,
+      rgb(255 255 255 / 0) 63%
+    ),
+    radial-gradient(
+      115% 150% at 4% 50%,
+      rgb(var(--accent-rgb) / calc(0.5 * var(--lg-amount-k) * var(--rf, 1))) 0%,
+      rgb(var(--accent-rgb) / calc(0.42 * var(--lg-amount-k) * var(--rf, 1))) 38%,
+      rgb(var(--accent-rgb) / 0) 56%
+    ),
+    radial-gradient(
+      130% 115% at 50% 120%,
+      rgb(var(--accent-rgb) / calc(0.5 * var(--lg-amount-k))),
+      transparent 64%
+    );
+  backdrop-filter: blur(var(--thumb-blur-px)) saturate(calc(var(--lg-vibrancy) * 100%));
+  /* 兜底：不认 url() 的引擎（Safari / Firefox）整条声明失效，退回纯模糊 */
+  backdrop-filter: url(#gg-refract) blur(var(--thumb-blur-px))
+    saturate(calc(var(--lg-vibrancy) * 100%));
+  -webkit-backdrop-filter: blur(var(--thumb-blur-px))
+    saturate(calc(var(--lg-vibrancy) * 100%));
+  -webkit-backdrop-filter: url(#gg-refract) blur(var(--thumb-blur-px))
+    saturate(calc(var(--lg-vibrancy) * 100%));
+  transition: --thumb-blur-px var(--thumb-fade-in);
+  box-shadow:
+    /* 触点影用令牌，和按钮 / 单值滑块同一档 */
+    var(--shadow-thumb),
+    0 1.5px 4px rgb(0 0 0 / calc(0.26 * var(--shadow-k))),
+    0 0.5px 1px rgb(0 0 0 / calc(0.18 * var(--shadow-k))),
+    0 0 0 0.75px rgb(0 0 0 / calc(0.16 * var(--shadow-k))),
+    inset 0.9px 0 0 rgb(255 214 168 / calc(0.9 * var(--lg-css-dispersion, var(--lg-dispersion)))),
+    inset -0.9px 0 0 rgb(168 216 255 / calc(0.9 * var(--lg-css-dispersion, var(--lg-dispersion)))),
+    inset 0 1px 0 rgb(255 255 255 / calc(0.95 * var(--lg-css-stroke-alpha, var(--lg-stroke-alpha)))),
+    inset 0 -1px 0 rgb(255 255 255 / calc(0.95 * var(--lg-css-stroke-alpha, var(--lg-stroke-alpha)) * var(--hl-bottom))),
+    inset 0 -1px 2px rgb(0 0 0 / calc(0.12 * var(--shadow-k)));
+  /* 只做缩放，位移交给 margin —— translateX(-50%) 和 scale 混在一起会把居中也一起缩放 */
+  transform: scale(var(--thumb-s));
+  will-change: transform;
+  cursor: grab;
+}
+
+/* 交互膜：只负责按压时的白色反光，不承担基础涂层 */
+.c-rangeslider__mask {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgb(255 255 255 / 0.16),
+    rgb(255 255 255 / 0.04)
+  );
+  opacity: calc(var(--thumb-op) * var(--lg-coating));
+  transition: opacity var(--thumb-fade-in);
+}
+
+/* 按下：白膜淡出、背景模糊收到 0（放大后的那颗透镜是"清"的） */
+.c-rangeslider__thumb[data-dragging="1"] {
+  --thumb-blur-px: 0px;
+  transition: --thumb-blur-px var(--thumb-fade-out);
+  cursor: grabbing;
+  z-index: 5;
+}
+
+.c-rangeslider__thumb[data-dragging="1"] .c-rangeslider__mask {
+  opacity: 0;
+  transition: opacity var(--thumb-fade-out);
+}
+
+/* 镜面环：高光沿法线落在朝向光源的一侧 */
+.c-rangeslider__mask::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 0.8px;
+  background: linear-gradient(
+    168deg,
+    rgb(255 255 255 / 1) 0%,
+    rgb(255 255 255 / 0.25) 34%,
+    rgb(255 255 255 / 0) 62%,
+    rgb(255 255 255 / var(--hl-bottom)) 100%
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: var(--lg-css-stroke-alpha, var(--lg-stroke-alpha));
+}
+
+/* 顶部镜面 */
+.c-rangeslider__mask::after {
+  content: "";
+  position: absolute;
+  inset: 0.5px 2px auto;
+  height: 42%;
+  border-radius: var(--r-pill);
+  background: linear-gradient(
+    180deg,
+    rgb(255 255 255 / calc(0.55 * var(--lg-css-stroke-alpha, var(--lg-stroke-alpha)))),
+    rgb(255 255 255 / 0)
+  );
+  pointer-events: none;
+}
+
+/* 焦点环：只给键盘焦点，鼠标按下不闪。两个拇指各有各的环，
+   读屏 / 键盘用户一眼能看出现在在调哪一端。 */
+.c-rangeslider__thumb:focus-visible {
+  outline: none;
+  box-shadow:
+    0 1px 3px rgb(0 0 0 / calc(0.22 * var(--shadow-k))),
+    0 0 0 0.5px rgb(0 0 0 / calc(0.10 * var(--shadow-k))),
+    inset 0 1px 0 rgb(255 255 255 / 0.95),
+    inset 0 -1px 1.5px rgb(0 0 0 / calc(0.10 * var(--shadow-k))),
+    0 0 0 3px var(--accent-ring);
+  z-index: 6;
+}
+
+/* 右侧读数：等宽数字，值在跑的时候宽度不抖 */
+.c-rangeslider__value {
+  flex: none;
+  min-width: 4.5em;
+  text-align: end;
+  white-space: nowrap;
+  font-size: var(--ctl-fs, var(--fs-12));
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+/* 触摸：拇指在触屏上也够大。轨道本体在 28px 高里只有 4px，
+   所以整条 rail 都是可点区域（指针事件挂在容器上）。 */
+@media (pointer: coarse) {
+  .c-rangeslider {
+    --thumb-h: calc(var(--ctl-h, 28px) - 4px);
+  }
+}

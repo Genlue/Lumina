@@ -1,0 +1,77 @@
+/* ==========================================================================
+   34. 分隔条
+   —— 栏与栏之间那条能拖的缝。命中区 9px，视觉只有中间 1px，
+      平时透明，悬停/拖动才亮一条强调色。
+   ========================================================================== */
+
+.c-resizer {
+  position: absolute;
+  z-index: 6;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.c-resizer[data-axis="x"] {
+  top: 0;
+  bottom: 0;
+  width: 9px;
+  cursor: col-resize;
+}
+
+.c-resizer[data-axis="y"] {
+  left: 0;
+  right: 0;
+  height: 9px;
+  cursor: row-resize;
+}
+
+.c-resizer::after {
+  content: "";
+  position: absolute;
+  background: transparent;
+  transition: background var(--dur-1) var(--ease-out);
+}
+
+.c-resizer[data-axis="x"]::after {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-0.5px);
+}
+
+.c-resizer[data-axis="y"]::after {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  transform: translateY(-0.5px);
+}
+
+.c-resizer:hover::after,
+.c-resizer[data-active="1"]::after {
+  background: var(--accent-ring);
+}
+
+.c-resizer:focus-visible {
+  outline: none;
+}
+
+.c-resizer:focus-visible::after {
+  background: var(--accent);
+}
+
+/* 拖动期间整页统一光标，鼠标滑出命中区也不会变回箭头 */
+html[data-resizing="x"],
+html[data-resizing="x"] * {
+  cursor: col-resize !important;
+}
+
+html[data-resizing="y"],
+html[data-resizing="y"] * {
+  cursor: row-resize !important;
+}
+
+html[data-resizing] {
+  user-select: none;
+}

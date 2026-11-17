@@ -1,0 +1,29 @@
+/* ==========================================================================
+   37. 悬停提示 Tooltip
+   —— 补 title 的不足：title 要等 1 秒、不能换行、样式不可控。
+      只在「图标按钮没有可见文字」时才需要，有文字的控件不要加。
+   ========================================================================== */
+
+.c-tip {
+  position: fixed;
+  z-index: 700;
+  max-width: 220px;
+  padding: 3px 7px;
+  border-radius: var(--r-xs);
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-popover), inset 0 0 0 0.5px var(--line);
+  color: var(--text-primary);
+  font-size: var(--fs-11);
+  line-height: 1.35;
+  letter-spacing: var(--tracking-caption);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
+}
+
+.c-tip[data-show="1"] {
+  opacity: 1;
+  transform: translateY(0);
+}
+

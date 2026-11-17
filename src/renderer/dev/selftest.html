@@ -37,6 +37,10 @@ const ok = (name, pass, detail = '') =>
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// 降动态下时长塌成 1e-06s、位移直接跳过 —— 涉及「有没有动画」的断言必须分模式，
+// 否则测的是系统偏好而不是库的行为。用 --reduced-motion 跑第二遍。
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 theme.init();
 theme.setMode('dark', { persist: false });
 
@@ -168,9 +172,13 @@ const v = Number(sl.getAttribute('aria-valuenow'));
 ok('点击 75% 处 → 值约 75', Math.abs(v - 75) <= 2, `aria-valuenow=${v}`);
 
 const csDown = getComputedStyle(maskEl);
-ok('淡出比淡回更快，且同样非线性',
-   parseFloat(csDown.transitionDuration) < idleDur &&
-   /cubic-bezier/.test(csDown.transitionTimingFunction),
+// 正常动效：淡出要比淡回快，且同为非线性曲线
+// 降动态：两个时长都塌成近零，该验的是「确实变成了瞬时」而不是谁更快
+ok(REDUCED ? '降动态：淡入淡出都塌成瞬时' : '淡出比淡回更快，且同样非线性',
+   REDUCED
+     ? parseFloat(csDown.transitionDuration) <= 1e-05 && idleDur <= 1e-05
+     : parseFloat(csDown.transitionDuration) < idleDur &&
+       /cubic-bezier/.test(csDown.transitionTimingFunction),
    `${csDown.transitionDuration} ${csDown.transitionTimingFunction}`);
 
 const noT = document.createElement('style');
@@ -741,8 +749,12 @@ const slot1 = t1.parentElement;
 const slot2 = t2.parentElement;
 const midShift = slot1.style.transform;
 const shiftPx = parseFloat(String(midShift).replace(/[^0-9.-]/g, '')) || 0;
-ok('新提示把旧提示顶开时有位移动画',
-   shiftPx > 10 && typeof slot1._flip?.stop === 'function' && slot2 !== slot1,
+// 正常动效：插入瞬间旧提示要有等量反向位移，且由弹簧接管
+// 降动态：位移直接跳过，旧槽应当原地不动（瞬间换位），但两个槽仍然独立
+ok(REDUCED ? '降动态：顶开时不做位移，两个槽仍独立' : '新提示把旧提示顶开时有位移动画',
+   REDUCED
+     ? shiftPx <= 1 && slot2 !== slot1
+     : shiftPx > 10 && typeof slot1._flip?.stop === 'function' && slot2 !== slot1,
    `旧槽补偿位移=${midShift || '(空)'} · 弹簧已接管=${typeof slot1._flip?.stop === 'function'}`);
 slot1._flip?.stop();
 slot1.remove();
@@ -1028,8 +1040,9 @@ slProbe.remove();
   // —— 动画：只允许 transform，不许有布局属性 ——
   const appCS = getComputedStyle(app);
   const navCS = getComputedStyle(nav);
+  // 容器本身不该动画化布局属性。降动态下时长是 1e-06s 而不是 0，用阈值判断
   ok('窗口容器不再动画化网格列',
-    parseFloat(appCS.transitionDuration) === 0,
+    parseFloat(appCS.transitionDuration) <= 1e-05,
     `transition=${appCS.transitionProperty} ${appCS.transitionDuration}`);
   ok('导航栏只过渡 transform / visibility',
     /transform/.test(navCS.transitionProperty) &&

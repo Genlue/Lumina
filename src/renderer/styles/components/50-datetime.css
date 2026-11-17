@@ -1,0 +1,479 @@
+/* ==========================================================================
+   50. 日期 DatePicker / 时间 TimePicker
+   —— 两者都只处理「墙上时间」：日期是 YYYY-MM-DD，时间是 HH:mm，
+      没有时区、没有秒。日期是浮层面板，时间是内联的三段数字。
+      层级交给层栈算（900 + level * 20），这里不写死 z-index。
+   ========================================================================== */
+
+.c-datepicker {
+  display: inline-flex;
+  min-width: 0;
+}
+
+/* 触发器借 .c-btn 的材质与按压，只补「左文右图标」的排布 */
+.c-datepicker__trigger {
+  justify-content: space-between;
+  gap: var(--s-4);
+  min-width: 148px;
+  max-width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+
+.c-datepicker__value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.c-datepicker__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--text-tertiary);
+}
+
+/* —— 可编辑触发器 ——
+   外形和 .c-btn 完全一致（同高、同圆角、同底色），只是里面换成真 input。
+   圆角同心：外层 --ctl-r，内部输入框不画自己的底，所以不需要再减内边距。 */
+.c-datepicker__trigger--editable {
+  cursor: text;
+}
+
+.c-datepicker__input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: inherit;
+  color: var(--text-primary);
+}
+
+.c-datepicker__input::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* 焦点环由外层 .c-datepicker__trigger 的 :focus-within 负责，输入框自己不再画一圈 */
+.c-datepicker__input:focus,
+.c-datepicker__input:focus-visible {
+  outline: none;
+}
+
+.c-datepicker__trigger:focus-within {
+  box-shadow: inset 0 0 0 0.5px var(--line-strong), 0 0 0 3px var(--accent-ring);
+}
+
+/* 手输非法：只闪一次，不长期标红 */
+.c-datepicker__input[data-invalid-draft="1"] {
+  color: var(--danger);
+}
+
+/* 日历按钮：触发器内唯一可点的图标位 */
+.c-datepicker__toggle {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-right: calc(-1 * var(--s-2));
+  border-radius: var(--r-xs);
+  color: var(--text-tertiary);
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+
+.c-datepicker__toggle:hover {
+  background: var(--surface-control-hover);
+  color: var(--text-primary);
+}
+
+.c-datepicker__toggle:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 1px;
+}
+
+.c-datepicker__toggle .ic {
+  width: 14px;
+  height: 14px;
+}
+
+/* 整月 / 整年没有可选日：导航按钮禁用，避免「翻过去也是一片灰」 */
+.c-datepicker__nav:disabled {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+/* 空值不是「没渲染」，是「还没选」，颜色要弱下去但文字仍可读 */
+.c-datepicker[data-empty="true"] .c-datepicker__value {
+  color: var(--text-tertiary);
+  font-weight: 400;
+}
+
+/* 校验失败：按钮没有边框，只能用内描边补一圈 */
+.c-datepicker[data-invalid] .c-datepicker__trigger {
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+
+/* ---------------- 面板 ---------------- */
+
+.c-datepicker__panel {
+  position: fixed;
+  width: 236px;
+  max-height: calc(100vh - 16px);
+  overflow: auto;
+  padding: var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-popover);
+  color: var(--text-primary);
+  font-size: var(--fs-13);
+  letter-spacing: var(--tracking-body);
+}
+
+/* 面板自己是焦点边界（tabindex=-1），但不需要一圈蓝边 */
+.c-datepicker__panel:focus,
+.c-datepicker__panel:focus-visible {
+  outline: none;
+}
+
+.c-datepicker__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  margin-bottom: var(--s-3);
+}
+
+.c-datepicker__nav {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-xs);
+  color: var(--text-secondary);
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+
+.c-datepicker__nav:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.c-datepicker__nav:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 1px;
+}
+
+.c-datepicker__title {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-xs);
+  font-size: var(--fs-13);
+  font-weight: 600;
+  letter-spacing: var(--tracking-title);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.c-datepicker__title:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+/* 年视图已经是最粗一级：标题不再可点，但也不该看起来像坏了 */
+.c-datepicker__title:disabled {
+  color: var(--text-primary);
+  cursor: default;
+}
+
+.c-datepicker__title:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 1px;
+}
+
+/* ---------------- 日历网格 ---------------- */
+
+.c-datepicker__grid {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 2px;
+  table-layout: fixed;
+}
+
+.c-datepicker__grid td {
+  padding: 0;
+  text-align: center;
+}
+
+.c-datepicker__weekday {
+  padding: 0 0 var(--s-2);
+  font-size: var(--fs-11);
+  font-weight: 500;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+.c-datepicker__day {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: 0 auto;
+  border-radius: var(--r-xs);
+  font-size: var(--fs-13);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  background: transparent;
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+
+.c-datepicker__day:hover {
+  background: var(--surface-hover);
+}
+
+/* 邻月的日子仍然可选，只是退成背景层，不能和本月同权重 */
+.c-datepicker__day[data-outside="true"] {
+  color: var(--text-quaternary);
+}
+
+.c-datepicker__day[aria-current="date"] {
+  box-shadow: inset 0 0 0 1px var(--accent-ring);
+  font-weight: 600;
+}
+
+.c-datepicker__day[aria-selected="true"] {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-weight: 600;
+}
+
+.c-datepicker__day[aria-selected="true"]:hover {
+  background: var(--accent-hover);
+}
+
+/* 不可选：降透明之外还划一道线 —— 只靠颜色区分，色觉障碍用户读不出来 */
+.c-datepicker__day[aria-disabled="true"] {
+  opacity: 0.35;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  pointer-events: none;
+}
+
+.c-datepicker__day:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 0;
+}
+
+/* 选中日的焦点环换成浅色，否则蓝底上叠蓝环等于没有 */
+.c-datepicker__day[aria-selected="true"]:focus-visible {
+  outline-color: var(--line-highlight);
+}
+
+/* ---------------- 月 / 年视图 ---------------- */
+
+.c-datepicker__cell {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 40px;
+  border-radius: var(--r-xs);
+  font-size: var(--fs-13);
+  color: var(--text-primary);
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+
+.c-datepicker__cell:hover {
+  background: var(--surface-hover);
+}
+
+.c-datepicker__cell[aria-selected="true"] {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-weight: 600;
+}
+
+.c-datepicker__cell[aria-selected="true"]:hover {
+  background: var(--accent-hover);
+}
+
+.c-datepicker__cell[aria-disabled="true"] {
+  opacity: 0.35;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  pointer-events: none;
+}
+
+.c-datepicker__cell:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 0;
+}
+
+.c-datepicker__cell[aria-selected="true"]:focus-visible {
+  outline-color: var(--line-highlight);
+}
+
+/* ---------------- 底部 ---------------- */
+
+.c-datepicker__foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 0.5px solid var(--line-soft);
+}
+
+.c-datepicker__clear {
+  height: 24px;
+  padding: 0 var(--s-4);
+  border-radius: var(--r-xs);
+  font-size: var(--fs-12);
+  font-weight: 500;
+  color: var(--accent);
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+
+.c-datepicker__clear:hover {
+  background: var(--accent-soft);
+}
+
+.c-datepicker__clear:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 1px;
+}
+
+.c-datepicker__clear:disabled {
+  color: var(--text-quaternary);
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   时间 TimePicker
+
+   时间和日期并排出现时，两者高度必须一致（28），否则表单行会齐不齐。
+   ========================================================================== */
+
+.c-timepicker {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-sm);
+  background: var(--surface-control);
+  color: var(--text-primary);
+  font-size: var(--fs-13);
+  font-variant-numeric: tabular-nums;
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+
+.c-timepicker:hover {
+  background: var(--surface-control-hover);
+}
+
+.c-timepicker__seg {
+  display: grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: var(--r-xs);
+  color: var(--text-primary);
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+
+/* —— 可编辑形态 ——
+   宽度按「两位:两位」算，秒字段多两格；居中让光标位置和冒号对得上。 */
+.c-timepicker__input {
+  width: 5.5ch;
+  height: 100%;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: inherit;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: inherit;
+  text-align: center;
+  color: var(--text-primary);
+}
+
+.c-timepicker[data-seconds="1"] .c-timepicker__input {
+  width: 8ch;
+}
+
+.c-timepicker__input::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* 焦点环由容器统一画一圈，输入框自己不再画第二圈 */
+.c-timepicker__input:focus,
+.c-timepicker__input:focus-visible {
+  outline: none;
+}
+
+.c-timepicker:focus-within {
+  background: var(--surface-control-solid);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* 手输非法：只闪一次，不长期标红 */
+.c-timepicker__input[data-invalid-draft="1"] {
+  color: var(--danger);
+}
+
+/* 当前编辑段用淡强调底，不用整块强调色 —— 时间和日期面板挨着时，
+   两处实心蓝会互相抢注意力 */
+.c-timepicker__seg:focus {
+  background: var(--accent-soft);
+}
+
+.c-timepicker__seg:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 0;
+}
+
+.c-timepicker__colon {
+  padding: 0 1px;
+  color: var(--text-tertiary);
+}
+
+.c-timepicker__meridiem {
+  min-width: 34px;
+  margin-left: var(--s-1);
+  font-size: var(--fs-12);
+  color: var(--text-secondary);
+}
+
+/* 没选过时显示 "--"：这是空态，不是 0 点 */
+.c-timepicker[data-empty="true"] .c-timepicker__seg {
+  color: var(--text-tertiary);
+}
+
+.c-timepicker[data-invalid] {
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+
+.c-timepicker[aria-disabled="true"] {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c-datepicker__nav,
+  .c-datepicker__day,
+  .c-datepicker__cell,
+  .c-datepicker__clear,
+  .c-datepicker__toggle,
+  .c-timepicker,
+  .c-timepicker__seg {
+    transition: none;
+  }
+}

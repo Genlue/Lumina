@@ -1,0 +1,579 @@
+/* 仅用于演示页自身的框架，不属于控件库 */
+  body { background: var(--surface-window); }
+  /* 悬浮导航栏形态：内容整幅铺开（不切壁纸缝），让位交给滚动容器的内边距。
+     满幅横幅 / hero 再把这段内边距抵消掉 —— 它们在顶部，药丸在中间，不相遇。
+     停靠边不同，让位的边也不同。 */
+  .demo-app[data-navform="dock"][data-dock-edge="left"] .demo-stage,
+  .demo-app[data-navform="dock"][data-dock-edge="left"] .tune-stage {
+    padding-left: calc(var(--dock-gutter) + 12px);
+  }
+  .demo-app[data-navform="dock"][data-dock-edge="left"] .demo-banner,
+  .demo-app[data-navform="dock"][data-dock-edge="left"] .tune-hero {
+    margin-left: calc(-1 * (var(--dock-gutter) + 12px));
+  }
+  .demo-app[data-navform="dock"][data-dock-edge="right"] .demo-stage,
+  .demo-app[data-navform="dock"][data-dock-edge="right"] .tune-stage {
+    padding-right: calc(var(--dock-gutter) + 12px);
+  }
+  /* 右侧停靠时波浪条整体左移，否则药丸压在它上面 */
+  .demo-app[data-navform="dock"][data-dock-edge="right"] .c-wave {
+    right: calc(16px + var(--dock-gutter));
+  }
+  .demo-app[data-navform="dock"][data-dock-edge="bottom"] .demo-stage,
+  .demo-app[data-navform="dock"][data-dock-edge="bottom"] .tune-stage {
+    padding-bottom: calc(var(--dock-gutter) + 40px);
+  }
+
+  .demo-app {
+    position: absolute;
+    inset: 12px;
+    display: grid;
+    /* 导航栏宽度只由 --nav-w 决定：换形态就是换这一个数。
+       两栏的排布不在这里写 —— 导航栏是覆盖层，内容列靠 .l-main 的
+       margin-left 让位，见 styles/layout.css。 */
+    --nav-w: 210px;
+    grid-template-rows: minmax(0, 1fr);
+    border-radius: var(--r-window);
+    overflow: hidden;
+    background: transparent;
+    box-shadow: var(--shadow-window);
+  }
+  /* 模块之间的间距由 .l-nav__body 统一给，这里不再自带 gap */
+  .demo-nav { display: contents; }
+  .demo-side {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    box-shadow: inset -0.5px 0 0 var(--line-soft);
+  }
+  .demo-brand {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    height: 52px;
+    padding: 0 14px;
+    flex: none;
+  }
+  .demo-brand__mark {
+    width: 22px; height: 22px;
+    border-radius: 7px;
+    background: linear-gradient(150deg, #ffce7a, #e2705a 55%, #6f4a86);
+    box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.35);
+  }
+  .demo-brand__name { font-size: 13px; font-weight: 500; }
+  .demo-brand__ver { font-size: 11px; color: var(--text-tertiary); margin-left: auto; }
+  .demo-side__nav { flex: 1; min-height: 0; overflow: hidden auto; padding-bottom: 12px; }
+  .demo-side__pages { flex: none; padding-top: 4px; }
+
+  /* 真分页：右侧同一时刻只挂一个页面，各自记住自己的滚动位置 */
+  .demo-pages { position: absolute; inset: 0; }
+  .demo-page { position: absolute; inset: 0; display: none; }
+  .demo-page[data-active="1"] { display: block; }
+
+  /* 开了波浪条的页面，正文右侧要让出 40px 给横条，否则会被压住 */
+  .demo-main[data-wave="1"] .demo-stage,
+  .demo-main[data-wave="1"] .tune-stage { padding-right: 58px; }
+
+  /* ---- 玻璃参数面板（嵌在第二个页面里）---- */
+  .tune-stage {
+    position: absolute;
+    inset: 0;
+    overflow: hidden auto;
+    padding: 0 30px 90px;
+    overscroll-behavior: contain;
+  }
+  /* 满幅 hero：渐变一直顶到窗口上沿，工具栏浮在它上面 ——
+     这样顶栏那几颗胶囊是压在渐变上的，玻璃立刻看得见 */
+  .tune-hero {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    margin: 0 -30px 30px;
+    padding: 92px 30px 22px;
+    background: linear-gradient(112deg, #3f4a86 0%, #5b3a72 34%, #a84a5c 62%, #e08a4e 84%, #f3bd7c 100%);
+  }
+  .tune-hero .tune-head { margin-bottom: 16px; }
+  /* 这一段压在深色渐变上，不能用 --text-glass-*（浅色主题下它们是深色） */
+  .tune-hero .tune-head__title { color: #fff; }
+  .tune-hero .tune-head__desc { color: rgb(255 255 255 / 0.82); }
+  .tune-hero .tune-note { color: rgb(255 255 255 / 0.7); }
+  /* 只作用于「玻璃面选择器」这一条，别写到整个 hero 上 ——
+     预览胶囊里也有 .c-seg，宽选择器会把它的内件顶到顶部 */
+  .tune-tabs .c-seg { align-self: flex-start; background: rgb(0 0 0 / 0.26); }
+  .tune-tabs .c-seg__opt { color: rgb(255 255 255 / 0.92); }
+  .tune-tabs { display: flex; }
+  .tune-sec { margin-bottom: 38px; }
+  .tune-sec__title {
+    font-family: var(--font-display);
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: -0.012em;
+    margin-bottom: 3px;
+  }
+  .tune-sec__desc { font-size: 12px; color: var(--text-tertiary); margin-bottom: 16px; max-width: 64ch; }
+  .tune-note {
+    font: 11px/1.5 ui-monospace, "SF Mono", monospace;
+    color: var(--text-secondary);
+  }
+  .tune-params {
+    display: grid;
+    gap: 2px;
+    padding: 14px 16px;
+    border-radius: var(--r-md);
+    background: var(--surface-well);
+  }
+  .tune-toast { position: static !important; }
+  .tune-head { margin-bottom: 26px; }
+  .tune-head__title {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 500;
+    letter-spacing: -0.016em;
+    margin-bottom: 4px;
+  }
+  .tune-head__desc { font-size: 12px; color: var(--text-tertiary); max-width: 62ch; }
+
+  .tune-card { margin-bottom: 30px; }
+  .tune-card__top { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+  .tune-card__name { font-size: 15px; font-weight: 500; letter-spacing: -0.01em; }
+  .tune-card__cls {
+    font: 11px/1.4 ui-monospace, "SF Mono", monospace;
+    padding: 2px 6px;
+    border-radius: var(--r-xs);
+    color: var(--text-secondary);
+    background: var(--surface-control);
+  }
+  .tune-card__note { font-size: 12px; color: var(--text-tertiary); margin-bottom: 14px; }
+
+  /* 预览台本身不再自带背景：它现在站在 hero 的渐变上 */
+  .tune-stage--sample {
+    display: grid;
+    place-items: center;
+    min-height: 120px;
+    padding: 18px 0 4px;
+  }
+  .tune-sample { width: 100%; border-radius: var(--r-md); padding: 14px 16px; }
+  .tune-sample__name { font-size: 13px; font-weight: 500; color: var(--text-glass-1); }
+  .tune-sample__spec { font-size: 11px; color: var(--text-glass-3); margin-top: 3px; }
+  /* 预览里的菜单：菜单本体是 position:fixed，这里放回文档流；
+     但它是个 block，不写宽度会撑满整条预览带 */
+  /* 注意别用 position: static —— 渲染层的画布是 absolute; inset:0，
+     宿主一旦是 static，画布就会按最近的定位祖先铺开（表现：糊满整条预览带）。
+     relative 既把它放回文档流，又给画布一个定位基准。 */
+  .tune-menu { position: relative; z-index: 0; width: 230px; }
+  /* 模态在真实界面里是居中的一块，不是满幅 */
+  .tune-sample--card { max-width: 380px; }
+
+  .tune-row {
+    display: grid;
+    grid-template-columns: 168px minmax(80px, 1fr) 62px;
+    align-items: center;
+    gap: 12px;
+    padding: 3px 0;
+  }
+  .tune-row > * { min-width: 0; }
+  .tune-row__label { font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+  .tune-row__out {
+    font-size: 12px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-primary);
+  }
+  .tune-row[data-unavailable="1"] .tune-row__label,
+  .tune-row[data-unavailable="1"] .tune-row__out { color: var(--text-quaternary); }
+  .tune-row[data-dirty="1"] .tune-row__label { color: var(--accent); }
+  .tune-row[data-dirty="1"] .tune-row__out { color: var(--accent); }
+  .tune-mode { margin: 2px 0 6px; }
+  .tune-preview {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--r-md);
+    background: #b8c0cc;
+  }
+  .tune-preview__grid {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    pointer-events: none;
+    color: #111827;
+    background-color: #d7dde5;
+    background-image:
+      linear-gradient(#64748b 1px, transparent 1px),
+      linear-gradient(90deg, #64748b 1px, transparent 1px),
+      linear-gradient(135deg, #f8fafc 0%, #94a3b8 100%);
+    background-size: 20px 20px, 20px 20px, 100% 100%;
+    font: 700 15px/1.45 ui-monospace, "SF Mono", monospace;
+    letter-spacing: 0.04em;
+    text-shadow: 0 1px #fff;
+  }
+  .tune-preview__grid span { max-width: 32ch; }
+  .tune-preview .tune-stage--sample {
+    position: relative;
+    z-index: 1;
+    min-height: 148px;
+    padding: 22px 16px;
+  }
+  .tune-mode {
+    font: 11px/1.5 ui-monospace, "SF Mono", monospace;
+    color: rgb(255 255 255 / 0.76);
+    margin: 0 0 6px;
+  }
+  .tune-mode[data-mode="fallback"] { color: #ffe08a; }
+  .tune-json {
+    width: 100%;
+    min-height: 180px;
+    resize: vertical;
+    padding: 12px 14px;
+    border: 0.5px solid var(--line-soft);
+    border-radius: var(--r-sm);
+    background: var(--surface-well);
+    color: var(--text-primary);
+    font: 11px/1.55 ui-monospace, "SF Mono", monospace;
+    tab-size: 2;
+  }
+  .tune-json--readonly { min-height: 220px; color: var(--text-secondary); }
+  .tune-export-title { font-size: 12px; color: var(--text-secondary); }
+
+  .tune-foot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 0.5px solid var(--line-soft);
+  }
+  .tune-foot__spacer { flex: 1; }
+
+  .tune-out {
+    font: 11px/1.65 ui-monospace, "SF Mono", monospace;
+    color: var(--text-secondary);
+    background: var(--surface-well);
+    border-radius: var(--r-sm);
+    padding: 14px 16px;
+    margin: 0;
+    max-height: 420px;
+    overflow: auto;
+    white-space: pre;
+    tab-size: 2;
+  }
+  /* 内容从窗口顶部就铺 —— 不再留那 52px 的「让壁纸透上来」。
+     那一条是旧渲染层的补丁：它采不到内容，只好让顶栏压在壁纸上，
+     于是渐进模糊糊的一直是壁纸。现在工具栏下面就是内容本身。 */
+  .demo-main {
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
+    background: var(--surface-content);
+  }
+  /* 满幅横幅：顶到窗口上沿，工具栏浮在它上面。
+     这样「渐进模糊」糊的是这块真实内容，胶囊折射的也是它。 */
+  .demo-banner {
+    margin: -84px -30px 34px;
+    padding: 92px 30px 26px;
+    background: linear-gradient(112deg, #3f4a86 0%, #5b3a72 34%, #a84a5c 62%, #e08a4e 84%, #f3bd7c 100%);
+  }
+  .demo-main[data-wave="1"] .demo-banner { margin-right: -58px; }
+  .demo-banner__title {
+    font-family: var(--font-display);
+    font-size: 20px; font-weight: 500; letter-spacing: -0.016em;
+    color: #fff; margin-bottom: 4px;
+  }
+  .demo-banner__desc { font-size: 12px; color: rgb(255 255 255 / 0.82); max-width: 62ch; }
+  .demo-stage {
+    position: absolute;
+    inset: 0;
+    overflow: hidden auto;
+    padding: 84px 30px 70px;
+    overscroll-behavior: contain;
+  }
+  .demo-sec {
+    margin-bottom: 42px;
+    /* 波浪条 / 侧栏跳转用 scrollIntoView(block:start)，它会忽视滚动容器的内边距，
+       直接贴到滚动口上沿 —— 顶栏是覆盖层，标题会被压住。留出顶栏 + 一点呼吸。 */
+    scroll-margin-top: calc(var(--toolbar-h) + 16px);
+  }
+  .demo-sec__title {
+    font-family: var(--font-display);
+    font-size: 17px;
+    font-weight: 500;
+    letter-spacing: -0.014em;
+    margin-bottom: 3px;
+  }
+  .demo-sec__desc b {
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .demo-sec__desc { font-size: 12px; color: var(--text-tertiary); margin-bottom: 16px; }
+  .demo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 18px 22px; }
+  .demo-cell { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+  .demo-cell > .c-seg { align-self: flex-start; }
+  /* 行内控件在纵向 flex 里会被拉满一行，显式收回到内容宽度 */
+  .demo-cell > .c-badge,
+  .demo-cell > .c-chip,
+  .demo-cell > .c-tabs { align-self: flex-start; }
+  .demo-cap { font-size: 11px; color: var(--text-tertiary); letter-spacing: 0.02em; }
+  .demo-code {
+    font: 11px/1.4 ui-monospace, "SF Mono", monospace;
+    padding: 2px 6px;
+    border-radius: var(--r-xs);
+    color: var(--text-secondary);
+    background: var(--surface-control);
+  }
+  .demo-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .demo-stack { display: flex; flex-direction: column; gap: 12px; }
+  /* 抽屉需要一个有边界的舞台：面板是 position:absolute inset:0 的 */
+  .demo-drawer-stage {
+    position: relative;
+    height: 280px;
+    border-radius: var(--r-xl);
+    border: 0.5px solid var(--line);
+    background: var(--surface-sunken);
+    overflow: hidden;
+  }
+  .demo-drawer-stage__ghost {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+  .demo-drawer-stage__title { font-size: 13px; color: var(--text-secondary); }
+  .demo-drawer-stage__hint { font-size: 11.5px; color: var(--text-quaternary); }
+  .demo-drawer-list { display: flex; flex-direction: column; gap: 2px; }
+  .demo-resizer-stage {
+    position: relative;
+    display: flex;
+    height: 168px;
+    border-radius: var(--r-xl);
+    border: 0.5px solid var(--line);
+    overflow: hidden;
+    background: var(--surface-sunken);
+  }
+  .demo-resizer-pane {
+    flex: 1 1 0;
+    display: grid;
+    place-items: center;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    background: var(--surface-card);
+  }
+  .demo-resizer-pane:first-child { flex: 0 0 200px; }
+  .demo-resizer {
+    top: 0;
+    bottom: 0;
+    left: var(--demo-w, 200px);
+    transform: translateX(-50%);
+  }
+  .demo-glassstage {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 14px;
+    padding: 18px;
+    border-radius: var(--r-lg);
+    background: linear-gradient(112deg, #3f4a86 0%, #5b3a72 34%, #a84a5c 62%, #e08a4e 84%, #f3bd7c 100%);
+  }
+  .demo-glasscard__name { font-size: 13px; font-weight: 500; color: var(--text-glass-1); }
+  .demo-glasscard__spec { font-size: 11px; color: var(--text-glass-3); margin-top: 3px; }
+  /* 四块材质样张只用组件的材质管线，页面不再自己写一套，
+     这样调液态玻璃参数时它们和顶栏胶囊完全同步 */
+  .demo-glassstage .c-glass-chrome,
+  .demo-glassstage .c-acrylic,
+  .demo-glassstage .c-glass-sheet {
+    border-radius: var(--r-md);
+    padding: 14px;
+    height: auto;
+  }
+  .demo-thumbs { display: grid; grid-template-columns: repeat(4, 104px); gap: 8px; }
+  .demo-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(116px, 1fr)); gap: 8px; max-width: 560px; }
+
+  /* 导航形态样张：铺在同一块渐变上，玻璃才有东西可透 */
+  .demo-navstage {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(196px, 1fr));
+    align-items: start;
+    gap: 16px;
+    padding: 18px;
+    border-radius: var(--r-lg);
+    background: linear-gradient(112deg, #3f4a86 0%, #5b3a72 34%, #a84a5c 62%, #e08a4e 84%, #f3bd7c 100%);
+  }
+  .demo-navstage .demo-cap { color: rgb(255 255 255 / 0.82); }
+  .demo-navcell { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  /* 悬浮导航样张：一块假窗口，药丸浮在内容上 —— 玻璃得有东西可透才看得出是玻璃 */
+  .demo-dockrow {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    align-items: start;
+  }
+  .demo-dockcell { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+  .demo-dockstage {
+    position: relative;
+    height: 380px;
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    background: linear-gradient(112deg, #3f4a86 0%, #5b3a72 34%, #a84a5c 62%, #e08a4e 84%, #f3bd7c 100%);
+  }
+  .demo-dockmock {
+    position: absolute;
+    inset: 0;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .demo-dockmock > span {
+    display: block;
+    border-radius: 10px;
+    background: rgb(255 255 255 / 0.16);
+    box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.18);
+  }
+  .demo-dockmock > span:nth-child(1) { height: 54px; }
+  .demo-dockmock > span:nth-child(2) { height: 88px; }
+  .demo-dockmock > span:nth-child(3) { height: 40px; width: 62%; }
+  .demo-dockmock > span:nth-child(4) { height: 40px; width: 78%; }
+  .demo-dockmock > span:nth-child(5) { height: 40px; width: 54%; }
+
+  .demo-navcell > .l-nav {
+    border-radius: var(--r-md);
+    max-height: 268px;
+    overflow: hidden;
+    /* 样张铺在渐变上，acrylic 只有一条右边线，四角读不出来 —— 这里补一圈 */
+    box-shadow: inset 0 0 0 0.5px var(--line-strong);
+  }
+  .demo-navcell .c-nav { padding-bottom: var(--s-4); }
+  .demo-navtop {
+    padding: 8px 12px;
+    border-radius: var(--r-md);
+    background: var(--surface-card);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* 窄窗与 125%/150% 缩放：先收侧栏，再把参数标签移到轨道上方。 */
+  @media (max-width: 700px) {
+    /* 窄窗不再收成图标轨道 —— 导航栏要么在，要么整根收起 */
+    .demo-app { inset: 6px; }
+    .demo-app > .l-nav { display: none; }
+    /* 让位必须和「导航栏是否存在」共用一个契约：
+       layout.css 里 .l-app:has(> .l-nav) > .l-main 的特异性是 (0,3,0)，
+       只写 .demo-app > .l-main (0,2,0) 会被压住 —— 结果是导航没了、留白还在。
+       这里把 :has 也写进选择器，同特异性靠后加载取胜。 */
+    .demo-app:has(> .l-nav) > .l-main,
+    .demo-app:has(> .l-sidebar) > .l-main {
+      margin-left: 0;
+      transition: none;
+    }
+    .demo-stage, .tune-stage { padding-left: 16px; padding-right: 16px; }
+    .demo-main[data-wave="1"] .demo-stage,
+    .demo-main[data-wave="1"] .tune-stage { padding-right: 48px; }
+    .demo-banner { margin-left: -16px; margin-right: -16px; padding-left: 16px; padding-right: 16px; }
+    .demo-main[data-wave="1"] .demo-banner { margin-right: -48px; }
+    .tune-hero { margin-left: -16px; margin-right: -16px; padding: 82px 16px 18px; }
+    .tune-tabs { overflow-x: auto; padding-bottom: 4px; }
+    .tune-row {
+      grid-template-columns: minmax(80px, 1fr) 62px;
+      gap: 3px 10px;
+      padding: 7px 0;
+    }
+    .tune-row__label { grid-column: 1 / -1; white-space: normal; }
+    .tune-params { padding: 10px 12px; }
+    .tune-foot { flex-wrap: wrap; }
+    .tune-foot__spacer { display: none; }
+  }
+
+/* ---------------- 新增控件演示样张 ---------------- */
+
+.demo-grid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+@media (max-width: 900px) {
+  .demo-grid--2 { grid-template-columns: minmax(0, 1fr); }
+}
+
+.demo-swatchcard {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  height: 100%;
+  padding: 0 var(--s-5);
+  border-radius: var(--r-sm);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-card);
+}
+
+.demo-swatchcard[data-selected="1"] {
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 1.5px var(--accent-ring), var(--shadow-card);
+}
+
+.demo-swatchcard__dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--accent);
+  opacity: 0.55;
+}
+
+.demo-swatchcard__label {
+  font-size: var(--fs-11);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.demo-pane {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  font-size: var(--fs-12);
+  color: var(--text-secondary);
+  background: var(--surface-well);
+}
+
+.demo-toolbar-stage {
+  display: flex;
+  align-items: center;
+  min-height: 52px;
+  padding: var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--surface-well);
+  overflow: hidden;
+}
+
+/* 自定义工具栏的预览：一行按钮，空集时留一句提示 */
+.demo-toolbar-stage--tight {
+  min-height: 40px;
+  padding: var(--s-2) var(--s-3);
+  gap: var(--s-2);
+}
+
+.demo-toolbar-stage[data-empty="1"]::before {
+  content: "所有项都被移出工具栏";
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+/* 状态栏自己只有一条上边发丝线，放进舞台才看得出边界 */
+.demo-statusbar-stage {
+  border: 0.5px solid var(--line-soft);
+  border-radius: var(--r-md);
+  background: var(--surface-well);
+  overflow: hidden;
+}
+
+/* 会话 JSON 这类多行输出：等宽、可滚、不撑破栅格 */
+.demo-codepane {
+  margin: 0;
+  padding: var(--s-4);
+  max-height: 190px;
+  overflow: auto;
+  border-radius: var(--r-md);
+  background: var(--surface-well);
+  color: var(--text-secondary);
+  font: 11px/1.5 ui-monospace, "SF Mono", monospace;
+}

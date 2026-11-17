@@ -1,0 +1,158 @@
+/* ==========================================================================
+   46. 表单 Form
+
+   FormField 只负责「标签 + 控件 + 说明 + 错误」的排版，
+   边框、焦点环仍由各自的控件（.c-field / .c-textarea / .c-btn）提供，
+   这里不复制第二套皮肤，避免控件单独使用时长得不一样。
+   ========================================================================== */
+
+.c-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-7);
+  min-width: 0;
+}
+
+.c-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-4);
+}
+
+/* 提交中不靠禁用色表达：光标也改成等待，视觉上能看出「在处理」 */
+.c-form[aria-busy="true"] {
+  cursor: progress;
+}
+
+/* —— 字段 —— */
+
+.c-formfield {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.c-formfield__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-4);
+  min-height: 0;
+}
+
+/* 没有标签也没有动作时不占一行，免得叠出一段空白 */
+.c-formfield__head:empty,
+.c-formfield__foot:empty {
+  display: none;
+}
+
+.c-formfield__label {
+  font-size: var(--fs-12);
+  color: var(--text-secondary);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* 星号只是视觉记号，读屏靠 aria-required；不要让它被念成「星号」 */
+.c-formfield__req {
+  margin-left: var(--s-1);
+  color: var(--danger);
+}
+
+.c-formfield__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  font-size: var(--fs-11);
+  flex: none;
+}
+
+.c-formfield__body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.c-formfield__body > * {
+  min-width: 0;
+}
+
+.c-formfield__foot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.c-formfield__hint {
+  font-size: var(--fs-11);
+  color: var(--text-tertiary);
+  line-height: 1.45;
+}
+
+/* 错误 = 图标 + 文案 + 控件红描边，三者缺一不可。
+   图标用 ::before 画，不额外引图标字体/图片 */
+.c-formfield__error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  font-size: var(--fs-11);
+  color: var(--danger);
+  line-height: 1.45;
+}
+
+.c-formfield__error::before {
+  content: "!";
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
+  margin-top: 1px;
+  border: 1px solid var(--danger);
+  border-radius: var(--r-pill);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* 裸 input / textarea（没有 .c-field 包裹）也要有红描边。
+   只选中直接子元素，避免和 .c-field 内部的描边叠成双层 */
+.c-formfield[data-invalid="1"]
+  > .c-formfield__body
+  > :is(input, textarea, select)[aria-invalid="true"] {
+  outline: 1px solid var(--danger);
+  outline-offset: 1px;
+}
+
+/* —— 行内布局：标签在左，固定列宽 ——
+   用 grid 而不是 flex + width，长标签会自动折行且右列仍然对齐；
+   minmax(0, 1fr) 防止内部长文本把整列撑破 */
+.c-formfield--inline {
+  display: grid;
+  grid-template-columns: var(--ff-label-w, 96px) minmax(0, 1fr);
+  column-gap: var(--s-4);
+  row-gap: var(--s-2);
+  align-items: start;
+}
+
+.c-formfield--inline > .c-formfield__head {
+  grid-column: 1;
+  grid-row: 1;
+  padding-top: var(--s-3);
+  /* 窄列里动作必须换到标签下面，不能把标签挤成竖排 */
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.c-formfield--inline > .c-formfield__body {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.c-formfield--inline > .c-formfield__foot {
+  grid-column: 2;
+  grid-row: 2;
+}

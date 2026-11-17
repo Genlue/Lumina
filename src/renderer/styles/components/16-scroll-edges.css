@@ -1,0 +1,29 @@
+/* ==========================================================================
+   16. 滚动边缘柔化
+   ========================================================================== */
+
+.c-edgefade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 22px;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity var(--dur-2) var(--ease-out);
+}
+
+.c-edgefade--top {
+  top: 0;
+  background: linear-gradient(to bottom, var(--surface-content), transparent);
+}
+
+.c-edgefade--bottom {
+  bottom: 0;
+  background: linear-gradient(to top, var(--surface-content), transparent);
+}
+
+.c-edgefade[data-on="1"] {
+  opacity: 1;
+}
+

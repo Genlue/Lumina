@@ -1,0 +1,68 @@
+/* ==========================================================================
+   29. 步进器 Stepper
+   —— 原型是 NSStepper：两枚小箭头叠在一颗小井里，贴在数值右边。
+      竖排是默认形态；横排（− 值 +）是没有输入框可贴时的工具栏变体。
+   ========================================================================== */
+
+.c-stepper {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: stretch;
+  /* inline-flex 在 flex 容器里仍然会被拉伸 —— 显式收回内容宽度 */
+  width: fit-content;
+  height: var(--ctl-h, 28px);
+  border-radius: var(--r-xs);
+  background: var(--surface-control);
+  overflow: hidden;
+}
+
+.c-stepper__btn {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  flex: 1;
+  color: var(--text-secondary);
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+
+.c-stepper__btn + .c-stepper__btn {
+  box-shadow: inset 0 0.5px 0 var(--line-soft);
+}
+
+.c-stepper__btn:hover:not(:disabled) {
+  background: var(--surface-control-hover);
+  color: var(--text-primary);
+}
+
+.c-stepper__btn:active:not(:disabled) {
+  background: var(--surface-control-active);
+}
+
+.c-stepper__btn:disabled {
+  color: var(--text-quaternary);
+}
+
+/* 横排：− 值 +。数值自己带一段等宽数字，贴在按钮中间 */
+.c-stepper--h {
+  flex-direction: row;
+}
+
+.c-stepper--h .c-stepper__btn {
+  width: 24px;
+  flex: none;
+}
+
+.c-stepper--h .c-stepper__btn + .c-stepper__value,
+.c-stepper--h .c-stepper__value + .c-stepper__btn {
+  box-shadow: inset 0.5px 0 0 var(--line-soft);
+}
+
+.c-stepper__value {
+  min-width: 40px;
+  display: grid;
+  place-items: center;
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+

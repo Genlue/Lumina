@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:,">
+<title>交互回归测试</title>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/layout.css">
+<link rel="stylesheet" href="../styles/components.css">
+<style>
+  body { padding: 24px; }
+  #host { position: relative; width: 640px; }
+  pre { white-space: pre-wrap; font-size: 12px; }
+  .spacer { height: 40px; }
+</style>
+</head>
+<body>
+<pre id="out">running…</pre>
+<main id="host"></main>
+<button id="outside">外部按钮</button>
+<div class="spacer"></div>
+<script type="module">
+import {
+  Dialog, openMenu, closeMenu, Disclosure, Inspector, Chip, Progress, Tabs,
+  createSelection, CommandRegistry, UndoManager, layerDepth, focusScope, Button,
+  List, ListRow,
+} from '../scripts/ui/kit.js';
+import { h } from '../scripts/core/dom.js';
+import { theme } from '../scripts/core/theme.js';
+
+const results = [];
+const ok = (name, pass, detail = '') => results.push(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? ` · ${detail}` : ''}`);
+const raf = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const key = (target, k, opts = {}) =>
+  target.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...opts }));
+const click = (target) => target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+theme.init();
+const host = document.querySelector('#host');
+const outside = document.querySelector('#outside');
+
+try {
+  /* ---------- M1 层栈 / Dialog ---------- */
+  ok('初始没有浮层', layerDepth() === 0, `depth=${layerDepth()}`);
+
+  let closed = 0;
+  const dlg = Dialog({
+    title: '测试',
+    desc: '焦点与隔离',
+    actions: [
+      Button({ label: '取消', variant: 'plain' }),
+      Button({ label: '确定', variant: 'primary' }),
+    ],
+    onClose: () => closed++,
+  });
+  await raf();
+
+  const scrim = dlg.el;
+  const backgroundInert = [...document.body.children]
+    .filter((n) => n !== scrim && !n.matches('[data-layer-ignore],[aria-live],[role="status"]'))
+    .every((n) => n.hasAttribute('inert') && n.getAttribute('aria-hidden') === 'true');
+  ok('模态隔离背景（inert + aria-hidden）', backgroundInert);
+  ok('焦点进入弹窗面板', document.activeElement === dlg.sheet, document.activeElement?.className);
+
+  const buttons = [...dlg.sheet.querySelectorAll('button')];
+  buttons.at(-1).focus();
+  key(buttons.at(-1), 'Tab');
+  ok('Tab 从末个按钮循环到首个', document.activeElement === buttons[0], document.activeElement?.textContent);
+
+  key(document.activeElement, 'Escape');
+  await raf();
+  ok('Esc 关闭一级弹窗且只关一层', closed === 1 && layerDepth() === 0, `depth=${layerDepth()}`);
+  ok('关闭后背景 inert 被还原', !document.querySelector('#outside').closest('[inert]'));
+
+  /* ---------- 嵌套层：只关栈顶 ---------- */
+  const a = Dialog({ title: '一级', actions: [Button({ label: 'a' })] });
+  await raf();
+  const b = Dialog({ title: '二级', actions: [Button({ label: 'b' })] });
+  await raf();
+  ok('二级弹窗压在一级之上', layerDepth() === 2, `depth=${layerDepth()}`);
+  key(document.activeElement, 'Escape');
+  await raf();
+  ok('一次 Esc 只关最上面那层', layerDepth() === 1 && !b.sheet.isConnected && a.sheet.isConnected);
+  a.close();
+  await raf();
+  ok('关闭父层后层栈归零', layerDepth() === 0, `depth=${layerDepth()}`);
+
+  /* ---------- 菜单键盘 ---------- */
+  const anchor = Button({ label: '菜单' });
+  host.append(anchor);
+  anchor.focus();
+  let picked = 0;
+  const menu = openMenu({
+    anchor,
+    items: [
+      { label: '第一项', onClick: () => picked++ },
+      { label: '第二项', onClick: () => picked += 10 },
+      { sep: true },
+      { label: '子菜单', children: [{ label: '子项', onClick: () => picked += 100 }] },
+    ],
+  });
+  await raf();
+  const items = [...menu.querySelectorAll('.c-menu__item')];
+  ok('菜单打开后焦点落在第一项', document.activeElement === items[0], document.activeElement?.textContent);
+  key(items[0], 'ArrowDown');
+  ok('↓ 移动焦点到第二项', document.activeElement === items[1]);
+  key(items[1], 'Enter');
+  await raf();
+  ok('Enter 执行并收起菜单', picked === 10 && layerDepth() === 0, `picked=${picked} depth=${layerDepth()}`);
+  ok('菜单关闭后焦点回到触发器', document.activeElement === anchor, document.activeElement?.textContent);
+
+  const menu2 = openMenu({ anchor, items: [{ label: '唯一项' }] });
+  await raf();
+  key(document.activeElement, 'Escape');
+  await raf();
+  ok('Esc 收起菜单', layerDepth() === 0 && !document.body.contains(menu2));
+
+  /* ---------- 折叠区 ---------- */
+  const disc = Disclosure({ title: '更多', children: [Button({ label: '里面的按钮' })] });
+  host.append(disc);
+  const body = disc.querySelector('.c-disclosure__body');
+  const head = disc.querySelector('.c-disclosure__head');
+  ok('收起时 body 不可聚焦', body.hasAttribute('inert') && body.getAttribute('aria-hidden') === 'true');
+  ok('标题通过 aria-controls 关联 body', head.getAttribute('aria-controls') === body.id);
+  click(head);
+  ok('展开后解除 inert', !body.hasAttribute('inert') && body.getAttribute('aria-hidden') === 'false');
+  body.querySelector('button').focus();
+  click(head);
+  ok('内部有焦点时收起，焦点回到标题', document.activeElement === head);
+
+  /* ---------- Inspector 释放 ---------- */
+  let viewDisposed = 0;
+  const viewNode = h('div', null, '视图');
+  viewNode.dispose = () => viewDisposed++;
+  const insp = Inspector({
+    views: [
+      { id: 'one', label: '一', node: h('p', null, '一') },
+      { id: 'two', label: '二', node: viewNode },
+    ],
+  });
+  host.append(insp);
+  for (let i = 0; i < 30; i++) insp.setViews([{ id: 'two', label: '二', node: viewNode }]);
+  insp.removeView('two');
+  ok('移除视图时释放子树', viewDisposed === 1, `disposed=${viewDisposed}`);
+  insp.dispose();
+  insp.dispose();
+  ok('Inspector.dispose 幂等', true);
+
+  /* ---------- Chip ---------- */
+  let removed = 0;
+  const chip = Chip({ label: '设计', removable: true, onRemove: () => removed++ });
+  host.append(chip);
+  const del = chip.querySelector('.c-chip__x');
+  ok('删除热区是真按钮且有名字', del?.tagName === 'BUTTON' && !!del.getAttribute('aria-label'), del?.getAttribute('aria-label'));
+  click(del);
+  ok('点击删除触发 onRemove', removed === 1);
+
+  /* ---------- Progress ---------- */
+  const prog = Progress({ value: 150, max: 100, label: '进度' });
+  ok('进度值被归一化', prog.value() === 100 && prog.getAttribute('aria-valuenow') === '100');
+  ok('进度有 min/max', prog.getAttribute('aria-valuemin') === '0' && prog.getAttribute('aria-valuemax') === '100');
+  prog.set(-20);
+  ok('负值夹到 0', prog.value() === 0);
+  prog.setIndeterminate(true);
+  ok('不确定进度移除 aria-valuenow', !prog.hasAttribute('aria-valuenow') && prog.dataset.indeterminate === '1');
+
+  /* ---------- Tabs ---------- */
+  const panelA = h('div', null, 'A 内容');
+  const panelB = h('div', null, 'B 内容');
+  host.append(panelA, panelB);
+  let tabChanges = 0;
+  const tabs = Tabs({
+    tabs: [
+      { value: 'a', label: 'A', panel: panelA },
+      { value: 'b', label: 'B', panel: panelB },
+    ],
+    value: 'a',
+    closable: true,
+    onClose: () => {},
+    onChange: () => tabChanges++,
+  });
+  host.append(tabs);
+  const tabEls = [...tabs.querySelectorAll('.c-tabs__tab')];
+  ok('关闭钮是真按钮', tabEls[0].querySelector('.c-tabs__close')?.tagName === 'BUTTON');
+  ok('页签与面板互相关联',
+    tabEls[0].getAttribute('aria-controls') === panelA.id &&
+    panelA.getAttribute('aria-labelledby') === tabEls[0].id &&
+    panelA.getAttribute('role') === 'tabpanel');
+  click(tabEls[1]);
+  ok('切换页签隐藏旧面板', panelA.hidden === true && panelB.hidden === false);
+  tabs.setTabs([
+    { value: 'a', label: 'A', panel: panelA, icon: 'list' },
+    { value: 'b', label: 'B', panel: panelB },
+  ]);
+  const iconCount = tabs.querySelectorAll('.c-tabs__tab > .ic').length;
+  ok('setTabs 比较图标变化并重绘', iconCount === 1, `icons=${iconCount}`);
+
+  /* ---------- 选择模型 ---------- */
+  const sel = createSelection({ mode: 'multiple', keys: ['a', 'b', 'c', 'd'], selectedKeys: ['a'] });
+  sel.pointer('c', { shift: true });
+  ok('Shift 连选从锚点扩展到目标', sel.selectedKeys().join(',') === 'a,b,c', sel.selectedKeys().join(','));
+  sel.pointer('b', { meta: true });
+  ok('Cmd 切换单项', sel.selectedKeys().join(',') === 'a,c', sel.selectedKeys().join(','));
+  sel.setKeys(['c', 'a', 'd']);
+  const kept = sel.selectedKeys().slice().sort().join(',');
+  ok('排序后选中集按稳定 ID 保留', kept === 'a,c', kept);
+  sel.prune(['c', 'd']);
+  ok('prune 清掉已删除项', sel.selectedKeys().join(',') === 'c', sel.selectedKeys().join(','));
+
+  /* ---------- 可选中列表 ---------- */
+  const list = List({
+    selectable: true,
+    multiple: true,
+    children: ['一', '二', '三'].map((t, i) => ListRow({ key: String(i), title: t })),
+  });
+  host.append(list);
+  const rows = [...list.querySelectorAll('.c-list__row')];
+  ok('可选中列表只有焦点行在 Tab 序列里', rows.filter((r) => r.tabIndex === 0).length === 1);
+  rows[0].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+  ok('点击行更新 aria-selected', rows[0].getAttribute('aria-selected') === 'true');
+
+  /* ---------- 命令注册表 ---------- */
+  const reg = CommandRegistry({ platform: 'other' });
+  let saved = 0;
+  reg.register({ id: 'save', label: '保存', shortcut: 'Mod+S', run: () => saved++ });
+  // 注册表不自己装全局监听：应用决定在哪个上下文里派发
+  document.addEventListener('keydown', (e) => reg.keydown(e));
+  const bodyEl = document.body;
+  key(bodyEl, 's', { ctrlKey: true });
+  ok('Ctrl+S 触发命令', saved === 1, `saved=${saved}`);
+  reg.setEnabled('save', false);
+  key(bodyEl, 's', { ctrlKey: true });
+  ok('禁用后快捷键不触发', saved === 1);
+  reg.setEnabled('save', true);
+  const input = h('input');
+  host.append(input);
+  key(input, 's', { ctrlKey: true });
+  ok('输入框里仍会拦命令（有修饰键）', saved === 2);
+  reg.register({ id: 'delete', label: '删除', shortcut: 'Delete', run: () => saved += 100 });
+  key(input, 'Delete');
+  ok('纯按键在输入框里放行，不执行命令', saved === 2);
+
+  /* ---------- 撤销 ---------- */
+  const undo = UndoManager({ coalesceMs: 5000 });
+  let text = '';
+  undo.push({ label: '输入', revert: () => { text = ''; }, apply: () => { text = 'a'; }, coalesceKey: 'type' });
+  text = 'a';
+  undo.push({ label: '输入', revert: () => { text = ''; }, apply: () => { text = 'ab'; }, coalesceKey: 'type' });
+  text = 'ab';
+  ok('连续同类事务合并为一次', undo.state().depth === 1, `depth=${undo.state().depth}`);
+  undo.undo();
+  ok('撤销回到最早状态', text === '', `text=${text}`);
+  undo.redo();
+  ok('重做回到最新状态', text === 'ab', `text=${text}`);
+
+  /* ---------- focusScope ---------- */
+  const scope = h('div', null, Button({ label: '一' }), Button({ label: '二' }));
+  host.append(scope);
+  const fs = focusScope(scope, { modal: false, initialFocus: 'first' });
+  await raf();
+  ok('focusScope 把焦点放进作用域', scope.contains(document.activeElement));
+  fs.release();
+  await raf();
+  ok('focusScope 释放后层栈归零', layerDepth() === 0);
+
+  /* ---------- 收尾 ---------- */
+  closeMenu();
+  rmAll();
+  await raf();
+  ok('所有浮层可完全关闭', layerDepth() === 0, `depth=${layerDepth()}`);
+} catch (err) {
+  ok('测试脚本无异常', false, err?.stack?.split('\n')[0] ?? String(err));
+  console.error(err);
+}
+
+function rmAll() {
+  host.replaceChildren();
+  outside.focus?.();
+}
+
+const out = document.querySelector('#out');
+out.textContent = results.join('\n');
+document.title = results.every((s) => s.startsWith('PASS')) ? 'ALL PASS' : 'HAS FAIL';
+</script>
+</body>
+</html>

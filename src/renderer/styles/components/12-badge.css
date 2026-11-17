@@ -1,0 +1,31 @@
+/* ==========================================================================
+   12. 徽标 / 胶囊
+   ========================================================================== */
+
+.c-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: 18px;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-11);
+  font-weight: 500;
+  letter-spacing: var(--tracking-caption);
+  color: var(--text-secondary);
+  background: var(--surface-control);
+  font-variant-numeric: tabular-nums;
+  /* 徽章是单行胶囊：允许换行会把「137 条」拆成两行，高度被撑破 */
+  white-space: nowrap;
+}
+
+.c-badge--accent {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.c-badge--danger {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+

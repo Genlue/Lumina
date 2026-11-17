@@ -1,0 +1,564 @@
+/* ==========================================================================
+   60. 状态栏
+   —— 窗口底部的一条常驻底栏：左边只读状态，右边任务。
+      它是内容面，不是玻璃：贴边长期占位，背后没有可透的东西（06-rules ⑨/⑬），
+      所以只给一层 --surface-content + 上边一条 0.5px 发丝，不做 backdrop-filter。
+   ========================================================================== */
+
+.c-statusbar {
+  --statusbar-h: 30px;
+  --statusbar-pad: var(--s-4);
+  --statusbar-gap: var(--s-6);
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--statusbar-gap);
+  height: var(--statusbar-h);
+  padding: 0 var(--statusbar-pad);
+  overflow: hidden;
+  background: var(--surface-content);
+  box-shadow: inset 0 0.5px 0 var(--line-soft);
+  color: var(--text-secondary);
+  font-size: var(--fs-12);
+  letter-spacing: var(--tracking-caption);
+  white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.c-statusbar[hidden] {
+  display: none;
+}
+
+.c-statusbar[data-compact="1"] {
+  --statusbar-h: 26px;
+  --statusbar-pad: var(--s-3);
+  --statusbar-gap: var(--s-4);
+  font-size: var(--fs-11);
+}
+
+/* ---------------- 左侧状态项 ---------------- */
+
+.c-statusbar__items {
+  display: flex;
+  align-items: center;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.c-statusbar__items-start,
+.c-statusbar__items-end {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  min-width: 0;
+}
+
+/* align:'end' 的项推到状态项区的右端 */
+.c-statusbar__items-end {
+  margin-left: auto;
+}
+
+.c-statusbar__item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: 100%;
+  min-width: 0;
+  padding: 0 var(--s-4);
+  font-size: var(--fs-12);
+  color: var(--text-tertiary);
+}
+
+.c-statusbar[data-compact="1"] .c-statusbar__item {
+  font-size: var(--fs-11);
+  padding: 0 var(--s-3);
+}
+
+.c-statusbar__items-start > .c-statusbar__item:first-child,
+.c-statusbar__items-end > .c-statusbar__item:first-child {
+  padding-left: 0;
+}
+
+/* 项之间 1px 竖分隔 */
+.c-statusbar__item + .c-statusbar__item,
+.c-statusbar__item + .c-statusbar__overflow {
+  box-shadow: inset 1px 0 0 var(--line-soft);
+}
+
+.c-statusbar__item-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-quaternary);
+}
+
+.c-statusbar__item-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.c-statusbar__item-value {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-caption);
+}
+
+.c-statusbar__overflow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 22px;
+  height: 18px;
+  padding: 0;
+  margin-left: var(--s-2);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: default;
+}
+
+.c-statusbar__overflow:hover {
+  background: var(--surface-control-active);
+  color: var(--text-secondary);
+}
+
+.c-statusbar__overflow[hidden] {
+  display: none;
+}
+
+/* ---------------- 右侧任务区 ---------------- */
+
+.c-statusbar__tasks {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex: 0 1 auto;
+  min-width: 0;
+  height: 100%;
+  margin-left: auto;
+}
+
+.c-statusbar__tasks[hidden] {
+  display: none;
+}
+
+.c-statusbar__task {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+  height: 100%;
+  transition: opacity var(--dur-3) var(--ease-out);
+}
+
+.c-statusbar__task[data-leaving="1"],
+.c-statusbar__row[data-leaving="1"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.c-statusbar__phase {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--text-tertiary);
+}
+
+.c-statusbar__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: currentColor;
+}
+
+.c-statusbar__task[data-phase="running"] .c-statusbar__phase,
+.c-statusbar__row[data-phase="running"] .c-statusbar__phase {
+  color: var(--accent);
+}
+
+.c-statusbar__task[data-phase="success"] .c-statusbar__phase,
+.c-statusbar__row[data-phase="success"] .c-statusbar__phase {
+  color: var(--success);
+}
+
+.c-statusbar__task[data-phase="error"] .c-statusbar__phase,
+.c-statusbar__row[data-phase="error"] .c-statusbar__phase {
+  color: var(--danger);
+}
+
+.c-statusbar__task[data-tone="danger"] .c-statusbar__phase,
+.c-statusbar__row[data-tone="danger"] .c-statusbar__phase {
+  color: var(--danger);
+}
+
+.c-statusbar__task-label {
+  min-width: 0;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-secondary);
+}
+
+.c-statusbar__task[data-phase="error"] .c-statusbar__task-label {
+  color: var(--text-primary);
+}
+
+.c-statusbar__note {
+  flex: none;
+  font-size: var(--fs-11);
+  color: var(--text-tertiary);
+}
+
+.c-statusbar__task[data-phase="error"] .c-statusbar__note,
+.c-statusbar__row[data-phase="error"] .c-statusbar__note {
+  color: var(--danger);
+}
+
+.c-statusbar__detail {
+  flex: none;
+  max-width: 12ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--fs-11);
+  color: var(--text-quaternary);
+  font-variant-numeric: tabular-nums;
+}
+
+.c-statusbar__pct {
+  flex: none;
+  min-width: 3ch;
+  text-align: right;
+  font-size: var(--fs-11);
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------- 进度条（4px 胶囊） ---------------- */
+
+.c-statusbar__progress {
+  position: relative;
+  display: block;
+  flex: none;
+  width: 88px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--r-pill);
+  background: var(--surface-control-active);
+}
+
+.c-statusbar__progress-fill {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width var(--dur-2) var(--ease-out);
+}
+
+.c-statusbar__task[data-phase="error"] .c-statusbar__progress-fill,
+.c-statusbar__row[data-phase="error"] .c-statusbar__progress-fill {
+  background: var(--danger);
+}
+
+/* 不确定总量：一段慢速扫光，绝不画「快满了」的假进度 */
+.c-statusbar__progress[data-indeterminate="1"] .c-statusbar__progress-fill {
+  width: 38%;
+  transition: none;
+  animation: c-statusbar-sweep 1.5s var(--ease-in-out) infinite;
+}
+
+@keyframes c-statusbar-sweep {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c-statusbar__progress[data-indeterminate="1"] .c-statusbar__progress-fill {
+    width: 100%;
+    opacity: 0.45;
+    animation: none;
+  }
+
+  .c-statusbar__task {
+    transition: none;
+  }
+}
+
+/* ---------------- 取消 / 重试 ---------------- */
+
+.c-statusbar__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  flex: none;
+}
+
+.c-statusbar__action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  height: 20px;
+  padding: 0 var(--s-2);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--fs-11);
+  letter-spacing: var(--tracking-caption);
+  cursor: default;
+}
+
+.c-statusbar__action:hover {
+  background: var(--surface-control-active);
+  color: var(--text-primary);
+}
+
+.c-statusbar__action[data-action="retry"] {
+  color: var(--accent);
+}
+
+.c-statusbar__action:focus-visible,
+.c-statusbar__more:focus-visible,
+.c-statusbar__overflow:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 1px;
+}
+
+.c-statusbar__action .ic {
+  flex: none;
+}
+
+/* ---------------- 「还有 N 项」 ---------------- */
+
+.c-statusbar__more {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  flex: none;
+  height: 20px;
+  padding: 0 var(--s-2);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-tertiary);
+  font: inherit;
+  font-size: var(--fs-11);
+  letter-spacing: var(--tracking-caption);
+  cursor: default;
+}
+
+.c-statusbar__more:hover {
+  background: var(--surface-control-active);
+  color: var(--text-secondary);
+}
+
+.c-statusbar__more[hidden] {
+  display: none;
+}
+
+.c-statusbar__more-short {
+  display: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.c-statusbar__more-caret {
+  display: inline-flex;
+  color: var(--text-quaternary);
+}
+
+/* ---------------- 浮层里的任务列表 ---------------- */
+
+.c-statusbar__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+  color: var(--text-glass-2, var(--text-secondary));
+}
+
+.c-statusbar__panel-title {
+  padding: 0 var(--s-2) var(--s-2);
+  font-size: var(--fs-11);
+  font-weight: 500;
+  letter-spacing: var(--tracking-section);
+  color: var(--text-glass-4, var(--text-tertiary));
+}
+
+.c-statusbar__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.c-statusbar__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2);
+  border-radius: var(--r-xs);
+  transition: opacity var(--dur-3) var(--ease-out);
+}
+
+.c-statusbar__row:hover {
+  background: var(--surface-control-active);
+}
+
+.c-statusbar__row-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.c-statusbar__row-top {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.c-statusbar__row-top .c-statusbar__task-label {
+  flex: 1 1 auto;
+  max-width: none;
+  color: var(--text-glass-1, var(--text-primary));
+}
+
+.c-statusbar__row-sub {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.c-statusbar__row-sub .c-statusbar__progress {
+  width: 100%;
+  max-width: 120px;
+}
+
+.c-statusbar__row-sub .c-statusbar__detail {
+  max-width: none;
+  color: var(--text-glass-4, var(--text-quaternary));
+}
+
+.c-statusbar__row .c-statusbar__note {
+  color: var(--text-glass-4, var(--text-tertiary));
+}
+
+.c-statusbar__row .c-statusbar__pct {
+  color: var(--text-glass-3, var(--text-tertiary));
+}
+
+.c-statusbar__row .c-statusbar__action {
+  color: var(--text-glass-2, var(--text-secondary));
+}
+
+.c-statusbar__row .c-statusbar__action:hover {
+  color: var(--text-glass-1, var(--text-primary));
+}
+
+.c-statusbar__row .c-statusbar__action[data-action="retry"] {
+  color: var(--accent);
+}
+
+.c-statusbar__info-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2);
+  border-radius: var(--r-xs);
+  font-size: var(--fs-12);
+}
+
+.c-statusbar__info-row .c-statusbar__item-label {
+  flex: 1 1 auto;
+  color: var(--text-glass-2, var(--text-secondary));
+}
+
+.c-statusbar__info-row .c-statusbar__item-value {
+  color: var(--text-glass-1, var(--text-primary));
+}
+
+/* ---------------- 朗读节点（视觉隐藏） ---------------- */
+
+.c-statusbar__live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------------- 窄容器（组件自己量宽度，不依赖视口） ---------------- */
+
+.c-statusbar[data-narrow="1"] {
+  --statusbar-gap: var(--s-3);
+  --statusbar-pad: var(--s-3);
+}
+
+.c-statusbar[data-narrow="1"] .c-statusbar__item {
+  padding: 0 var(--s-3);
+}
+
+.c-statusbar[data-narrow="1"] .c-statusbar__item-value {
+  max-width: 7ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.c-statusbar[data-narrow="1"] .c-statusbar__tasks {
+  max-width: 62%;
+}
+
+.c-statusbar[data-narrow="1"] .c-statusbar__task {
+  gap: var(--s-2);
+}
+
+.c-statusbar[data-narrow="1"] .c-statusbar__task-label {
+  max-width: 96px;
+}
+
+.c-statusbar[data-narrow="1"] .c-statusbar__progress {
+  width: 48px;
+}
+
+.c-statusbar[data-narrow="1"] .c-statusbar__detail {
+  display: none;
+}
+
+.c-statusbar[data-narrow="1"] .c-statusbar__action {
+  padding: 0 var(--s-1);
+}
+
+.c-statusbar[data-narrow="1"] .c-statusbar__action-label {
+  display: none;
+}
+
+.c-statusbar[data-narrow="1"] .c-statusbar__more-label {
+  display: none;
+}
+
+.c-statusbar[data-narrow="1"] .c-statusbar__more-short {
+  display: inline;
+}
+
+.c-statusbar[data-narrow="1"] .c-statusbar__pct {
+  min-width: 0;
+}

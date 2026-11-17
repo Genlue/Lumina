@@ -1,0 +1,230 @@
+/* ==========================================================================
+   39. 悬浮导航栏 Dock
+   —— 侧边导航栏的另一种形态：一根浮在内容上的玻璃药丸，里面是一颗颗圆钮。
+      三种停靠：左 / 右 / 底。**它是液态玻璃，不是 acrylic** ——
+      侧边导航栏贴着壁纸、长期占位，走系统磨砂；悬浮药丸是浮在内容上的临时层，
+      走玻璃，和胶囊同一档材质逻辑。两者不能互换。
+   ========================================================================== */
+
+.c-dock {
+  /* 度量在 tokens.css：.l-main 也要用 --dock-gutter 给内容让位 */
+  position: absolute;
+  /* 1 —— 在内容（0）之上、渐进模糊（.c-topveil，2）之下。
+     药丸是「浮在内容上的东西」，不是窗口 chrome：顶部那层渐进模糊必须能压过它，
+     否则窗口一变矮、药丸顶到模糊带里，会是一块「没被糊到」的硬边。 */
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-3);
+  /* 整根不拦事件：只有药丸和脚注按钮自己接 */
+  pointer-events: none;
+}
+
+.c-dock > * {
+  pointer-events: auto;
+}
+
+.c-dock[data-edge="left"] {
+  left: var(--dock-inset);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.c-dock[data-edge="right"] {
+  right: var(--dock-inset);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.c-dock[data-edge="bottom"] {
+  left: 50%;
+  bottom: var(--dock-inset);
+  flex-direction: row;
+  transform: translateX(-50%);
+}
+
+/* 药丸本体：玻璃在这里，圆钮在里面 */
+.c-dock__pill {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--dock-gap);
+  padding: var(--dock-pad);
+  border-radius: var(--r-pill);
+  /* 长条玻璃的四层光学，和胶囊同源，但顶部聚光按固定高度收在圆头里 ——
+     胶囊那条 130% 的径向渐变铺到 400px 高的药丸上会拉成一片白雾。 */
+  /* 用长写，不用 background 简写：简写里把 color-mix() 放在最后一层，
+     Chrome 会整条判无效（.c-capsule 那条就是这么静默失效的）。 */
+  background-image:
+    radial-gradient(
+      140% 56px at 50% 0%,
+      rgb(255 255 255 / calc(0.44 * var(--lg-css-stroke-alpha, var(--lg-stroke-alpha)))) 0%,
+      rgb(255 255 255 / 0) 100%
+    ),
+    linear-gradient(
+      90deg,
+      rgb(255 226 190 / calc(0.45 * var(--lg-css-dispersion, var(--lg-dispersion)))) 0%,
+      rgb(255 255 255 / 0) 16%,
+      rgb(255 255 255 / 0) 84%,
+      rgb(186 220 255 / calc(0.45 * var(--lg-css-dispersion, var(--lg-dispersion)))) 100%
+    );
+  background-color: color-mix(
+    in srgb,
+    var(--lg-coating-color, rgb(var(--glass-rgb))) calc(var(--lg-coating) * 100%),
+    transparent
+  );
+  backdrop-filter: blur(calc(var(--m-dock-blur) * var(--glass-blur-k, 1)))
+    saturate(calc(var(--lg-vibrancy) * 100%));
+  -webkit-backdrop-filter: blur(calc(var(--m-dock-blur) * var(--glass-blur-k, 1)))
+    saturate(calc(var(--lg-vibrancy) * 100%));
+  box-shadow:
+    inset 0.9px 0 0 rgb(255 214 168 / calc(0.6 * var(--lg-css-dispersion, var(--lg-dispersion)))),
+    inset -0.9px 0 0 rgb(168 216 255 / calc(0.6 * var(--lg-css-dispersion, var(--lg-dispersion)))),
+    /* 外缘白边：不跟 --lg-css-stroke-alpha（那一项在这条管线里恒为 0，
+       写上去等于没画）。悬浮药丸必须有一条硬边，否则读不出「一块」 */
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.46),
+    inset 0 0.5px 0 rgb(255 255 255 / calc(0.5 * var(--lg-stroke-alpha))),
+    inset 0 -0.5px 0 rgb(255 255 255 / calc(0.5 * var(--lg-stroke-alpha) * var(--hl-bottom))),
+    /* 外影比胶囊重一档：它离内容更远，要读成「浮着」而不是「贴着」 */
+    0 10px 28px -10px rgb(0 0 0 / calc(0.24 * var(--shadow-k))),
+    0 3px 8px -3px rgb(0 0 0 / calc(0.14 * var(--shadow-k))),
+    0 0 0 0.5px rgb(0 0 0 / calc(0.07 * var(--shadow-k)));
+}
+
+/* 镜面环：只在朝向光源那一侧亮，强度跟「描边高光」参数走 */
+.c-dock__pill::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 0.8px;
+  background: linear-gradient(
+    168deg,
+    rgb(255 255 255 / 1) 0%,
+    rgb(255 255 255 / 0.22) 36%,
+    rgb(255 255 255 / 0) 64%,
+    rgb(255 255 255 / var(--hl-bottom)) 100%
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  /* 同上：这一层不跟 --lg-css-stroke-alpha，否则整个环是隐形的 */
+  opacity: calc(0.3 + 0.9 * var(--lg-stroke-alpha));
+  pointer-events: none;
+  z-index: 2;
+}
+
+.c-dock[data-edge="bottom"] .c-dock__pill {
+  flex-direction: row;
+}
+
+/* 圆钮：默认是「实心白片」，选中才换成强调色实心。
+   不给未选中态用强调色描边 —— 一列圆钮里只要有第二处彩色，选中就丢了。 */
+.c-dock__item {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--dock-btn);
+  height: var(--dock-btn);
+  border-radius: var(--r-pill);
+  /* 实心片，不是半透明控件底：圆钮要读成一颗颗「实体」，压在玻璃上才不糊。
+     浅色 #fff、深色 #3a3a40 —— 深色下比药丸亮一档，和浅色下同一套关系。 */
+  background: var(--surface-control-solid);
+  color: var(--text-primary);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / calc(0.10 * var(--shadow-k))),
+    0 0 0 0.5px rgb(0 0 0 / calc(0.06 * var(--shadow-k)));
+  transition:
+    background-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out),
+    transform var(--dur-2) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out);
+}
+
+.c-dock__item:hover {
+  /* 往文字色偏 8%：浅色变深、深色变浅，同一个公式两个方向都对 */
+  background: color-mix(in srgb, var(--surface-control-solid) 92%, var(--text-primary));
+  transform: scale(1.05);
+}
+
+.c-dock__item:active {
+  transform: scale(0.96);
+}
+
+/* 选中用 aria-current="page"：这是导航，不是列表多选。
+   和面包屑的当前项同一个语义，不是另一套。 */
+.c-dock__item[aria-current="page"] {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  box-shadow:
+    0 2px 6px -1px color-mix(in srgb, var(--accent) 45%, transparent),
+    0 0 0 0.5px rgb(0 0 0 / calc(0.08 * var(--shadow-k)));
+}
+
+/* 组间分隔：一根短横线。竖排时是横的，横排时是竖的 */
+.c-dock__sep {
+  flex: none;
+  width: 18px;
+  height: 2px;
+  margin: 3px 0;
+  border-radius: 1px;
+  background: var(--line-strong);
+  opacity: 0.55;
+}
+
+.c-dock[data-edge="bottom"] .c-dock__sep {
+  width: 2px;
+  height: 18px;
+  margin: 0 3px;
+}
+
+/* 脚注：药丸外面的独立圆钮（比如「重做」），和药丸不是一体的 */
+.c-dock__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--dock-gap);
+}
+
+/* 收起态：整根滑出。和侧边导航栏一样只动 transform */
+.c-dock[data-hidden="1"] {
+  opacity: 0;
+  /* 滑完再 visibility: hidden —— 否则一块看不见的药丸还在跑 backdrop-filter */
+  visibility: hidden;
+  pointer-events: none;
+  transform: translate(var(--dock-hide-x, -140%), var(--dock-hide-y, 0)) scale(0.96);
+  transition:
+    opacity var(--dur-2) var(--ease-out),
+    transform var(--dur-3) var(--ease-out),
+    visibility 0s linear var(--dur-3);
+}
+
+.c-dock[data-edge="left"][data-hidden="1"] {
+  --dock-hide-x: -140%;
+  --dock-hide-y: -50%;
+}
+
+.c-dock[data-edge="right"][data-hidden="1"] {
+  --dock-hide-x: 140%;
+  --dock-hide-y: -50%;
+}
+
+.c-dock[data-edge="bottom"][data-hidden="1"] {
+  --dock-hide-x: -50%;
+  --dock-hide-y: 140%;
+}
+
+.c-dock {
+  transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-3) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c-dock,
+  .c-dock__item {
+    transition: none;
+  }
+}
+

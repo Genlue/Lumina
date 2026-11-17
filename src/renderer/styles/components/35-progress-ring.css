@@ -1,0 +1,36 @@
+/* ==========================================================================
+   34. 环形进度 ProgressRing
+   —— 线性进度表达「还要多久」，环形表达「占了多少」。两者不互换。
+   ========================================================================== */
+
+.c-ring {
+  --ring-size: 28px;
+  --ring-w: 3px;
+  --v: 0;
+  flex: none;
+  width: var(--ring-size);
+  height: var(--ring-size);
+  transform: rotate(-90deg);
+}
+
+.c-ring circle {
+  fill: none;
+  stroke-width: var(--ring-w);
+}
+
+.c-ring__track {
+  stroke: var(--surface-control);
+}
+
+.c-ring__bar {
+  stroke: var(--accent);
+  stroke-linecap: round;
+  /* 半径 15.9155 ≈ 100 / 2π：周长刚好 100，于是「画多少」可以直接写百分比。
+     用 dasharray（而不是 dashoffset）是为了让弧从 12 点起顺时针长出来 ——
+     dashoffset 会让缺口停在终点，看起来像「少了一块」而不是「走了这么远」。 */
+  stroke-dasharray: calc(var(--v) * 100) 100;
+  transition: stroke-dasharray var(--dur-3) var(--ease-out);
+}
+
+.c-ring--lg { --ring-size: 44px; --ring-w: 4px; }
+

@@ -1,0 +1,161 @@
+/* ==========================================================================
+   9. 页内波浪条
+   —— 连续滚动长页的目录。挂在滚动容器右侧、滚动条左边，不占左侧栏。
+      每个分区一根横条；当前那根最长，邻近的按高斯衰减一起放大，
+      放大的份额从其它分区挤出来，整条轨道总高不变，看起来就是一道波。
+   ========================================================================== */
+
+.c-wave {
+  position: absolute;
+  /* 用几何让开顶栏，而不是 pointer-events: none ——
+     父级穿透会让真实鼠标点击落不到子元素上（hover 却能过，很难查）。 */
+  top: 60px;
+  bottom: 8px;
+  right: 16px;              /* 贴着覆盖式滚动条的左侧 */
+  width: 40px;              /* 只够放最长的那根，且整列落在正文的右内边距里 */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;  /* 条目少时整束居中，不要拉满整条边 */
+  z-index: 4;
+}
+
+.c-wave__track {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.c-wave__slot {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;   /* 右对齐，放大时向左长 */
+  cursor: default;
+  transition: height 240ms var(--ease-out);
+}
+
+/* 按钮撑满整个 slot 当命中区（宽 100% + 撑满高度），真正那条线画在 ::before 上 ——
+   只让按钮和线一样宽的话，点在列中间就落空了 */
+.c-wave__bar {
+  position: relative;
+  width: 100%;
+  align-self: stretch;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: default;
+}
+
+.c-wave__bar::before {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 50%;
+  width: var(--bar-w, 8px);   /* 由 SectionWave 写入 */
+  height: 2px;
+  margin-top: -1px;
+  border-radius: 1px;
+  background: var(--text-quaternary);
+  transition: width 240ms var(--ease-out), height 240ms var(--ease-out),
+    margin-top 240ms var(--ease-out), background-color var(--dur-1) var(--ease-out);
+}
+
+.c-wave__slot:hover .c-wave__bar::before {
+  background: var(--text-secondary);
+}
+
+.c-wave__slot[data-current="true"] .c-wave__bar::before {
+  height: 3px;
+  margin-top: -1.5px;
+  background: var(--accent);
+}
+
+/* 文字只在悬停时出现：平时就是一排横条，不抢视线 */
+.c-wave__tip {
+  position: absolute;
+  right: calc(100% + 8px);
+  top: 50%;
+  transform: translate(4px, -50%);
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
+  font-size: var(--fs-11);
+  line-height: 1.6;
+  padding: 2px 8px;
+  border-radius: var(--r-xs);
+  color: var(--text-primary);
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-popover);
+  transition: opacity var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
+}
+
+/* 鼠标进到这一束里，**所有**名称一起出来 —— 只显示一根的话，
+   你还得逐根扫过去才知道后面是什么。悬停那根再亮一档做定位。 */
+.c-wave:hover .c-wave__tip {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+
+.c-wave__slot:hover .c-wave__tip {
+  color: var(--text-on-accent);
+  background: var(--accent);
+}
+
+.c-nav__count {
+  flex: none;
+  font-size: var(--fs-11);
+  color: var(--text-tertiary);
+  letter-spacing: var(--tracking-caption);
+  font-variant-numeric: tabular-nums;
+  /* 与标签同一条基线：只挪标签会让计数和文字错行 */
+  position: relative;
+  top: 0.06em;
+}
+
+/* 徽标型计数：未读数这类「要抢一眼」的数字。count 是背景信息，badge 是待办 */
+.c-nav__badge {
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 可展开的相册行 */
+.c-nav__twisty {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  display: grid;
+  place-items: center;
+  margin-left: -2px;
+  color: var(--text-tertiary);
+  border-radius: 3px;
+  transition: transform var(--dur-2) var(--ease-out);
+}
+
+.c-nav__twisty[data-open="1"] {
+  transform: rotate(90deg);
+}
+
+.c-nav__twisty:hover {
+  color: var(--text-primary);
+  background: var(--surface-control);
+}
+
+/* 侧栏底部：当前文件夹 */
+.c-nav__foot {
+  margin-top: auto;
+  padding: var(--s-3) var(--s-6) var(--s-5);
+}
+

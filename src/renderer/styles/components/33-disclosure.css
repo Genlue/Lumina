@@ -1,0 +1,64 @@
+/* ==========================================================================
+   32. 折叠区 Disclosure
+   —— 用 grid-template-rows 0fr→1fr 做高度动画：不用量 scrollHeight，
+      内容换了高度也不会算错。
+   ========================================================================== */
+
+.c-disclosure {
+  border-bottom: 0.5px solid var(--line-soft);
+}
+
+.c-disclosure__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: 34px;
+  padding: var(--s-2) var(--s-1);
+  text-align: left;
+  font-size: var(--fs-13);
+  font-weight: 500;
+  color: var(--text-primary);
+  border-radius: var(--r-xs);
+}
+
+.c-disclosure__head:hover {
+  background: var(--surface-hover);
+}
+
+.c-disclosure__chev {
+  flex: none;
+  color: var(--text-tertiary);
+  transition: transform var(--dur-2) var(--ease-out);
+}
+
+.c-disclosure[data-open="1"] .c-disclosure__chev {
+  transform: rotate(90deg);
+}
+
+.c-disclosure__hint {
+  margin-left: auto;
+  font-size: var(--fs-11);
+  font-weight: 400;
+  color: var(--text-tertiary);
+}
+
+.c-disclosure__body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-3) var(--ease-out);
+}
+
+.c-disclosure[data-open="1"] .c-disclosure__body {
+  grid-template-rows: 1fr;
+}
+
+.c-disclosure__inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.c-disclosure__content {
+  padding: var(--s-2) var(--s-1) var(--s-6);
+}
+

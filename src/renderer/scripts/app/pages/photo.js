@@ -6,18 +6,15 @@
 // ============================================================
 
 import { h, fill } from '../../core/dom.js';
-import {
-  Button,
-  Capsule,
-  IconButton,
-  SearchField,
-  Select,
-  Segmented,
-  Empty,
-  Badge,
-  disposeComponentTree,
-  openMenu,
-} from '../../ui/kit.js';
+import { disposeComponentTree } from '../../ui/_shared/lifecycle.js';
+import { Badge } from '../../ui/content/badge.js';
+import { Empty } from '../../ui/content/states.js';
+import { Button, IconButton } from '../../ui/controls/button.js';
+import { Segmented } from '../../ui/controls/segmented.js';
+import { SearchField } from '../../ui/forms/search-field.js';
+import { Select } from '../../ui/forms/select.js';
+import { Capsule } from '../../ui/navigation/toolbar.js';
+import { openMenu } from '../../ui/overlays/menu.js';
 import { revealOnScroll } from '../../core/scrollbar.js';
 import { S } from '../state.js';
 import { parseQuery, hits } from '../search.js';

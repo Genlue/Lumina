@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:,">
+<title>模块回归测试</title>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/layout.css">
+<link rel="stylesheet" href="../styles/components.css">
+<style>body{padding:24px} #host{position:relative;width:600px} pre{white-space:pre-wrap}</style>
+</head>
+<body><pre id="out">running…</pre><main id="host"></main>
+<script type="module">
+import { Button, IconButton } from '../scripts/ui/controls/button.js';
+import { Segmented } from '../scripts/ui/controls/segmented.js';
+import { Field } from '../scripts/ui/forms/field.js';
+import { NavSearch } from '../scripts/ui/navigation/nav-search.js';
+import { Avatar } from '../scripts/ui/content/avatar.js';
+import { NavInfo } from '../scripts/ui/navigation/nav-info.js';
+import { Inspector } from '../scripts/ui/panels/inspector.js';
+import { theme } from '../scripts/core/theme.js';
+import { h } from '../scripts/core/dom.js';
+import { glassLensCount } from '../scripts/core/glass-lens.js';
+import { componentCatalog } from './test-catalog.js';
+import { disposeComponentTree } from '../scripts/ui/kit.js';
+
+const results=[];
+const ok=(name,pass)=>results.push(`${pass?'PASS':'FAIL'}  ${name}`);
+const host=document.querySelector('#host');
+theme.init();
+const kit=await import('../scripts/ui/kit.js');
+ok('总入口保留 104 个公共 API',Object.keys(kit).length===104);
+ok('具体文件与总入口是同一工厂',kit.Button===Button && kit.Field===Field && kit.NavSearch===NavSearch);
+ok('Thumb 别名身份保留',kit.Thumb===kit.MediaTile);
+for(const item of componentCatalog) {
+  const module=await import(`../${item.source}`);
+  ok(`${item.name} 的文件与门面导出相同`,module[item.name]===kit[item.name]);
+}
+
+const before=glassLensCount();
+const seg=Segmented({ options:[{value:'a',label:'列表',icon:'list'},{value:'b',label:'网格',icon:'grid-2x2'}] });
+host.append(Button({label:'按钮',icon:'plus'}),IconButton({icon:'plus',label:'添加'}),seg);
+ok('按文件导入的分段可以创建带图标选项',seg.querySelectorAll('.ic').length===2);
+
+let changes=0;
+const field=Field({value:'初始',onInput:()=>changes++});
+field.set('程序赋值');
+ok('Field.set/value 同步且不触发用户回调',field.value()==='程序赋值' && changes===0);
+field.set(null);
+ok('Field.set(null) 清空输入',field.value()==='');
+let picked=0;
+const search=NavSearch({search:q=>[{label:`结果 ${q}`}],onPick:()=>picked++});
+host.append(search);
+search.input.value='测试';
+search.input.dispatchEvent(new Event('input',{bubbles:true}));
+search.querySelector('.c-navsearch__result').click();
+ok('导航搜索选中结果后清空，不调用不存在的接口',picked===1 && search.input.value==='' && search.querySelector('.c-navsearch__results').hidden);
+search.input.value='另一次';
+search.input.dispatchEvent(new Event('input',{bubbles:true}));
+search.clear();
+ok('导航搜索 clear() 可用',search.input.value==='' && search.querySelector('.c-navsearch__results').hidden);
+ok('共享首字规则在两个独立模块中有效',Avatar({name:'Ada Lovelace'}).textContent==='AL' && NavInfo({title:'小明'}).querySelector('.c-navinfo__media').textContent==='小');
+ok('共享对比色助手可从独立入口使用',kit.NavCard({variant:'solid',color:'#ffffff'}).style.getPropertyValue('--navcard-fg')==='var(--text-primary)');
+const inspector=Inspector({views:[{id:'one',label:'一',node:h('p',null,'一')},{id:'two',label:'二',node:h('p',null,'二')}]});
+host.append(inspector);
+inspector.setTab('two');
+ok('Inspector 跨模块依赖与视图切换有效',inspector.getTab()==='two' && inspector.querySelector('[data-pane="two"]').dataset.active==='1');
+disposeComponentTree(host);
+ok('释放整棵演示树后透镜数量恢复',glassLensCount()===before);
+document.querySelector('#out').textContent=results.join('\n');
+document.title=results.every(s=>s.startsWith('PASS'))?'ALL PASS':'HAS FAIL';
+</script></body></html>

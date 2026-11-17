@@ -1,0 +1,252 @@
+/* ==========================================================================
+   4. 滑块 · Liquid Glass
+   折射是真的：scripts/core/refraction.js 按 DeskCanvas 的 LiquidGlassPass 逐行移植，
+   用形状 SDF 算出边缘法线与圆弧剖面，生成一张位移贴图，再由 feDisplacementMap
+   把后景逐像素偏移 —— 见 backdrop-filter: url(#gg-refract)。
+   只做「一层界面」的偏移，没有两次界面折射、没有色散、没有厚度累积；
+   边缘明暗与顶部高光仍是渐变画出来的。只有 Chromium 认 url()，其余引擎走纯 blur 兜底。
+   ========================================================================== */
+
+.c-slider {
+  --p: 0;
+  --travel: 100px;
+  /* 拇指长宽比固定 3:2，宽度由高度推出来 —— 常规滑块和有级滑块共用同一个比例，
+     不会再出现 28×16（1.75）和 36×18（2.0）两种长宽比。改大小只改 --thumb-h。 */
+  --thumb-h: 16px;
+  --thumb-ratio: 1.5;
+  --thumb-w: calc(var(--thumb-h) * var(--thumb-ratio));
+  --thumb-s: 1;
+  /* 白色遮罩的闲置不透明度（100% = 几乎纯白的奶白膜）/ 按下淡出 / 松手淡回。
+     两条曲线都是非线性的：90ms 这种时长用线性缓动会读成「闪一下」，必须开头快、尾巴收。 */
+  --thumb-op: 1;
+  --thumb-fade-out: 90ms cubic-bezier(0.2, 0.9, 0.1, 1);
+  --thumb-fade-in: 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 34px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  border-radius: var(--r-sm);
+  cursor: default;
+}
+
+.c-slider[aria-disabled="true"] {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* 轨道：内侧凹陷，比表面低一层 */
+.c-slider__track {
+  position: absolute;
+  left: calc(var(--thumb-w) / 2);
+  right: calc(var(--thumb-w) / 2);
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: var(--surface-control-active);
+  box-shadow: inset 0 0.5px 1.5px rgb(0 0 0 / calc(0.18 * var(--shadow-k))), inset 0 -0.5px 0 rgb(255 255 255 / 0.45);
+  overflow: hidden;
+}
+
+/* 进度：末端是凸向右的半圆。宽度多给半个轨道高，目的不是多画一点颜色，
+   而是让这个圆头从拇指底下探出来——透过玻璃能看见填充的弧顶，
+   读起来才像「液体被推进了旋钮下面」。--rf 让两端自然收掉这个探出。 */
+.c-slider__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(100% * var(--p) + 6px * var(--rf, 1));
+  border-radius: 0 var(--r-pill) var(--r-pill) 0;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 76%, #fff), var(--accent));
+  box-shadow: inset 0 0.5px 0 rgb(255 255 255 / 0.40);
+  will-change: width;
+}
+
+/* 拇指的模糊半径要能过渡。注册成 <length> 才能插值 ——
+   带 url() 的滤镜列表不可插值，直接过渡 backdrop-filter 会变成硬切。 */
+@property --thumb-blur-px {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 5.4px;
+}
+
+/* 玻璃药丸：透光随「通透度」走 —— 超透明时几乎只剩一层折射膜。
+   这里只留「透镜」那三层；最上面的奶白膜拆到了 .c-slider__mask，
+   因为按下时消失的只有白，不是拇指本身。 */
+.c-slider__thumb {
+  /* 拇指的光学参数也来自 theme（第七个玻璃面），不再自己写一套 --
+     要调就去「参数」页调「滑块拇指」，和其它面一样。 */
+  /* 静止时的背景模糊半径（px）。按下时收到 0，见下面的 [data-dragging] 规则 */
+  --thumb-blur-px: calc((4px + 14px * var(--lg)) * var(--glass-blur-k, 0.3));
+  position: absolute;
+  top: 50%;
+  left: calc(var(--thumb-w) / 2);
+  width: var(--thumb-w);
+  height: var(--thumb-h);
+  margin-top: calc(var(--thumb-h) / -2);
+  margin-left: calc(var(--thumb-w) / -2);
+  border-radius: calc(var(--thumb-h) / 2);
+  /* 必须裁剪：高光层是小圆角矩形，不裁剪会在药丸圆角外露出直角 */
+  overflow: hidden;
+  /* 三层：焦散弧 → 折射蓝弧 → 底部透镜聚色
+     折射用「以左侧为圆心的径向渐变」，它画出来的是弧，不是直线；
+     直线渐变会在玻璃里留下一条竖直硬边，正是「分界平直」的来源。 */
+  background:
+    /* 基础涂层：与其它六个面同一套 coating/coatingColor，0 = 完全无白膜。
+       原生接管时 [data-glass] 会整层清掉，不再与滤镜的 flood 叠加。 */
+    linear-gradient(
+      color-mix(in srgb, var(--lg-coating-color, rgb(var(--glass-rgb))) calc(var(--lg-coating) * 100%), transparent),
+      color-mix(in srgb, var(--lg-coating-color, rgb(var(--glass-rgb))) calc(var(--lg-coating) * 100%), transparent)
+    ),
+    radial-gradient(
+      115% 150% at 4% 50%,
+      rgb(255 255 255 / 0) 44%,
+      rgb(255 255 255 / calc(0.8 * var(--lg-css-stroke-alpha, var(--lg-stroke-alpha)) * var(--rf, 1))) 53%,
+      rgb(255 255 255 / 0) 63%
+    ),
+    radial-gradient(
+      115% 150% at 4% 50%,
+      rgb(var(--accent-rgb) / calc(0.5 * var(--lg-amount-k) * var(--rf, 1))) 0%,
+      rgb(var(--accent-rgb) / calc(0.42 * var(--lg-amount-k) * var(--rf, 1))) 38%,
+      rgb(var(--accent-rgb) / 0) 56%
+    ),
+    radial-gradient(
+      130% 115% at 50% 120%,
+      rgb(var(--accent-rgb) / calc(0.5 * var(--lg-amount-k))),
+      transparent 64%
+    );
+  backdrop-filter: blur(var(--thumb-blur-px))
+    saturate(calc(var(--lg-vibrancy) * 100%));
+  /* 上一行是兜底：不认 url() 的引擎（Safari / Firefox）整条声明失效，
+     退回纯模糊。认的引擎用下一行 —— 后景会被位移贴图真正弯折。 */
+  backdrop-filter: url(#gg-refract) blur(var(--thumb-blur-px))
+    saturate(calc(var(--lg-vibrancy) * 100%));
+  -webkit-backdrop-filter: blur(var(--thumb-blur-px))
+    saturate(calc(var(--lg-vibrancy) * 100%));
+  -webkit-backdrop-filter: url(#gg-refract) blur(var(--thumb-blur-px))
+    saturate(calc(var(--lg-vibrancy) * 100%));
+  /* 过渡的是「模糊半径」这个变量，不是 backdrop-filter 本身 ——
+     滤镜列表里带 url() 时不可插值，直接过渡 backdrop-filter 会变成硬切。 */
+  transition: --thumb-blur-px var(--thumb-fade-in);
+  box-shadow:
+    /* 环境接触影 + 触点影 */
+    0 1.5px 4px rgb(0 0 0 / calc(0.26 * var(--shadow-k))),
+    0 0.5px 1px rgb(0 0 0 / calc(0.18 * var(--shadow-k))),
+    0 0 0 0.75px rgb(0 0 0 / calc(0.16 * var(--shadow-k))),
+    /* 色散：透镜两侧的暖/冷偏移 */
+    inset 0.9px 0 0 rgb(255 214 168 / calc(0.9 * var(--lg-css-dispersion, var(--lg-dispersion)))),
+    inset -0.9px 0 0 rgb(168 216 255 / calc(0.9 * var(--lg-css-dispersion, var(--lg-dispersion)))),
+    /* 涂层内部：上下对称。高光为 0 时两条一起消失 */
+    inset 0 1px 0 rgb(255 255 255 / calc(0.95 * var(--lg-css-stroke-alpha, var(--lg-stroke-alpha)))),
+    inset 0 -1px 0 rgb(255 255 255 / calc(0.95 * var(--lg-css-stroke-alpha, var(--lg-stroke-alpha)) * var(--hl-bottom))),
+    inset 0 -1px 2px rgb(0 0 0 / calc(0.12 * var(--shadow-k)));
+  transform: translateX(calc(var(--travel) * var(--p))) scale(var(--thumb-s));
+  will-change: transform;
+}
+
+/* 交互膜：只负责按压时的白色反光，不再承担基础涂层。
+   基础 coating 已在 .c-slider__thumb 的背景里，和另外六面同一语义；
+   coating=0 时这里也完全没有白膜。按下淡出的是交互膜，不是涂层本身。 */
+.c-slider__mask {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgb(255 255 255 / 0.16),
+    rgb(255 255 255 / 0.04)
+  );
+  opacity: calc(var(--thumb-op) * var(--lg-coating));
+  transition: opacity var(--thumb-fade-in);
+}
+
+.c-slider[data-dragging="1"] .c-slider__mask {
+  opacity: 0;
+  transition: opacity var(--thumb-fade-out);
+}
+
+/* 按下时背景模糊也收到 0：放大两倍之后的那颗透镜是「清」的。
+   改的是 --thumb-blur-px 而不是整条 backdrop-filter —— 这样 url(#gg-refract) 不会被覆盖掉，
+   折射在按下时反而最明显，同时模糊还能平滑过渡。
+   这也是整套里唯一允许动 backdrop-filter 的地方：拇指只有 24×16（按下 48×32），
+   面积小到重绘代价可以忽略；大面积玻璃仍然只能改 --lg，不要学这里。 */
+.c-slider[data-dragging="1"] .c-slider__thumb {
+  --thumb-blur-px: 0px;
+  transition: --thumb-blur-px var(--thumb-fade-out);
+}
+
+/* 镜面环：高光沿法线落在朝向光源的一侧（lightDir 向下 → 顶边最亮） */
+.c-slider__mask::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 0.8px;
+  background: linear-gradient(
+    168deg,
+    rgb(255 255 255 / 1) 0%,
+    rgb(255 255 255 / 0.25) 34%,
+    rgb(255 255 255 / 0) 62%,
+    rgb(255 255 255 / var(--hl-bottom)) 100%
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  /* 镜面环强度跟随「高光」参数，可完全关掉 */
+  opacity: var(--lg-css-stroke-alpha, var(--lg-stroke-alpha));
+}
+
+/* 顶部镜面：光打在材质上形成的柔光带 */
+.c-slider__mask::after {
+  content: "";
+  position: absolute;
+  inset: 0.5px 2px auto;
+  height: 42%;
+  border-radius: var(--r-pill);
+  background: linear-gradient(
+    180deg,
+    rgb(255 255 255 / calc(0.55 * var(--lg-css-stroke-alpha, var(--lg-stroke-alpha)))),
+    rgb(255 255 255 / 0)
+  );
+  pointer-events: none;
+}
+
+.c-slider:focus-visible {
+  outline: none;
+}
+
+.c-slider:focus-visible .c-slider__thumb {
+  box-shadow:
+    0 1px 3px rgb(0 0 0 / calc(0.22 * var(--shadow-k))),
+    0 0 0 0.5px rgb(0 0 0 / calc(0.10 * var(--shadow-k))),
+    inset 0 1px 0 rgb(255 255 255 / 0.95),
+    inset 0 -1px 1.5px rgb(0 0 0 / calc(0.10 * var(--shadow-k))),
+    0 0 0 3px var(--accent-ring);
+}
+
+/* —— 带刻度（Liquid Glass 通透度专用）：只把轨道加粗。
+   拇指不再跟着变大 —— 它和常规滑块必须是同一个长宽比，否则并排出现时一眼就不齐。 —— */
+.c-slider--notched .c-slider__track {
+  height: 10px;
+}
+
+.c-notches {
+  position: relative;
+  height: 14px;
+  margin: 0;
+  font-size: var(--fs-11);
+  color: var(--text-tertiary);
+  letter-spacing: var(--tracking-caption);
+}
+
+.c-notches span {
+  position: absolute;
+  top: 0;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+

@@ -1,0 +1,217 @@
+/* ==========================================================================
+   44. 树 TreeView
+   —— 文件树 / 图层 / 大纲共用。行高 26、缩进 16/级，是这条控件族的通用度量：
+      再高就像设置页的分组列表，再低就点不准。
+   ========================================================================== */
+
+.c-tree {
+  /* 两个度量在这里定义一次，行、占位行、自定义内容都沿用 */
+  --tree-row-h: 26px;
+  --tree-indent: 16px;
+
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--s-1) 0;
+  color: var(--text-primary);
+  font-size: var(--fs-13);
+  /* 树上的拖动会整行移动，行内文字参与选择只会选到半行 */
+  user-select: none;
+}
+
+/* 整棵禁用时整体降权；行内仍保留 aria-disabled，读屏能读到具体哪一行 */
+.c-tree[data-disabled="1"] {
+  opacity: 0.55;
+}
+
+.c-tree__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: var(--tree-row-h);
+  min-height: var(--tree-row-h);
+  padding-inline: var(--s-2) var(--s-4);
+  border-radius: var(--r-xs);
+  color: inherit;
+  cursor: default;
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+
+.c-tree__row:hover {
+  background: var(--surface-hover);
+}
+
+/* 焦点与选中分开画：焦点是环（位置），选中是底（状态） */
+.c-tree__row:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: -2px;
+}
+
+.c-tree__row[aria-selected="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.c-tree__row[aria-selected="true"] .c-tree__icon,
+.c-tree__row[aria-selected="true"] .c-tree__twisty {
+  color: var(--accent);
+}
+
+.c-tree__row[aria-disabled="true"]:not(.c-tree__row--state) {
+  color: var(--text-quaternary);
+  cursor: default;
+}
+
+.c-tree__row[aria-disabled="true"]:not(.c-tree__row--state):hover {
+  background: transparent;
+}
+
+/* 缩进用变量算，深度改一个数就够；不用空的 spacer 撑宽度，免得每级都写行内样式 */
+.c-tree__indent {
+  flex: none;
+  width: calc(var(--tree-depth, 0) * var(--tree-indent));
+  height: 1px;
+}
+
+.c-tree__twisty {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--r-xs);
+  color: var(--text-tertiary);
+}
+
+/* 叶子行没有图标，空箭头不该出现 hover 底块 */
+.c-tree__twisty:not(:empty):hover {
+  background: var(--surface-selection);
+  color: var(--text-primary);
+}
+
+.c-tree__twisty .ic {
+  transition: transform var(--dur-1) var(--ease-out);
+}
+
+.c-tree__row[aria-expanded="true"] .c-tree__twisty .ic {
+  transform: rotate(90deg);
+}
+
+.c-tree__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  color: var(--text-secondary);
+}
+
+.c-tree__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: var(--lh-snug);
+}
+
+.c-tree__badge {
+  flex: none;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-pill);
+  background: var(--surface-well);
+  color: var(--text-tertiary);
+  font-size: var(--fs-11);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-caption);
+  line-height: 16px;
+}
+
+/* --------------------------------------------------------------------------
+   加载 / 错误占位行
+   —— 用三级文字，比真实节点弱一档；它们是过程状态，不该和结果抢注意力。
+   -------------------------------------------------------------------------- */
+
+.c-tree__row--state {
+  color: var(--text-tertiary);
+  font-size: var(--fs-12);
+}
+
+.c-tree__row--state:hover {
+  background: transparent;
+}
+
+.c-tree__state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 转圈自己画：引 Spinner 会让 states.js 和树互相依赖 */
+.c-tree__row[data-state="loading"] .c-tree__state::before {
+  content: "";
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid var(--line-strong);
+  border-top-color: var(--text-tertiary);
+  border-radius: 50%;
+  animation: c-tree-spin 720ms linear infinite;
+}
+
+@keyframes c-tree-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.c-tree__retry {
+  flex: none;
+  margin-inline-start: auto;
+  padding: 0 var(--s-3);
+  height: 18px;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--fs-11);
+  cursor: pointer;
+}
+
+.c-tree__retry:hover {
+  background: var(--accent-soft);
+}
+
+.c-tree__retry:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 1px;
+}
+
+.c-tree__empty {
+  padding: var(--s-6) var(--s-4);
+  color: var(--text-tertiary);
+  font-size: var(--fs-12);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c-tree__row,
+  .c-tree__twisty .ic {
+    transition: none;
+  }
+
+  /* 加载态不能完全静止：停掉旋转会让「还在等」看起来像卡死，改成低频呼吸 */
+  .c-tree__row[data-state="loading"] .c-tree__state::before {
+    animation: c-tree-breathe 1.6s var(--ease-in-out) infinite;
+  }
+
+  @keyframes c-tree-breathe {
+    50% {
+      opacity: 0.4;
+    }
+  }
+}

@@ -4,7 +4,7 @@
 // 也负责多图库的添加、切换、重定位、移除。
 // ============================================================
 
-import { toast } from '../ui/kit.js';
+import { toast } from '../ui/overlays/toast.js';
 import * as api from './api.js';
 import { S, defaultSettings, setScanResult, invalidateAll } from './state.js';
 import * as actions from './actions.js';

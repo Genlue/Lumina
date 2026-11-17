@@ -5,7 +5,11 @@
 // ============================================================
 
 import { h } from '../core/dom.js';
-import { Button, Badge, Card, Empty, Spinner, toast } from '../ui/kit.js';
+import { Badge } from '../ui/content/badge.js';
+import { Empty, Spinner } from '../ui/content/states.js';
+import { Button } from '../ui/controls/button.js';
+import { toast } from '../ui/overlays/toast.js';
+import { Card } from '../ui/surfaces/card.js';
 import { revealOnScroll } from '../core/scrollbar.js';
 import { S } from './state.js';
 import * as api from './api.js';

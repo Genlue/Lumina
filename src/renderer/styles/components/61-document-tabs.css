@@ -1,0 +1,240 @@
+/* ==========================================================================
+   61. 文档页签 DocumentTabs
+   —— 和 24 号「页签 Tabs」共用同一套视觉语言（一条浅色轨道 + 抬起来的那一颗），
+      差别在语义：这里每一颗是一个「文档会话」，带 dirty 圆点、固定页签、
+      关闭确认和横向溢出滚动。尺寸从 Tabs 抄过来，不引用它的选择器，
+      两个控件各改各的不会互相牵连。
+   ========================================================================== */
+
+.c-documenttabs {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-width: 0;
+  padding: 3px;
+  border-radius: var(--r-md);
+  background: var(--surface-well);
+  box-shadow: inset 0 0 0 0.5px var(--line-soft);
+}
+
+/* 整组禁用：外观压暗，交互由 JS 拦（保留键盘焦点，读屏仍能听到结构） */
+.c-documenttabs[aria-disabled="true"] {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* 一排页签只横向滚，绝不换行 —— 换行会让页签条长高、顶掉下面的内容 */
+.c-documenttabs__scroll {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--s-1);
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.c-documenttabs__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.c-documenttabs__tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  /* 可收缩：最窄 80px（还读得出两三个字），最宽 220px，再长就省略号 */
+  flex: 0 1 auto;
+  min-width: 80px;
+  max-width: 220px;
+  height: calc(var(--ctl-h, 28px) - 2px);
+  padding: 0 var(--s-5);
+  border-radius: calc(var(--r-md) - 3px);
+  font-size: var(--fs-12);
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: default;
+  user-select: none;
+  transition: color var(--dur-1) var(--ease-out),
+    background-color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out);
+}
+
+.c-documenttabs__tab:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: -1px;
+}
+
+.c-documenttabs__tab:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+
+/* 选中 = 抬起的那一颗。中性实心 + 发丝边：纯白块压在 8% 灰轨道上，
+   没有那条边就读不出高度。 */
+.c-documenttabs__tab[aria-selected="true"] {
+  color: var(--text-primary);
+  background: var(--surface-card);
+  box-shadow:
+    0 0 0 0.5px var(--line),
+    0 1px 2px rgb(0 0 0 / calc(0.08 * var(--shadow-k)));
+}
+
+/* 固定页签：只剩一颗图标，宽度收到正方形；标题走 aria-label / tooltip */
+.c-documenttabs__tab--pinned {
+  flex: 0 0 auto;
+  justify-content: center;
+  gap: 0;
+  min-width: 0;
+  max-width: none;
+  width: calc(var(--ctl-h, 28px) - 4px);
+  padding: 0;
+}
+
+.c-documenttabs__label {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.c-documenttabs__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 未保存 = 一个小圆点，不是红色感叹号：脏是状态，不是错误 */
+.c-documenttabs__dirty {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: var(--r-pill);
+  background: var(--text-secondary);
+}
+
+.c-documenttabs__dirty[hidden] {
+  display: none;
+}
+
+/* 关闭钮是真按钮：鼠标可达，但不占 Tab 序列（键盘用 Delete 关当前页签） */
+.c-documenttabs__close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-right: -4px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: none;
+  color: var(--text-tertiary);
+  opacity: 0;
+  transition: opacity var(--dur-1) var(--ease-out),
+    background-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out);
+}
+
+.c-documenttabs__tab:hover .c-documenttabs__close,
+.c-documenttabs__tab[aria-selected="true"] .c-documenttabs__close,
+.c-documenttabs__close:focus-visible {
+  opacity: 1;
+}
+
+.c-documenttabs__close:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 1px;
+}
+
+.c-documenttabs__close:hover {
+  background: var(--surface-control-active);
+  color: var(--text-primary);
+}
+
+/* 等 closeRequest 的结果时：整颗页签读成「忙」，关闭钮不再接受第二次点击 */
+.c-documenttabs__tab[aria-busy="true"] {
+  cursor: progress;
+}
+
+.c-documenttabs__tab[aria-busy="true"] .c-documenttabs__close {
+  opacity: 1;
+  pointer-events: none;
+  background: var(--surface-control);
+}
+
+.c-documenttabs__close[aria-disabled="true"] {
+  pointer-events: none;
+}
+
+/* 空态：页签条高度不塌 —— 关掉最后一颗文档，区域还在，用户知道去哪新建 */
+.c-documenttabs__empty {
+  display: flex;
+  align-items: center;
+  height: calc(var(--ctl-h, 28px) - 2px);
+  padding: 0 var(--s-5);
+  font-size: var(--fs-12);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* 新建：固定在末尾，不跟着页签滚走 */
+.c-documenttabs__new {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: calc(var(--ctl-h, 28px) - 4px);
+  height: calc(var(--ctl-h, 28px) - 4px);
+  padding: 0;
+  border: 0;
+  border-radius: calc(var(--r-md) - 4px);
+  background: none;
+  color: var(--text-secondary);
+  cursor: default;
+  transition: background-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out);
+}
+
+.c-documenttabs__new:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: -1px;
+}
+
+.c-documenttabs__new:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+/* 重排插入指示线：拖动时告诉用户「会插在这里」，不移动任何真实页签 */
+.c-documenttabs__drop {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  width: 2px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-1) var(--ease-out);
+}
+
+.c-documenttabs__drop.is-on {
+  opacity: 1;
+}
+
+/* 被拖起的那一颗：压暗缩小，原位留白由指示线表达 */
+.c-documenttabs__tab.is-dragging {
+  opacity: 0.45;
+  transform: scale(0.97);
+  cursor: grabbing;
+}
+
+.c-documenttabs[data-dragging="1"] {
+  user-select: none;
+}

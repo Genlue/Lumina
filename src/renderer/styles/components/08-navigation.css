@@ -1,0 +1,378 @@
+/* ==========================================================================
+   8. 导航栏
+   —— 「侧栏」只是导航栏的一种形态。导航栏里只有三样东西：
+      列表项（NavGroup / NavSection / NavItem）、卡片模块（NavCard）、搜索模块（NavSearch）。
+      **没有「卡片式导航」这一说** —— 卡片是模块，不是排布方式。
+   ========================================================================== */
+
+.c-nav {
+  /* 图标左内缩。__item 与 __section 共用，改这一个值两边一起动 */
+  --nav-indent: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  /* 选中块与导航栏边缘要留出呼吸位，不能贴边 */
+  padding: 0 var(--s-5);
+}
+
+/* --------------------------------------------------------------------------
+   卡片模块
+   —— 导航栏里唯一允许「成块」的东西，作用只有一个：**跳转**。
+      它不是一个换皮的列表分组 —— 分组仍然用 NavSection + NavItem。
+      两种形态：
+        panel（默认）半透明容器，里面放若干跳转项
+        solid       整卡实心，整块就是一个跳转目标
+   -------------------------------------------------------------------------- */
+
+.c-navcard {
+  /* 和 .c-nav 一样自带左右内边距，卡片才不会贴住导航栏边缘 */
+  margin: 0 var(--s-5);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--s-2);
+  border-radius: var(--r-lg);
+  background: var(--surface-nav-card);
+  box-shadow: inset 0 0 0 0.5px var(--line-soft);
+}
+
+/* 卡片里的项比外框小一圈，圆角必须同心：15 − 4 = 11 */
+.c-navcard .c-nav__item {
+  border-radius: calc(var(--r-lg) - var(--s-2));
+}
+
+/* 实心卡：整块可点。底色默认强调色，允许调用方传任意色（--navcard-bg）。 */
+.c-navcard--solid {
+  gap: var(--s-2);
+  padding: var(--s-5) var(--s-5) var(--s-5);
+  border: none;
+  background: var(--navcard-bg, var(--accent));
+  color: var(--navcard-fg, var(--text-on-accent));
+  box-shadow: 0 1px 2px rgb(0 0 0 / calc(0.12 * var(--shadow-k)));
+  transition: filter var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
+}
+
+.c-navcard--solid:hover {
+  filter: brightness(1.06);
+}
+
+.c-navcard--solid:active {
+  transform: scale(0.985);
+  filter: brightness(0.97);
+}
+
+.c-navcard__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.c-navcard__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-xs);
+  background: rgb(255 255 255 / 0.18);
+}
+
+.c-navcard__title {
+  min-width: 0;
+  font-size: var(--fs-13);
+  font-weight: 600;
+  letter-spacing: var(--tracking-title);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.c-navcard__desc {
+  font-size: var(--fs-11);
+  line-height: 1.35;
+  opacity: 0.82;
+}
+
+.c-navcard__chev {
+  margin-left: auto;
+  flex: none;
+  opacity: 0.72;
+}
+
+/* 半透明卡里的小标题（可选，用于给卡内的项一个说明） */
+.c-navcard__label {
+  padding: var(--s-2) var(--s-3) var(--s-1);
+  font-size: var(--fs-11);
+  font-weight: 500;
+  letter-spacing: var(--tracking-section);
+  color: var(--text-glass-3, var(--text-secondary));
+  user-select: none;
+}
+
+/* --------------------------------------------------------------------------
+   信息模块 Info
+   —— 导航栏顶部的「我是谁 / 这是哪个应用」。系统设置里那一行 Apple 账户就是这个：
+      头像 + 名称 + 副标题，整行一个跳转目标。
+      三种媒介：圆形头像、圆角方形应用图标、重叠头像组（家人共享 / 协作者）。
+   -------------------------------------------------------------------------- */
+
+.c-navinfo {
+  --navinfo-av: 36px;
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  min-height: calc(var(--navinfo-av) + var(--s-4));
+  /* 和 .c-nav 一样自带左右内边距，整行才不会贴住导航栏边缘 */
+  margin: 0 var(--s-5);
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--r-md);
+  color: var(--text-primary);
+  text-align: left;
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+
+.c-navinfo--interactive:hover {
+  background: var(--surface-nav-selected);
+}
+
+.c-navinfo--interactive:active {
+  background: var(--surface-nav-card-hover);
+}
+
+/* 媒介盒：三种形态共用同一个宽度，所以文字的起始 x 永远一致 */
+.c-navinfo__media {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--navinfo-av);
+  height: var(--navinfo-av);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  background: var(--surface-control);
+  color: var(--text-secondary);
+  font-size: calc(var(--navinfo-av) * 0.36);
+  font-weight: 600;
+  letter-spacing: 0;
+  user-select: none;
+}
+
+/* 单个头像铺满媒介盒。重叠组里的 .c-navinfo__face 尺寸是算出来的，
+   不能被这条 100% 吃掉 —— 选择器上直接排掉，别靠顺序去赌。 */
+.c-navinfo__media img:not(.c-navinfo__face) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 应用图标 · 真图标文件：媒介盒切成方形圆角，比例与 .c-navinfo__app 一致。
+   圆角只在这里改 —— 头像（默认 pill）和应用图标是两种语义，不能共用圆角。 */
+.c-navinfo__media--app {
+  border-radius: calc(var(--navinfo-av) * 0.24);
+  background: none;
+}
+
+/* 应用图标：方形圆角按边长比例给，换尺寸不跑形（与 .c-avatar--square 同一比例） */
+.c-navinfo__app {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: calc(var(--navinfo-av) * 0.24);
+  background: var(--navinfo-app-bg, var(--accent));
+  color: var(--navinfo-app-fg, var(--text-on-accent));
+  box-shadow: inset 0 0 0 0.5px rgb(0 0 0 / 0.1);
+}
+
+/* 重叠头像组：18px 一个、压 9px，三个正好占满 36 的媒介盒。
+   环画在外侧，所以媒体盒不能裁 —— 否则环会被切掉一半。 */
+.c-navinfo__media--stack {
+  display: flex;
+  align-items: center;
+  overflow: visible;
+  background: none;
+}
+
+.c-navinfo__face {
+  flex: none;
+  width: calc(var(--navinfo-av) / 2);
+  height: calc(var(--navinfo-av) / 2);
+  border-radius: var(--r-pill);
+  object-fit: cover;
+  box-shadow: 0 0 0 1.5px var(--nav-ring);
+}
+
+.c-navinfo__face + .c-navinfo__face {
+  margin-left: calc(var(--navinfo-av) / -4);
+}
+
+.c-navinfo__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.c-navinfo__title {
+  font-size: var(--fs-13);
+  font-weight: 600;
+  letter-spacing: var(--tracking-title);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.c-navinfo__sub {
+  font-size: var(--fs-11);
+  line-height: 1.3;
+  color: var(--text-tertiary);
+  letter-spacing: var(--tracking-caption);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------------------
+   搜索模块（可选）
+   —— 全局搜索的入口，只负责「找到并跳过去」。
+      结果**内联展开**在导航栏里，不做浮层：导航栏上禁止开菜单。
+   -------------------------------------------------------------------------- */
+
+.c-navsearch {
+  padding: var(--s-2) var(--s-5) var(--s-3);
+}
+
+.c-navsearch .c-field {
+  width: 100%;
+}
+
+.c-navsearch__results {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: var(--s-2);
+  max-height: 168px;
+  overflow: hidden auto;
+  border-radius: var(--r-sm);
+  background: var(--surface-nav-card);
+  box-shadow: inset 0 0 0 0.5px var(--line-soft);
+}
+
+.c-navsearch__result {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 26px;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-xs);
+  font-size: var(--fs-12);
+  color: var(--text-primary);
+}
+
+.c-navsearch__result:hover,
+.c-navsearch__result[aria-selected="true"] {
+  background: var(--surface-nav-selected);
+}
+
+.c-navsearch__hint {
+  margin-left: auto;
+  font-size: var(--fs-11);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.c-navsearch__empty {
+  padding: var(--s-4) var(--s-3);
+  font-size: var(--fs-11);
+  color: var(--text-tertiary);
+}
+
+.c-nav__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--ctl-gap, var(--s-3));
+  height: var(--ctl-h, 28px);
+  padding: 0 var(--ctl-pad, var(--s-5));
+  border-radius: var(--ctl-r, var(--r-sm));
+  font-size: var(--ctl-fs, var(--fs-13));
+  color: var(--text-primary);
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+
+.c-nav__item:hover {
+  background: var(--surface-hover);
+}
+
+.c-nav__item:active {
+  background: var(--surface-selection);
+}
+
+/* 导航项是真能 Tab 到的；焦点环必须画出来 */
+.c-nav__item:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: -1px;
+}
+
+.c-nav__item[aria-disabled="true"] {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* 选中态：只有底色和图标变。
+   文字始终是主文字色（浅色下黑、深色下白），不跟着强调色走 ——
+   macOS 的侧栏就是靠"染图标、不染字"来保持整列的可读性。 */
+.c-nav__item[aria-selected="true"] {
+  background: var(--surface-nav-selected);
+}
+
+.c-nav__item[aria-selected="true"]:hover {
+  background: var(--surface-nav-selected);
+}
+
+/* 未选中时图标就比文字浅一档：文字 --text-primary，图标 --text-secondary */
+.c-nav__icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+}
+
+.c-nav__item[aria-selected="true"] .c-nav__icon {
+  color: var(--accent);
+}
+
+/* 窗口失焦：和红绿灯一样把颜色收回去。底色不变，只把图标退回中性灰 */
+html[data-focused="0"] .c-nav__item[aria-selected="true"] .c-nav__icon {
+  color: var(--text-secondary);
+}
+
+/* 分类标题（个人收藏 / 位置）。颜色刻意取 --text-secondary，
+   和未选中的图标同一个灰，而不是更浅的 tertiary。 */
+.c-nav__section {
+  padding: var(--s-7) var(--s-5) var(--s-2) var(--nav-indent, 8px);
+  font-size: var(--fs-11);
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: var(--tracking-section);
+  color: var(--text-secondary);
+  user-select: none;
+}
+
+/* 侧栏项的文字统一走 500。计数不走 —— 它是次要数字，加粗会跟主文字抢注意力 */
+.c-nav__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  /* 与 .c-btn__label / .c-seg__label 同一条视觉中线修正：
+     CJK 字形墨迹比 em 盒中心高约 0.06em（13px 上约 0.8px），
+     不补这一下，文字会比 16px 的图标整体高 1px —— 侧栏一列尤其显眼。 */
+  position: relative;
+  top: 0.06em;
+}
+

@@ -1,0 +1,379 @@
+/* ==========================================================================
+   52. 数据表 DataTable
+   —— 与 27-table.css 的静态 Table 分家：那张是「读」（一次渲染，不碰状态），
+      这张是「改」（排序、拖列宽、单元格编辑、二维键盘、虚拟滚动）。
+      观感沿用同一套度量，但状态机完全不同，合在一起只会让只读表格背上一堆
+      用不到的分支。
+   —— 行高 / 表头高由 JS 的 --dt-row-h 同步：虚拟滚动的窗口计算要跟 CSS 用同一个数。
+   ========================================================================== */
+
+.c-datatable {
+  --dt-row-h: 28px;
+  --dt-head-h: 26px;
+
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  color: var(--text-primary);
+  font-size: var(--fs-12);
+}
+
+/* 滚动容器是唯一的视口：sticky 表头、虚拟滚动的 scrollTop 都以它为准。
+   overscroll-behavior 防止滚到表尾顺手把整页带走。 */
+.c-datatable__scroll {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.c-datatable__table {
+  width: 100%;
+  /* 固定布局：列宽来自 colgroup 的 px 值，拖动时才不会被单元格内容反推。
+     总宽超过容器时表格自动变宽并横向滚动（固定布局取「声明宽度」与
+     「各列宽度之和」里的较大者）。 */
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--fs-12);
+}
+
+/* ------------------------------------------------------------------ 表头 */
+
+.c-datatable__th {
+  position: sticky;
+  top: 0;
+  /* 压住单元格；横向滚动时也要盖住从下面划过的内容 */
+  z-index: 2;
+  /* border-box：0.5px 分隔线不能算进行高 —— 虚拟滚动的撑高按 28px/行 累加，
+     多出半像素乘一千行就是半屏的漂移 */
+  box-sizing: border-box;
+  height: var(--dt-head-h);
+  padding: 0 var(--s-3);
+  text-align: left;
+  font-size: var(--fs-11);
+  font-weight: 500;
+  letter-spacing: var(--tracking-section);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  background: var(--surface-content);
+  border-bottom: 0.5px solid var(--line);
+  /* 拖列宽时鼠标划过表头，不该顺手选中表头文字 */
+  user-select: none;
+}
+
+.c-datatable__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  cursor: default;
+}
+
+.c-datatable__sort-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 未排序时图标不显示：一排箭头会把表头读成噪声，hover 才提示「这列能点」 */
+.c-datatable__sort .ic {
+  flex: none;
+  opacity: 0;
+  transition: opacity var(--dur-1) var(--ease-out);
+}
+
+.c-datatable__th:hover .c-datatable__sort .ic {
+  opacity: 0.55;
+}
+
+.c-datatable__th[aria-sort="ascending"] .c-datatable__sort,
+.c-datatable__th[aria-sort="descending"] .c-datatable__sort {
+  color: var(--text-primary);
+}
+
+.c-datatable__th[aria-sort="ascending"] .c-datatable__sort .ic,
+.c-datatable__th[aria-sort="descending"] .c-datatable__sort .ic {
+  opacity: 1;
+  color: var(--accent);
+}
+
+.c-datatable__sort:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 2px;
+  border-radius: var(--r-xs);
+}
+
+/* ---------------------------------------------------------------- 列宽手柄 */
+
+/* 命中区 7px、视觉线 1px：线太细点不中，块太宽会挡住相邻列的排序按钮。
+   整个手柄都压在表头内部（right: 0），不能探出去 —— 探出 1px 就会让
+   滚动容器的 scrollWidth 多一截，凭空长出一条横向滚动条。 */
+.c-datatable__resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 3;
+  width: 7px;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+  background: none;
+}
+
+.c-datatable__resizer::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  right: 0;
+  width: 1px;
+  background: var(--line-strong);
+  opacity: 0;
+  transition: opacity var(--dur-1) var(--ease-out),
+    background-color var(--dur-1) var(--ease-out);
+}
+
+.c-datatable__th:hover .c-datatable__resizer::after,
+.c-datatable__resizer.is-dragging::after {
+  opacity: 1;
+  background: var(--accent);
+}
+
+.c-datatable__resizer:focus {
+  outline: none;
+}
+
+.c-datatable__resizer:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: -1px;
+  border-radius: var(--r-xs);
+}
+
+/* 拖动期间整表禁选：否则指针扫过的单元格会被一起框蓝 */
+.c-datatable[data-resizing="1"],
+.c-datatable[data-resizing="1"] .c-datatable__row {
+  user-select: none;
+}
+
+.c-datatable[data-resizing="1"] {
+  cursor: col-resize;
+}
+
+/* 拖动时行 hover 会让整表闪，临时压掉 */
+.c-datatable[data-resizing="1"] .c-datatable__row:hover {
+  background: transparent;
+}
+
+/* ------------------------------------------------------------------ 数据行 */
+
+.c-datatable__row {
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+
+.c-datatable__row:hover {
+  background: var(--surface-hover);
+}
+
+/* 选中放在 hover 之后：悬停中的已选行不能丢掉选中底 */
+.c-datatable__row[aria-selected="true"] {
+  background: var(--accent-soft);
+}
+
+.c-datatable__cell {
+  /* 同行高：分隔线算进 28px 里，行高才是整数 */
+  box-sizing: border-box;
+  height: var(--dt-row-h);
+  padding: 0 var(--s-3);
+  border-bottom: 0.5px solid var(--line-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+  cursor: default;
+}
+
+/* 焦点是位置（环），选中是状态（底），两者分开画，重叠时也都看得见 */
+.c-datatable__cell:focus {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: -2px;
+}
+
+.c-datatable__th[data-align="right"],
+.c-datatable__cell[data-align="right"] {
+  text-align: right;
+  /* 数字列等宽：一列数字的小数点要能对上 */
+  font-variant-numeric: tabular-nums;
+}
+
+.c-datatable__th[data-align="center"],
+.c-datatable__cell[data-align="center"] {
+  text-align: center;
+}
+
+/* --------------------------------------------------------------- 空态 / 撑高 */
+
+.c-datatable__empty {
+  height: calc(var(--dt-row-h) * 3);
+  padding: var(--s-7);
+  border-bottom: 0;
+  color: var(--text-tertiary);
+  text-align: center;
+  white-space: normal;
+}
+
+/* 只负责撑高总高，视觉上不占一行 */
+.c-datatable__spacer td {
+  height: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* ---------------------------------------------------------------- 单元格编辑 */
+
+/* 编辑态要让输入框的外圈（3px 焦点环）画到单元格外面，所以裁切换成可见 */
+.c-datatable__cell[data-editing="1"] {
+  padding: 0 var(--s-2);
+  overflow: visible;
+}
+
+/* 复用 .c-field 的观感，只把尺寸收到行内 */
+.c-datatable__editor {
+  --ctl-h: calc(var(--dt-row-h) - 4px);
+  --ctl-fs: var(--fs-12);
+  --ctl-r: var(--r-xs);
+  --ctl-pad: var(--s-3);
+  --ctl-gap: var(--s-2);
+}
+
+/* ------------------------------------------------------------------ 状态 */
+
+.c-datatable[data-disabled="1"] {
+  opacity: 0.55;
+}
+
+.c-datatable[data-disabled="1"] .c-datatable__cell {
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c-datatable__row,
+  .c-datatable__sort .ic,
+  .c-datatable__resizer::after {
+    transition: none;
+  }
+}
+
+/* 余量列：没有内容，也不参与列宽拖动。它只负责把多出来的横向空间吃掉，
+   让用户在 colgroup 里设定的像素宽原样生效。 */
+.c-datatable__filler {
+  width: auto;
+  padding: 0;
+  border-left: 0;
+  background: none;
+}
+
+/* 余量列也要带上表头/行分隔线，否则表头那条线会在最后一列断掉，
+   看起来像「表格只有一半」。 */
+.c-datatable thead .c-datatable__filler {
+  background: var(--surface-content);
+  border-bottom: 0.5px solid var(--line);
+}
+
+.c-datatable tbody .c-datatable__filler {
+  border-bottom: 0.5px solid var(--line-soft);
+}
+
+/* ==========================================================================
+   列重排 / 列可见性 / 单元格类型（第三轮补充）
+   —— 全部是追加规则，上面的列宽与虚拟滚动度量一个字都没改。
+   ========================================================================== */
+
+/* 拖动整列时整表禁选，指针显示抓取态；指示线不画格子，只画在表头边缘 */
+.c-datatable[data-col-dragging="1"],
+.c-datatable[data-col-dragging="1"] .c-datatable__row {
+  user-select: none;
+}
+
+.c-datatable[data-col-dragging="1"] {
+  cursor: grabbing;
+}
+
+.c-datatable__th.is-dragging {
+  color: var(--text-tertiary);
+}
+
+/* 插入位置指示线：贴在目标列的左/右边缘，宽度只有 2px。
+   用 inset 阴影而不是伪元素 —— 表头的伪元素要留给不做布局的未来改动 */
+.c-datatable__th.is-drop-before {
+  box-shadow: inset 2px 0 var(--accent);
+}
+
+.c-datatable__th.is-drop-after {
+  box-shadow: inset -2px 0 var(--accent);
+}
+
+/* 非法的单元格输入（日期格式/日历不成立）：闪一下就走，不弹错 */
+.c-datatable__cell.is-invalid {
+  background: var(--danger-soft);
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+
+/* select 类型的编辑控件：外壳沿用 .c-field，内层交还给系统下拉 */
+.c-datatable__editor select.c-field__input {
+  border: 0;
+  padding: 0 var(--s-1) 0 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--ctl-fs, var(--fs-12));
+  cursor: default;
+}
+
+/* tags 类型：一排只读小片，行高不参与换行 —— 单元格高度必须是固定的一行 */
+.c-datatable__tags {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.c-datatable__tag {
+  flex: none;
+  max-width: 100%;
+  padding: 0 var(--s-2);
+  overflow: hidden;
+  border-radius: var(--r-pill);
+  background: var(--surface-well);
+  color: var(--text-secondary);
+  font-size: var(--fs-11);
+  line-height: 16px;
+  letter-spacing: var(--tracking-caption);
+  text-overflow: ellipsis;
+}
+
+/* 行数说明：manual 模式没有分页条，但「一共多少条」仍要有个落点 */
+.c-datatable__status {
+  flex: none;
+  padding: var(--s-2) var(--s-3);
+  border-top: 0.5px solid var(--line-soft);
+  color: var(--text-tertiary);
+  font-size: var(--fs-11);
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.c-datatable__status[hidden] {
+  display: none;
+}
+

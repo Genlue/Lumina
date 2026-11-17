@@ -8,7 +8,7 @@
 
 import { h } from '../core/dom.js';
 import { icon } from '../core/icons.js';
-import { Thumb } from '../ui/kit.js';
+import { Thumb } from '../ui/content/media-tile.js';
 import * as api from './api.js';
 import { fmtDate, fmtSize } from './util.js';
 

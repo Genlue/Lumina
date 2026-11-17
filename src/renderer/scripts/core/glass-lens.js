@@ -16,7 +16,7 @@
 // 没有 canvas、没有 rAF、没有滚动监听 —— 背板变了合成器自己会重算。
 // ============================================================
 
-import { resolveGlassShape } from './glass-shape.js';
+import { resolveGlassShape, roundedRectPolygon } from './glass-shape.js';
 import {
   normalizeGlassOptics,
   glassMapSize,
@@ -359,11 +359,23 @@ export function mountGlassLens(host, o = {}) {
 
   function measure() {
     if (shapeOf) return resolveGlassShape(shapeOf());
-    const radius = parseFloat(getComputedStyle(host).borderTopLeftRadius) || 0;
+    const w = host.offsetWidth || 24;
+    const h = host.offsetHeight || 16;
+    const cs = getComputedStyle(host);
+    // 四角分别读：抽屉这类贴边面板是「外侧圆、贴边侧方」，
+    // 只取 borderTopLeftRadius 会把贴边的那两个角也磨圆。
+    const radii = [
+      'borderTopLeftRadius',
+      'borderTopRightRadius',
+      'borderBottomRightRadius',
+      'borderBottomLeftRadius',
+    ].map((k) => parseFloat(cs[k]) || 0);
+    const uniform = radii.every((r) => Math.abs(r - radii[0]) < 0.5);
     return resolveGlassShape({
-      w: host.offsetWidth || 24,
-      h: host.offsetHeight || 16,
-      radius,
+      w,
+      h,
+      radius: radii[0],
+      polygon: uniform ? null : roundedRectPolygon(w, h, radii),
     });
   }
 

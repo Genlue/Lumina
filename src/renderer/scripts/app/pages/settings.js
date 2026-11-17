@@ -7,20 +7,18 @@
 // ============================================================
 
 import { h, fill } from '../../core/dom.js';
-import {
-  Row,
-  CardGroup,
-  Button,
-  Divider,
-  Switch,
-  Slider,
-  Segmented,
-  Swatches,
-  Select,
-  Progress,
-  Badge,
-  toast,
-} from '../../ui/kit.js';
+import { Swatches } from '../../ui/appearance/swatches.js';
+import { Badge } from '../../ui/content/badge.js';
+import { Progress } from '../../ui/content/states.js';
+import { Button } from '../../ui/controls/button.js';
+import { Segmented } from '../../ui/controls/segmented.js';
+import { Slider } from '../../ui/controls/slider.js';
+import { Switch } from '../../ui/controls/switch.js';
+import { Select } from '../../ui/forms/select.js';
+import { toast } from '../../ui/overlays/toast.js';
+import { CardGroup } from '../../ui/surfaces/card.js';
+import { Row } from '../../ui/surfaces/row.js';
+import { Divider } from '../../ui/surfaces/section.js';
 import { revealOnScroll } from '../../core/scrollbar.js';
 import { openPanel } from '../dialog.js';
 import { S } from '../state.js';

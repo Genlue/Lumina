@@ -1,0 +1,112 @@
+/* ==========================================================================
+   5. 输入
+   ========================================================================== */
+
+.c-field {
+  display: flex;
+  align-items: center;
+  gap: var(--ctl-gap, var(--s-3));
+  height: var(--ctl-h, 28px);
+  padding: 0 var(--ctl-pad, var(--s-4));
+  border-radius: var(--ctl-r, var(--r-sm));
+  background: var(--surface-control);
+  box-shadow: inset 0 0 0 0.5px transparent;
+  transition: background-color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out);
+}
+
+/* 输入框里的图标同样吃 --ctl-ic，不再各自写死 */
+.c-field > .ic,
+.c-field .c-field__icon > .ic {
+  width: var(--ctl-ic, 14px);
+  height: var(--ctl-ic, 14px);
+}
+
+.c-field:hover {
+  background: var(--surface-control-hover);
+}
+
+.c-field:focus-within {
+  background: var(--surface-control-solid);
+  box-shadow: inset 0 0 0 0.5px var(--line-strong), 0 0 0 3px var(--accent-ring);
+}
+
+.c-field__input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  background: none;
+  font-size: var(--ctl-fs, var(--fs-13));
+  color: var(--text-primary);
+  user-select: text;
+}
+
+/* 焦点环只由外层 .c-field 提供，输入元素自己不再画第二圈 */
+.c-field__input:focus,
+.c-field__input:focus-visible {
+  outline: none;
+}
+
+.c-field__input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.c-field__icon {
+  color: var(--text-tertiary);
+  flex: none;
+}
+
+/* —— 搜索框 —— */
+.c-search {
+  height: var(--ctl-h, 28px);
+  border-radius: var(--ctl-r, var(--r-sm));
+  padding: 0 var(--ctl-pad, var(--s-4));
+  width: 180px;
+  transition: width var(--dur-3) var(--ease-out),
+    background-color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out);
+}
+
+.c-search:focus-within {
+  width: 240px;
+}
+
+/* —— 校验与状态 ——
+   错误不只靠颜色：aria-invalid 同时改描边和焦点环，文案由 FormField 提供。
+   禁用走 data-disabled（原生 disabled 的控件由浏览器自己降透明度）。 */
+.c-field[data-invalid="1"],
+.c-field:has(.c-field__input[aria-invalid="true"]) {
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+
+.c-field[data-invalid="1"]:focus-within,
+.c-field:has(.c-field__input[aria-invalid="true"]):focus-within {
+  box-shadow: inset 0 0 0 1px var(--danger), 0 0 0 3px var(--danger-soft);
+}
+
+.c-field__input:disabled,
+.c-textarea:disabled {
+  opacity: 0.55;
+}
+
+[data-disabled="1"] {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.c-textarea[aria-invalid="true"] {
+  box-shadow: 0 0 0 1px var(--danger);
+}
+
+.c-textarea[aria-invalid="true"]:focus {
+  box-shadow: 0 0 0 1px var(--danger), 0 0 0 3px var(--danger-soft);
+}
+
+/* —— 下拉选择 —— */
+/* 展开时箭头转正（朝上 = 可以收起），收起再转回朝下。
+   只有 Select 会写 aria-expanded，所以这条不会波及普通按钮。 */
+.c-btn[aria-expanded] .ic {
+  transition: transform var(--dur-2) var(--ease-out);
+}
+

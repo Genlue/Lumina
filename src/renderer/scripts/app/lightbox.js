@@ -5,7 +5,10 @@
 // ============================================================
 
 import { h } from '../core/dom.js';
-import { IconButton, Spinner, disposeComponentTree, toast } from '../ui/kit.js';
+import { disposeComponentTree } from '../ui/_shared/lifecycle.js';
+import { Spinner } from '../ui/content/states.js';
+import { IconButton } from '../ui/controls/button.js';
+import { toast } from '../ui/overlays/toast.js';
 import { spring } from '../core/spring.js';
 import { mountGlassSurfaces } from '../core/glass-lens.js';
 import * as api from './api.js';
@@ -224,10 +227,12 @@ export function openLightbox(items, index) {
   };
   stage.addEventListener('wheel', onWheel, { passive: false });
 
-  // 拖拽平移（放大后才有意义，但小图也允许轻微拖动）
+  // 拖拽平移：只从图片本身起手。空白处按下不算拖拽 —— 那是一次「点外面关闭」，
+  // 而且给 stage 起手会顺手把指针捕获挂到 img 上，随后的 click 目标就变成 img，
+  // 「点空白关闭」永远判不到 stage。
   stage.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
-    if (e.target !== img && e.target !== stage) return;
+    if (e.target !== img) return;
     state.dragging = true;
     state.dragX = e.clientX - state.x;
     state.dragY = e.clientY - state.y;
@@ -249,9 +254,12 @@ export function openLightbox(items, index) {
   stage.addEventListener('pointerup', endDrag);
   stage.addEventListener('pointercancel', endDrag);
 
-  // 点空白处关闭（点图片不关）
-  stage.addEventListener('click', (e) => {
-    if (e.target === stage) closeLightbox();
+  // 点图片外区域关闭：图片本身与底部工具条之外，一律算「外面」。
+  // 判据挂在 root 上而不是 stage 上 —— 背景层、stage 内边距、将来的装饰层
+  // 都天然落在「外面」，不用每加一层就补一个 target 判断。
+  root.addEventListener('click', (e) => {
+    if (e.target.closest('.app-lightbox__img, .app-lightbox__bar')) return;
+    closeLightbox();
   });
 
   document.body.append(root);

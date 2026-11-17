@@ -1,0 +1,626 @@
+[
+  {
+    "name": "ColorWell",
+    "group": "appearance",
+    "source": "scripts/ui/appearance/color-well.js",
+    "kind": "factory"
+  },
+  {
+    "name": "ACCENT_PRESETS",
+    "group": "appearance",
+    "source": "scripts/ui/appearance/swatches.js",
+    "kind": "preset"
+  },
+  {
+    "name": "Swatches",
+    "group": "appearance",
+    "source": "scripts/ui/appearance/swatches.js",
+    "kind": "factory"
+  },
+  {
+    "name": "CollectionView",
+    "group": "collections",
+    "source": "scripts/ui/collections/collection-view.js",
+    "kind": "factory"
+  },
+  {
+    "name": "DataTable",
+    "group": "collections",
+    "source": "scripts/ui/collections/data-table.js",
+    "kind": "factory"
+  },
+  {
+    "name": "TreeView",
+    "group": "collections",
+    "source": "scripts/ui/collections/tree-view.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Avatar",
+    "group": "content",
+    "source": "scripts/ui/content/avatar.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Badge",
+    "group": "content",
+    "source": "scripts/ui/content/badge.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Chip",
+    "group": "content",
+    "source": "scripts/ui/content/chip.js",
+    "kind": "factory"
+  },
+  {
+    "name": "InlineMessage",
+    "group": "content",
+    "source": "scripts/ui/content/inline-message.js",
+    "kind": "factory"
+  },
+  {
+    "name": "List",
+    "group": "content",
+    "source": "scripts/ui/content/list.js",
+    "kind": "factory"
+  },
+  {
+    "name": "ListRow",
+    "group": "content",
+    "source": "scripts/ui/content/list.js",
+    "kind": "factory"
+  },
+  {
+    "name": "ListHeader",
+    "group": "content",
+    "source": "scripts/ui/content/list.js",
+    "kind": "factory"
+  },
+  {
+    "name": "MediaTile",
+    "group": "content",
+    "source": "scripts/ui/content/media-tile.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Thumb",
+    "group": "content",
+    "source": "scripts/ui/content/media-tile.js",
+    "kind": "alias"
+  },
+  {
+    "name": "ProgressRing",
+    "group": "content",
+    "source": "scripts/ui/content/progress-ring.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Skeleton",
+    "group": "content",
+    "source": "scripts/ui/content/skeleton.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Empty",
+    "group": "content",
+    "source": "scripts/ui/content/states.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Spinner",
+    "group": "content",
+    "source": "scripts/ui/content/states.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Progress",
+    "group": "content",
+    "source": "scripts/ui/content/states.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Table",
+    "group": "content",
+    "source": "scripts/ui/content/table.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Tile",
+    "group": "content",
+    "source": "scripts/ui/content/tile.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Button",
+    "group": "controls",
+    "source": "scripts/ui/controls/button.js",
+    "kind": "factory"
+  },
+  {
+    "name": "IconButton",
+    "group": "controls",
+    "source": "scripts/ui/controls/button.js",
+    "kind": "factory"
+  },
+  {
+    "name": "RangeSlider",
+    "group": "controls",
+    "source": "scripts/ui/controls/range-slider.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Segmented",
+    "group": "controls",
+    "source": "scripts/ui/controls/segmented.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Slider",
+    "group": "controls",
+    "source": "scripts/ui/controls/slider.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Switch",
+    "group": "controls",
+    "source": "scripts/ui/controls/switch.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Checkbox",
+    "group": "forms",
+    "source": "scripts/ui/forms/checkbox.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Combobox",
+    "group": "forms",
+    "source": "scripts/ui/forms/combobox.js",
+    "kind": "factory"
+  },
+  {
+    "name": "DatePicker",
+    "group": "forms",
+    "source": "scripts/ui/forms/date-picker.js",
+    "kind": "factory"
+  },
+  {
+    "name": "DropZone",
+    "group": "forms",
+    "source": "scripts/ui/forms/drop-zone.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Field",
+    "group": "forms",
+    "source": "scripts/ui/forms/field.js",
+    "kind": "factory"
+  },
+  {
+    "name": "validateFiles",
+    "group": "forms",
+    "source": "scripts/ui/forms/file-picker.js",
+    "kind": "helper"
+  },
+  {
+    "name": "FilePicker",
+    "group": "forms",
+    "source": "scripts/ui/forms/file-picker.js",
+    "kind": "factory"
+  },
+  {
+    "name": "FormField",
+    "group": "forms",
+    "source": "scripts/ui/forms/form-field.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Form",
+    "group": "forms",
+    "source": "scripts/ui/forms/form-field.js",
+    "kind": "factory"
+  },
+  {
+    "name": "NumberField",
+    "group": "forms",
+    "source": "scripts/ui/forms/number-field.js",
+    "kind": "factory"
+  },
+  {
+    "name": "RadioGroup",
+    "group": "forms",
+    "source": "scripts/ui/forms/radio-group.js",
+    "kind": "factory"
+  },
+  {
+    "name": "SearchField",
+    "group": "forms",
+    "source": "scripts/ui/forms/search-field.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Select",
+    "group": "forms",
+    "source": "scripts/ui/forms/select.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Stepper",
+    "group": "forms",
+    "source": "scripts/ui/forms/stepper.js",
+    "kind": "factory"
+  },
+  {
+    "name": "TextArea",
+    "group": "forms",
+    "source": "scripts/ui/forms/text-area.js",
+    "kind": "factory"
+  },
+  {
+    "name": "TimePicker",
+    "group": "forms",
+    "source": "scripts/ui/forms/time-picker.js",
+    "kind": "factory"
+  },
+  {
+    "name": "TokenField",
+    "group": "forms",
+    "source": "scripts/ui/forms/token-field.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Breadcrumb",
+    "group": "navigation",
+    "source": "scripts/ui/navigation/breadcrumb.js",
+    "kind": "factory"
+  },
+  {
+    "name": "DocumentTabs",
+    "group": "navigation",
+    "source": "scripts/ui/navigation/document-tabs.js",
+    "kind": "factory"
+  },
+  {
+    "name": "NavCard",
+    "group": "navigation",
+    "source": "scripts/ui/navigation/nav-card.js",
+    "kind": "factory"
+  },
+  {
+    "name": "NavColumn",
+    "group": "navigation",
+    "source": "scripts/ui/navigation/nav-column.js",
+    "kind": "factory"
+  },
+  {
+    "name": "NavDockItem",
+    "group": "navigation",
+    "source": "scripts/ui/navigation/nav-dock.js",
+    "kind": "factory"
+  },
+  {
+    "name": "NavDockSep",
+    "group": "navigation",
+    "source": "scripts/ui/navigation/nav-dock.js",
+    "kind": "factory"
+  },
+  {
+    "name": "NavDock",
+    "group": "navigation",
+    "source": "scripts/ui/navigation/nav-dock.js",
+    "kind": "factory"
+  },
+  {
+    "name": "NavInfo",
+    "group": "navigation",
+    "source": "scripts/ui/navigation/nav-info.js",
+    "kind": "factory"
+  },
+  {
+    "name": "NavSection",
+    "group": "navigation",
+    "source": "scripts/ui/navigation/nav-item.js",
+    "kind": "factory"
+  },
+  {
+    "name": "NavItem",
+    "group": "navigation",
+    "source": "scripts/ui/navigation/nav-item.js",
+    "kind": "factory"
+  },
+  {
+    "name": "NavGroup",
+    "group": "navigation",
+    "source": "scripts/ui/navigation/nav-item.js",
+    "kind": "factory"
+  },
+  {
+    "name": "markNavMoving",
+    "group": "navigation",
+    "source": "scripts/ui/navigation/nav-motion.js",
+    "kind": "helper"
+  },
+  {
+    "name": "NavSearch",
+    "group": "navigation",
+    "source": "scripts/ui/navigation/nav-search.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Pagination",
+    "group": "navigation",
+    "source": "scripts/ui/navigation/pagination.js",
+    "kind": "factory"
+  },
+  {
+    "name": "SectionWave",
+    "group": "navigation",
+    "source": "scripts/ui/navigation/section-wave.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Tabs",
+    "group": "navigation",
+    "source": "scripts/ui/navigation/tabs.js",
+    "kind": "factory"
+  },
+  {
+    "name": "ToolbarCustomization",
+    "group": "navigation",
+    "source": "scripts/ui/navigation/toolbar-customization.js",
+    "kind": "factory"
+  },
+  {
+    "name": "ToolbarOverflow",
+    "group": "navigation",
+    "source": "scripts/ui/navigation/toolbar-overflow.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Toolbar",
+    "group": "navigation",
+    "source": "scripts/ui/navigation/toolbar.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Capsule",
+    "group": "navigation",
+    "source": "scripts/ui/navigation/toolbar.js",
+    "kind": "factory"
+  },
+  {
+    "name": "NavPair",
+    "group": "navigation",
+    "source": "scripts/ui/navigation/toolbar.js",
+    "kind": "factory"
+  },
+  {
+    "name": "TopVeil",
+    "group": "navigation",
+    "source": "scripts/ui/navigation/toolbar.js",
+    "kind": "factory"
+  },
+  {
+    "name": "ToolbarTitle",
+    "group": "navigation",
+    "source": "scripts/ui/navigation/toolbar.js",
+    "kind": "factory"
+  },
+  {
+    "name": "TrafficLights",
+    "group": "navigation",
+    "source": "scripts/ui/navigation/traffic-lights.js",
+    "kind": "factory"
+  },
+  {
+    "name": "dialogDepth",
+    "group": "overlays",
+    "source": "scripts/ui/overlays/dialog.js",
+    "kind": "helper"
+  },
+  {
+    "name": "Dialog",
+    "group": "overlays",
+    "source": "scripts/ui/overlays/dialog.js",
+    "kind": "factory"
+  },
+  {
+    "name": "confirmDialog",
+    "group": "overlays",
+    "source": "scripts/ui/overlays/dialog.js",
+    "kind": "helper"
+  },
+  {
+    "name": "openMenu",
+    "group": "overlays",
+    "source": "scripts/ui/overlays/menu.js",
+    "kind": "helper"
+  },
+  {
+    "name": "closeMenu",
+    "group": "overlays",
+    "source": "scripts/ui/overlays/menu.js",
+    "kind": "helper"
+  },
+  {
+    "name": "openContextMenu",
+    "group": "overlays",
+    "source": "scripts/ui/overlays/menu.js",
+    "kind": "helper"
+  },
+  {
+    "name": "openPopover",
+    "group": "overlays",
+    "source": "scripts/ui/overlays/popover.js",
+    "kind": "helper"
+  },
+  {
+    "name": "closePopover",
+    "group": "overlays",
+    "source": "scripts/ui/overlays/popover.js",
+    "kind": "helper"
+  },
+  {
+    "name": "toast",
+    "group": "overlays",
+    "source": "scripts/ui/overlays/toast.js",
+    "kind": "helper"
+  },
+  {
+    "name": "tip",
+    "group": "overlays",
+    "source": "scripts/ui/overlays/tooltip.js",
+    "kind": "helper"
+  },
+  {
+    "name": "Drawer",
+    "group": "panels",
+    "source": "scripts/ui/panels/drawer.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Inspector",
+    "group": "panels",
+    "source": "scripts/ui/panels/inspector.js",
+    "kind": "factory"
+  },
+  {
+    "name": "OutlineItem",
+    "group": "panels",
+    "source": "scripts/ui/panels/outline-item.js",
+    "kind": "factory"
+  },
+  {
+    "name": "PropGroup",
+    "group": "panels",
+    "source": "scripts/ui/panels/properties.js",
+    "kind": "factory"
+  },
+  {
+    "name": "PropRow",
+    "group": "panels",
+    "source": "scripts/ui/panels/properties.js",
+    "kind": "factory"
+  },
+  {
+    "name": "PropList",
+    "group": "panels",
+    "source": "scripts/ui/panels/properties.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Resizer",
+    "group": "panels",
+    "source": "scripts/ui/panels/resizer.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Sheet",
+    "group": "panels",
+    "source": "scripts/ui/panels/sheet.js",
+    "kind": "factory"
+  },
+  {
+    "name": "SplitView",
+    "group": "panels",
+    "source": "scripts/ui/panels/split-view.js",
+    "kind": "factory"
+  },
+  {
+    "name": "StatusBar",
+    "group": "panels",
+    "source": "scripts/ui/panels/status-bar.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Card",
+    "group": "surfaces",
+    "source": "scripts/ui/surfaces/card.js",
+    "kind": "factory"
+  },
+  {
+    "name": "CardGroup",
+    "group": "surfaces",
+    "source": "scripts/ui/surfaces/card.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Disclosure",
+    "group": "surfaces",
+    "source": "scripts/ui/surfaces/disclosure.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Row",
+    "group": "surfaces",
+    "source": "scripts/ui/surfaces/row.js",
+    "kind": "factory"
+  },
+  {
+    "name": "SectionTitle",
+    "group": "surfaces",
+    "source": "scripts/ui/surfaces/section.js",
+    "kind": "factory"
+  },
+  {
+    "name": "Divider",
+    "group": "surfaces",
+    "source": "scripts/ui/surfaces/section.js",
+    "kind": "factory"
+  },
+  {
+    "name": "disposeComponentTree",
+    "group": "lifecycle",
+    "source": "scripts/ui/_shared/lifecycle.js",
+    "kind": "helper"
+  },
+  {
+    "name": "createDisposer",
+    "group": "mechanisms",
+    "source": "scripts/ui/_shared/disposer.js",
+    "kind": "helper"
+  },
+  {
+    "name": "createSelection",
+    "group": "mechanisms",
+    "source": "scripts/ui/_shared/selection.js",
+    "kind": "helper"
+  },
+  {
+    "name": "focusScope",
+    "group": "mechanisms",
+    "source": "scripts/ui/_shared/overlay.js",
+    "kind": "helper"
+  },
+  {
+    "name": "openLayer",
+    "group": "mechanisms",
+    "source": "scripts/ui/_shared/overlay.js",
+    "kind": "helper"
+  },
+  {
+    "name": "closeLayer",
+    "group": "mechanisms",
+    "source": "scripts/ui/_shared/overlay.js",
+    "kind": "helper"
+  },
+  {
+    "name": "layerDepth",
+    "group": "mechanisms",
+    "source": "scripts/ui/_shared/overlay.js",
+    "kind": "helper"
+  },
+  {
+    "name": "CommandRegistry",
+    "group": "mechanisms",
+    "source": "scripts/ui/_shared/commands.js",
+    "kind": "factory"
+  },
+  {
+    "name": "UndoManager",
+    "group": "mechanisms",
+    "source": "scripts/ui/_shared/commands.js",
+    "kind": "factory"
+  }
+]

@@ -1,0 +1,104 @@
+/* ==========================================================================
+   45. 集合 CollectionView
+   —— 列表 / 网格共用一套滚动骨架：容器是滚动视口，__spacer 撑出内容总高，
+      选项绝对定位在它上面。DOM 里只有可见区间 ± overscan 的项，
+      所以一万条数据和十条数据的节点数是一个量级。
+   —— 滚动条不在这里重画：沿用系统滚动条，边缘柔化交给 16-scroll-edges。
+   ========================================================================== */
+
+.c-collection {
+  position: relative;
+  overflow: auto;
+  /* 滚动到列表尽头时不要把整页一起带走 */
+  overscroll-behavior: contain;
+  min-height: 0;
+  /* 容器只做视口，内边距交给选项 —— 否则列宽/总高的算法要多算一层 */
+  padding: 0;
+}
+
+/* 容器可聚焦只发生在两种情况：空集合，或焦点项滚出了渲染窗口（见 JS）。
+   不给环的话键盘用户不知道 Tab 停在了哪。 */
+.c-collection:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: -2px;
+}
+
+/* 只负责撑高，不参与排版 */
+.c-collection__spacer {
+  position: relative;
+  width: 100%;
+}
+
+.c-collection__item {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  min-width: 0;
+  padding: 0 var(--s-5);
+  font-size: var(--fs-13);
+  line-height: var(--lh-snug);
+  color: var(--text-primary);
+  border-radius: var(--r-xs);
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+
+/* 列表：高度由内容决定（支持多行 / 图片撑高），下限是 JS 给的估算值 */
+.c-collection--list .c-collection__item {
+  min-height: var(--item-h, 28px);
+}
+
+/* 网格：单元高度被 JS 钉成与同行一致，内容超了裁掉，不能盖住邻居 */
+.c-collection--grid .c-collection__item {
+  align-items: flex-start;
+  padding: var(--s-4);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+
+.c-collection__item:hover {
+  background: var(--surface-hover);
+}
+
+.c-collection__item:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: -2px;
+}
+
+/* 选中放在 hover 之后：悬停中的已选项不能丢掉选中底色。
+   淡底而不是实心强调色 —— 项里往往还有副标题和图标，实心底会把层次吃掉。 */
+.c-collection__item[aria-selected="true"] {
+  background: var(--accent-soft);
+}
+
+/* 禁用：整体降透明度，并且彻底断掉指针命中（键盘由 roving tabindex 退出） */
+.c-collection[aria-disabled="true"] {
+  opacity: 0.55;
+}
+
+.c-collection[aria-disabled="true"] .c-collection__item {
+  pointer-events: none;
+}
+
+.c-collection__empty {
+  display: grid;
+  place-items: center;
+  min-height: calc(var(--s-11) * 2);
+  padding: var(--s-11) var(--s-7);
+  font-size: var(--fs-12);
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+/* .c-collection__empty 自己声明了 display: grid，会盖掉 UA 的 [hidden]，
+   所以必须显式压回去，否则「没有内容」会一直浮在列表上面。 */
+.c-collection__empty[hidden] {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c-collection__item {
+    transition: none;
+  }
+}

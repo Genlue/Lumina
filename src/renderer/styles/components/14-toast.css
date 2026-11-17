@@ -1,0 +1,92 @@
+/* ==========================================================================
+   14. 遮罩 / 浮层
+   ========================================================================== */
+
+.c-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: transparent;
+}
+
+.c-toast-host {
+  position: fixed;
+  left: 50%;
+  bottom: 26px;
+  z-index: 600;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-3);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+/* 槽只负责「被顶开 / 合拢」的位移，提示自己的入场退场各走各的 transform */
+.c-toast-slot {
+  flex: none;
+  will-change: transform;
+}
+
+/* 提示条：与滑块拇指同一套液态玻璃材质（涂层 → 模糊 → 高光） */
+.c-toast {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  height: 34px;
+  padding: 0 var(--s-7);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-13);
+  font-weight: 500;
+  letter-spacing: var(--tracking-body);
+  color: var(--text-glass-1);
+  background:
+    /* 上下对称的两道聚光，下方弱一档 */
+    radial-gradient(
+      150% 130% at 50% -34%,
+      rgb(255 255 255 / calc(0.5 * var(--lg-css-stroke-alpha, var(--lg-stroke-alpha)))) 0%,
+      rgb(255 255 255 / 0) 62%
+    ),
+    radial-gradient(
+      150% 130% at 50% 134%,
+      rgb(255 255 255 / calc(0.5 * var(--lg-css-stroke-alpha, var(--lg-stroke-alpha)) * var(--hl-bottom))) 0%,
+      rgb(255 255 255 / 0) 62%
+    ),
+    color-mix(in srgb, var(--lg-coating-color, rgb(var(--glass-rgb))) calc(var(--lg-coating) * 100%), transparent);
+  backdrop-filter: blur(calc((10px + 26px * var(--lg)) * var(--glass-blur-k, 0.9)))
+    saturate(calc(var(--lg-vibrancy) * 100%));
+  -webkit-backdrop-filter: blur(calc((10px + 26px * var(--lg)) * var(--glass-blur-k, 0.9)))
+    saturate(calc(var(--lg-vibrancy) * 100%));
+  box-shadow:
+    0 0 0 0.5px rgb(0 0 0 / calc(0.10 * var(--shadow-k))),
+    0 10px 30px -10px rgb(0 0 0 / calc(0.28 * var(--shadow-k))),
+    0 2px 6px rgb(0 0 0 / calc(0.10 * var(--shadow-k))),
+    inset 0 1px 0 rgb(255 255 255 / calc(0.95 * var(--lg-css-stroke-alpha, var(--lg-stroke-alpha)))),
+    inset 0 -1px 0 rgb(255 255 255 / calc(0.95 * var(--lg-css-stroke-alpha, var(--lg-stroke-alpha)) * var(--hl-bottom))),
+    inset 0 -1px 2px rgb(0 0 0 / calc(0.1 * var(--shadow-k)));
+  will-change: transform, opacity;
+}
+
+/* 顶部镜面：与拇指同一条规则，高光为 0 时一起消失 */
+.c-toast::after {
+  content: "";
+  position: absolute;
+  inset: 0.5px 12px auto;
+  height: 42%;
+  border-radius: var(--r-pill);
+  background: linear-gradient(
+    180deg,
+    rgb(255 255 255 / calc(0.5 * var(--lg-css-stroke-alpha, var(--lg-stroke-alpha)))),
+    rgb(255 255 255 / 0)
+  );
+  pointer-events: none;
+}
+
+/* 错误类提示：文字与图标都走危险色 */
+.c-toast--danger,
+.c-toast--danger .ic {
+  color: var(--danger);
+}
+

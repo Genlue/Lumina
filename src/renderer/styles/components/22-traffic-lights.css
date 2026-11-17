@@ -1,0 +1,145 @@
+/* ==========================================================================
+   22. 红绿灯
+   依 aw3r1se/macOS-traffic-lights（macOS 26 实测）：14pt 圆、28 单位栅格、
+   双层圆做描边。悬停才出图形，按下整组变暗，失焦转深灰。
+   ========================================================================== */
+
+.c-traffic {
+  display: inline-flex;
+  align-items: center;
+  /* 圆点 12 + 间隙 8 → 圆心距 20。两个数都是令牌：
+     顶栏的 --chrome-lights-w 拿它们算宽度，改这里三处一起动 */
+  gap: var(--tl-gap, 8px);
+  flex: none;
+  /* 三灯与背景之间需要一层极轻的接触影：直接用大对比纯色贴上去会「抠图感」很重。
+     drop-shadow 跟着圆的 alpha 走，不会画出方形边角。 */
+  filter: drop-shadow(0 0.5px 1.5px rgb(0 0 0 / calc(0.26 * var(--shadow-k))))
+    drop-shadow(0 0 0.5px rgb(0 0 0 / calc(0.18 * var(--shadow-k))));
+}
+
+/* 失焦时三灯退成中性灰，影也收一半，避免灰点上又糊一层更灰 */
+.c-traffic[data-focused="0"] {
+  filter: drop-shadow(0 0.5px 1px rgb(0 0 0 / calc(0.14 * var(--shadow-k))));
+}
+
+.c-traffic__light {
+  position: relative;
+  width: var(--tl-dot, 12px);
+  height: var(--tl-dot, 12px);
+  padding: 0;
+  display: block;
+  border-radius: var(--r-pill);
+  background: none;
+  line-height: 0;
+}
+
+.c-traffic__svg {
+  display: block;
+  width: 12px;
+  height: 12px;
+  /* SVG 根默认 overflow:hidden，圆正好贴住视框边缘时会被切掉一像素 */
+  overflow: visible;
+}
+
+/* 双层圆：外圈深一档作为描边，与系统一致 */
+.c-traffic__rim {
+  /* 环，不是实心圆：body 半透明时实心圆会从底下透出来，两层 alpha 叠成两倍深 */
+  fill: none;
+  stroke: var(--tl-rim, #f2001b);
+  stroke-width: 1;
+}
+
+.c-traffic__body {
+  fill: var(--tl-body, #ff5c60);
+}
+
+.c-traffic__glyph {
+  color: var(--tl-glyph, #802f31);
+  opacity: 0;
+  transition: opacity 110ms var(--ease-out);
+  pointer-events: none;
+}
+
+/* 三灯联动：光标进入整组才一起显形 */
+.c-traffic:hover .c-traffic__glyph,
+.c-traffic:focus-within .c-traffic__glyph,
+.c-traffic[data-reveal="1"] .c-traffic__glyph {
+  opacity: 1;
+}
+
+/* 按下：整组换深色，不是简单压暗 */
+.c-traffic__light:active,
+.c-traffic__light[data-active="1"] {
+  --tl-rim: var(--tl-rim-down);
+  --tl-body: var(--tl-body-down);
+  --tl-glyph: var(--tl-glyph-down);
+}
+
+.c-traffic__light--close {
+  --tl-rim: #f2001b;
+  --tl-body: #ff5c60;
+  --tl-glyph: #802f31;
+  --tl-rim-down: #cb0518;
+  --tl-body-down: #d44c50;
+  --tl-glyph-down: #6a2728;
+}
+
+.c-traffic__light--min {
+  --tl-rim: #efae00;
+  --tl-body: #fac800;
+  --tl-glyph: #7e640c;
+  --tl-rim-down: #c89200;
+  --tl-body-down: #d0a505;
+  --tl-glyph-down: #68530b;
+}
+
+.c-traffic__light--zoom {
+  --tl-rim: #00ac00;
+  --tl-body: #35c759;
+  --tl-glyph: #1e632d;
+  --tl-rim-down: #008f03;
+  --tl-body-down: #2ea44b;
+  --tl-glyph-down: #195225;
+}
+
+/* 未保存：红灯中心一枚实心圆点，悬停让位给叉号 */
+.c-traffic__dot {
+  display: none;
+  fill: #802f31;
+}
+
+.c-traffic[data-dirty="1"] .c-traffic__dot {
+  display: block;
+}
+
+.c-traffic[data-dirty="1"] .c-traffic__glyph {
+  opacity: 0;
+}
+
+.c-traffic[data-dirty="1"]:hover .c-traffic__glyph {
+  opacity: 1;
+}
+
+.c-traffic[data-dirty="1"]:hover .c-traffic__dot {
+  display: none;
+}
+
+/* 失焦：三灯统一中性灰实体，图形完全不出现。
+   灰的深浅由主题令牌给（浅色走 alpha 黑、深色走 alpha 白）——
+   这里写死一个深灰，浅色顶栏上就是三颗黑豆。 */
+.c-traffic[data-focused="0"] .c-traffic__light {
+  --tl-rim: var(--tl-off-rim, rgb(0 0 0 / 0.2));
+  --tl-body: var(--tl-off-body, rgb(0 0 0 / 0.12));
+  --tl-rim-down: var(--tl-off-rim, rgb(0 0 0 / 0.2));
+  --tl-body-down: var(--tl-off-body, rgb(0 0 0 / 0.12));
+}
+
+.c-traffic[data-focused="0"] .c-traffic__glyph,
+.c-traffic[data-focused="0"]:hover .c-traffic__glyph {
+  opacity: 0;
+}
+
+.c-traffic[data-focused="0"] .c-traffic__dot {
+  fill: var(--tl-off-dot, rgb(0 0 0 / 0.34));
+}
+

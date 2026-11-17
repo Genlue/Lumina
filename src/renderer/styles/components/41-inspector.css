@@ -1,0 +1,183 @@
+/* ==========================================================================
+   40. Inspector 右侧栏
+   —— 只给骨架：外壳 + 可切换的视图容器 + 两类基础行（大纲 / 属性）。
+      里面放什么由使用方组装：大纲、属性、AI 面板都只是它的一个视图。
+   ========================================================================== */
+
+.c-inspector {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--surface-sunken);
+  /* 左侧发丝边：和内容区之间只靠这一条线分界，不加投影 */
+  box-shadow: inset 0.5px 0 0 var(--line);
+}
+
+.c-inspector__head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-5) var(--s-5) var(--s-3);
+}
+
+/* 视图切换占满整行，右边只留收起按钮 */
+.c-inspector__tabs {
+  flex: 1;
+  min-width: 0;
+}
+
+.c-inspector__tabs .c-seg {
+  display: flex;
+  width: 100%;
+}
+
+.c-inspector__tabs .c-seg__opt {
+  flex: 1;
+  justify-content: center;
+}
+
+.c-inspector__body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  padding: 0 var(--s-5) var(--s-6);
+}
+
+.c-inspector__pane[data-active="0"] {
+  display: none;
+}
+
+.c-inspector__empty {
+  padding: var(--s-9) var(--s-5);
+  text-align: center;
+  font-size: var(--fs-12);
+  line-height: 1.6;
+  color: var(--text-tertiary);
+}
+
+/* ---------------- 大纲 ---------------- */
+
+.c-outline {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.c-outline__item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 26px;
+  padding: 5px var(--s-4) 5px var(--s-3);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: var(--fs-12);
+  line-height: 1.35;
+  letter-spacing: var(--tracking-caption);
+  text-align: left;
+  cursor: default;
+  transition: background-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out);
+}
+
+.c-outline__item:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.c-outline__item[data-level="1"] {
+  color: var(--text-primary);
+  font-size: var(--fs-13);
+  font-weight: 500;
+}
+
+.c-outline__item[data-level="2"] {
+  padding-left: calc(var(--s-3) + 12px);
+}
+
+.c-outline__item[data-level="3"] {
+  padding-left: calc(var(--s-3) + 24px);
+}
+
+.c-outline__item[data-level="4"],
+.c-outline__item[data-level="5"],
+.c-outline__item[data-level="6"] {
+  padding-left: calc(var(--s-3) + 36px);
+  font-size: var(--fs-11);
+}
+
+/* 当前小节：淡强调底 + 强调文字。不用实心块，否则同一列里的层级读不出来 */
+.c-outline__item[data-active="1"],
+.c-outline__item[data-active="1"]:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.c-outline__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------------- 属性 ---------------- */
+
+.c-props {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+}
+
+.c-props__group {
+  display: flex;
+  flex-direction: column;
+}
+
+.c-props__title {
+  padding: 0 var(--s-3) var(--s-2);
+  font-size: var(--fs-11);
+  font-weight: 600;
+  letter-spacing: var(--tracking-section);
+  color: var(--text-tertiary);
+}
+
+.c-props__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: 6px var(--s-3);
+  font-size: var(--fs-12);
+}
+
+.c-props__row + .c-props__row {
+  box-shadow: inset 0 0.5px 0 var(--line-soft);
+}
+
+.c-props__label {
+  flex: none;
+  color: var(--text-secondary);
+}
+
+.c-props__value {
+  min-width: 0;
+  color: var(--text-primary);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.c-props__value.is-mono {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  color: var(--text-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+

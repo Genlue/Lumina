@@ -1,9 +1,11 @@
 {
   "productName": "Lumina",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "identifier": "com.lumina.album",
   "build": {
-    "frontendDist": "../src/renderer"
+    "frontendDist": "../dist",
+    "beforeDevCommand": "node ../scripts/build-ui.mjs",
+    "beforeBuildCommand": "node ../scripts/build-ui.mjs"
   },
   "app": {
     "withGlobalTauri": true,
@@ -16,21 +18,26 @@
         "minHeight": 600,
         "decorations": false,
         "resizable": true,
-        "transparent": true,
+        "transparent": false,
         "center": true,
-        "visible": false
+        "visible": true,
+        "backgroundColor": "#101014"
       }
     ],
     "security": {
       "csp": null,
       "assetProtocol": {
         "enable": true,
-        "scope": ["**"]
+        "scope": [
+          "**"
+        ]
       }
     }
   },
   "bundle": {
-    "icon": ["icons/icon.ico"],
+    "icon": [
+      "icons/icon.ico"
+    ],
     "resources": {
       "resources/libheif/**/*": "libheif/"
     },
@@ -43,4 +50,3 @@
     }
   }
 }
-

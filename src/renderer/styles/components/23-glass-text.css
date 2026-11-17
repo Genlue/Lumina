@@ -1,0 +1,43 @@
+/* ==========================================================================
+   23. 玻璃上的文字
+   —— 中灰叠在半透明层上会直接糊掉。凡是玻璃容器，统一换用高对比文字，
+      并给 11–12px 的小字补一点字重和字距。
+   ========================================================================== */
+
+.c-capsule,
+.c-menu,
+.c-toast,
+.c-acrylic,
+.c-glass-panel,
+.c-glass-sheet,
+.l-nav,
+.l-sidebar,
+.c-topbar {
+  --text-secondary: var(--text-glass-2);
+  --text-tertiary: var(--text-glass-3);
+  --text-quaternary: var(--text-glass-4);
+}
+
+.c-capsule .c-subtitle,
+.c-capsule .c-caption,
+.c-topbar .c-subtitle,
+.c-topbar .c-caption,
+.l-nav .c-subtitle,
+.l-nav .c-caption,
+.l-nav .c-section,
+.l-nav .c-nav__count,
+.l-sidebar .c-subtitle,
+.l-sidebar .c-caption,
+.l-sidebar .c-section,
+.l-sidebar .c-nav__count,
+.c-menu__key {
+  font-weight: 500;
+  letter-spacing: 0.012em;
+  color: var(--text-glass-3);
+}
+
+.c-menu__key {
+  color: var(--text-glass-4);
+}
+
+

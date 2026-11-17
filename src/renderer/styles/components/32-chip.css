@@ -1,0 +1,82 @@
+/* ==========================================================================
+   31. 标签片 Chip
+   —— 徽标是「只读的状态」，标签片是「可操作的对象」：能点、能选、能删。
+   ========================================================================== */
+
+.c-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 var(--s-4);
+  border-radius: var(--r-pill);
+  background: var(--surface-control);
+  color: var(--text-primary);
+  font-size: var(--fs-12);
+  white-space: nowrap;
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+
+.c-chip--interactive:hover {
+  background: var(--surface-control-hover);
+}
+
+.c-chip[aria-pressed="true"],
+.c-chip[aria-selected="true"] {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+/* 主体按钮：把原生按钮外观压平，只保留排版。焦点环留给 :focus-visible */
+.c-chip__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: none;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  cursor: default;
+}
+
+.c-chip__label:focus-visible,
+.c-chip__x:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 1px;
+}
+
+.c-chip--sm {
+  height: 18px;
+  padding: 0 var(--s-3);
+  font-size: var(--fs-11);
+}
+
+.c-chip__x {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  margin-right: -3px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: none;
+  color: inherit;
+  opacity: 0.55;
+  transition: opacity var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
+}
+
+.c-chip__x:hover {
+  opacity: 1;
+  background: var(--surface-control-active);
+}
+
+.c-chip[aria-pressed="true"] .c-chip__x:hover,
+.c-chip[aria-selected="true"] .c-chip__x:hover {
+  background: rgb(0 0 0 / 0.16);
+}
+

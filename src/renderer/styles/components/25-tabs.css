@@ -1,0 +1,144 @@
+/* ==========================================================================
+   24. 页签 Tabs
+   —— 原型是 macOS 的文档页签（Safari / 终端 / Xcode 那一排）：一条浅色轨道，
+      选中那颗是抬起来的实心块，关闭钮长在页签里。
+      和分段控件的分工：分段是「同一个对象换一种看法」（强调色滑块），
+      页签是「换一个对象」（中性抬起块 + 关闭钮）。
+   ========================================================================== */
+
+.c-tabs {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 3px;
+  border-radius: var(--r-md);
+  background: var(--surface-well);
+  box-shadow: inset 0 0 0 0.5px var(--line-soft);
+}
+
+/* 无轨道形态：页签直接坐在内容上，靠间距分隔 */
+.c-tabs--plain {
+  padding: 0;
+  gap: var(--s-3);
+  background: transparent;
+  box-shadow: none;
+}
+
+.c-tabs__scroll {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  overflow: hidden auto;
+  scrollbar-width: none;
+}
+
+.c-tabs__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.c-tabs__tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex: none;
+  height: 26px;
+  padding: 0 var(--s-5);
+  border-radius: calc(var(--r-md) - 3px);
+  font-size: var(--fs-12);
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: default;
+  user-select: none;
+  transition: color var(--dur-1) var(--ease-out),
+    background-color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out);
+}
+
+.c-tabs__tab:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: -1px;
+}
+
+.c-tabs__tab[aria-disabled="true"] {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.c-tabs__tab:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+
+/* 选中 = 抬起来的那一颗。用中性实心 + 卡片影，不用强调色 ——
+   强调色留给分段控件，两者才不会在同一屏里打架。
+   影子里必须有一条发丝边：纯白块压在 8% 灰轨道上，没有边就读不出高度。 */
+.c-tabs__tab[aria-selected="true"] {
+  color: var(--text-primary);
+  background: var(--surface-card);
+  box-shadow:
+    0 0 0 0.5px var(--line),
+    0 1px 2px rgb(0 0 0 / calc(0.08 * var(--shadow-k)));
+}
+
+.c-tabs--plain .c-tabs__tab[aria-selected="true"] {
+  background: var(--surface-control);
+  box-shadow: none;
+}
+
+.c-tabs__close {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  margin-right: -4px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: none;
+  color: var(--text-tertiary);
+  opacity: 0;
+  transition: opacity var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
+}
+
+.c-tabs__tab:hover .c-tabs__close,
+.c-tabs__tab[aria-selected="true"] .c-tabs__close,
+.c-tabs__close:focus-visible {
+  opacity: 1;
+}
+
+.c-tabs__close:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 1px;
+}
+
+.c-tabs__close:hover {
+  background: var(--surface-control-active);
+  color: var(--text-primary);
+}
+
+/* 页签拖拽排序 */
+.c-tabs__tab[draggable="true"] {
+  cursor: grab;
+  user-select: none;
+}
+
+.c-tabs__tab[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.c-tabs__tab.is-dragging {
+  opacity: 0.45;
+  transform: scale(0.96);
+}
+
+.c-tabs__tab.is-dragover {
+  background: var(--surface-control-active);
+  box-shadow: 0 0 0 1.5px var(--accent, #0a84ff);
+}
+
+

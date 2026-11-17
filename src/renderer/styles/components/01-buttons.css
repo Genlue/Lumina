@@ -1,0 +1,196 @@
+/* ==========================================================================
+   Lumina · Components
+   控件库。页面只允许拼装这里的类，不允许写视觉样式。
+   命名：c-<组件>[__<部件>][--<变体>]
+   ========================================================================== */
+
+/* ==========================================================================
+   1. 按钮
+   ========================================================================== */
+
+.c-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ctl-gap, var(--s-3));
+  height: var(--ctl-h, 28px);
+  padding: 0 var(--ctl-pad, var(--s-6));
+  border-radius: var(--ctl-r, var(--r-sm));
+  font-size: var(--ctl-fs, var(--fs-13));
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: var(--tracking-body);
+  color: var(--text-primary);
+  background: var(--surface-control);
+  white-space: nowrap;
+  /* 提层：按压缩放时文字作为纹理整体缩放，不会因重新栅格化而抖 */
+  transform: translateZ(0);
+  will-change: transform;
+  transition: background-color var(--dur-1) var(--ease-out),
+    transform var(--dur-1) var(--ease-out), opacity var(--dur-1) linear;
+}
+
+/* 图标尺寸跟随容器给的 --ctl-ic，不再由调用方传死数字 */
+.c-btn > .ic {
+  width: var(--ctl-ic, 16px);
+  height: var(--ctl-ic, 16px);
+}
+
+.c-iconbtn > .ic {
+  width: var(--ctl-ic, 16px);
+  height: var(--ctl-ic, 16px);
+}
+
+.c-seg__opt > .ic {
+  width: var(--ctl-ic, 13px);
+  height: var(--ctl-ic, 13px);
+}
+
+/* CJK 字形墨迹比 em 盒中心高约 0.06em，把文字下移回视觉中线；图标保持几何居中。
+   用 em 而不是 px，换字号时偏移自动等比缩放。 */
+.c-btn__label,
+.c-seg__label {
+  position: relative;
+  top: 0.06em;
+}
+
+.c-btn:hover {
+  background: var(--surface-control-hover);
+}
+
+.c-btn:active {
+  background: var(--surface-control-active);
+  transform: scale(0.97);
+}
+
+.c-btn--primary {
+  color: var(--text-on-accent);
+  background: var(--accent);
+}
+
+.c-btn--primary:hover {
+  background: var(--accent-hover);
+}
+
+.c-btn--primary:active {
+  background: var(--accent-hover);
+}
+
+.c-btn--plain {
+  background: transparent;
+}
+
+.c-btn--plain:hover {
+  background: var(--surface-hover);
+}
+
+.c-btn--plain:active {
+  background: var(--surface-selection);
+}
+
+.c-btn--danger {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.c-btn--danger:hover {
+  background: color-mix(in srgb, var(--danger) 20%, transparent);
+}
+
+/* 尺寸变体只改这一组变量，几何规则一条都不重复 */
+.c-btn--sm {
+  --ctl-h: 24px;
+  --ctl-ic: 13px;
+  --ctl-r: var(--r-xs);
+  --ctl-pad: var(--s-4);
+  --ctl-gap: var(--s-2);
+  --ctl-fs: var(--fs-12);
+}
+
+.c-btn--lg {
+  --ctl-h: 32px;
+  --ctl-ic: 18px;
+  --ctl-r: var(--r-md);
+  --ctl-pad: var(--s-7);
+}
+
+.c-btn[disabled],
+.c-btn[aria-disabled="true"] {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* —— 图标按钮 —— */
+.c-iconbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--ctl-h, 28px);
+  height: var(--ctl-h, 28px);
+  border-radius: var(--ctl-r, var(--r-sm));
+  color: var(--text-secondary);
+  background: transparent;
+  line-height: 1;
+  transform: translateZ(0);
+  will-change: transform;
+  transition: background-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
+}
+
+.c-iconbtn:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.c-iconbtn:active {
+  background: var(--surface-selection);
+  transform: scale(0.94);
+}
+
+.c-iconbtn--tonal {
+  background: var(--surface-control);
+}
+
+.c-iconbtn--tonal:hover {
+  background: var(--surface-control-hover);
+}
+
+.c-iconbtn--on {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.c-iconbtn--on:hover {
+  background: var(--accent-hover);
+  color: var(--text-on-accent);
+}
+/* 两态的图标按钮：展开/启用 = 强调色图标，收起 = 中性。
+   不做实心块 —— 实心是 variant:'on' 的语义（单选、当前页），
+   开关只表示「这个面板现在是开着的」，不该和「选中了某一项」长得一样。
+   用法：IconButton({ toggle: true, active: on })，状态落在 aria-pressed 上，
+   颜色由这里统一给，页面不要再各写一份 .is-on。 */
+.c-iconbtn[aria-pressed="true"] {
+  color: var(--accent);
+}
+
+.c-iconbtn[aria-pressed="true"]:hover {
+  color: var(--accent-hover);
+}
+
+.c-iconbtn--sm {
+  --ctl-h: 22px;
+  --ctl-ic: 13px;
+  --ctl-r: var(--r-xs);
+}
+
+.c-iconbtn--lg {
+  --ctl-h: 32px;
+  --ctl-ic: 18px;
+  --ctl-r: var(--r-md);
+}
+
+.c-iconbtn[disabled] {
+  opacity: 0.35;
+  pointer-events: none;
+}
+

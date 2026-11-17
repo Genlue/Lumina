@@ -1,0 +1,111 @@
+/* ==========================================================================
+   36. 模态 Dialog / 浮层 Popover
+   —— 模态是「必须先回答」，浮层是「顺带看一眼」。层级差一级：
+      模态 L4 sheet，浮层 L3 popover。
+   ========================================================================== */
+
+.c-dialog-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: grid;
+  place-items: center;
+  padding: var(--s-9);
+  background: var(--scrim);
+}
+
+/* 二级弹窗的遮罩要更浅：下面那一层已经压过一轮暗了，
+   再叠一层全浓度，两级之间就读不出「谁压在谁上面」。 */
+.c-dialog-scrim[data-level="2"],
+.c-dialog-scrim[data-level="3"],
+.c-dialog-scrim[data-level="4"] {
+  background: color-mix(in srgb, var(--scrim) 55%, transparent);
+}
+
+/* 面板本身是可聚焦容器（tabindex=-1），但不该画焦点环 ——
+   它一出现就有一圈蓝边，读起来像「整个对话框被选中了」。 */
+.c-dialog:focus,
+.c-dialog:focus-visible {
+  outline: none;
+}
+
+.c-dialog {
+  width: var(--dlg-w, 380px);
+  max-width: 100%;
+  max-height: 100%;
+  overflow: hidden auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding: var(--s-9);
+  border-radius: var(--r-xl);
+  will-change: transform, opacity;
+}
+
+/* 二级：阴影再重一档，读起来离屏幕更近 */
+.c-dialog--sub {
+  box-shadow:
+    var(--shadow-popover),
+    0 28px 72px -18px rgb(0 0 0 / calc(0.55 * var(--shadow-k))),
+    inset 0 0 0 0.5px var(--line);
+}
+
+.c-dialog__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-5);
+}
+
+.c-dialog__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.c-dialog__icon--danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.c-dialog__title {
+  font-size: var(--fs-15);
+  font-weight: 600;
+  letter-spacing: var(--tracking-title);
+  color: var(--text-glass-1, var(--text-primary));
+}
+
+.c-dialog__desc {
+  margin-top: var(--s-2);
+  font-size: var(--fs-12);
+  line-height: var(--lh-base);
+  color: var(--text-glass-2, var(--text-secondary));
+}
+
+.c-dialog__body {
+  min-width: 0;
+  color: var(--text-glass-1, var(--text-primary));
+}
+
+.c-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-4);
+}
+
+/* 浮层：任意内容，不是菜单。菜单有 role=menu 和一套项结构，别拿浮层顶替。 */
+.c-popover {
+  position: fixed;
+  z-index: 400;
+  min-width: 160px;
+  max-width: 320px;
+  padding: var(--s-5);
+  border-radius: var(--r-md);
+  color: var(--text-glass-1, var(--text-primary));
+  will-change: transform, opacity;
+}
+

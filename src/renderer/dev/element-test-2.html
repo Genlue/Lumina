@@ -1,0 +1,1535 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:,">
+<title>第三轮控件回归测试</title>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/layout.css">
+<link rel="stylesheet" href="../styles/components.css">
+<style>
+  body { padding: 24px; }
+  #host { position: fixed; inset: 0; z-index: 5; background: var(--surface-window); overflow: auto; padding: 12px; }
+  pre { position: relative; z-index: 6; white-space: pre-wrap; font-size: 12px; }
+</style>
+</head>
+<body>
+<pre id="out">running…</pre>
+<main id="host"></main>
+<script type="module">
+import {
+  ColorWell, RangeSlider, Pagination, StatusBar, DocumentTabs, ToolbarCustomization,
+  layerDepth,
+} from '../scripts/ui/kit.js';
+import { closeAllLayers } from '../scripts/ui/_shared/overlay.js';
+import { h } from '../scripts/core/dom.js';
+import { theme } from '../scripts/core/theme.js';
+
+const results = [];
+const ok = (name, pass, detail = '') => results.push(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? ` · ${detail}` : ''}`);
+const raf = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const key = (t, k, o = {}) => t.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...o }));
+const click = (t) => t.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+const pointer = (t, type) => t.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 1, button: 0, clientX: 40, clientY: 40 }));
+const near = (a, b, tol = 0.6) => Math.abs(a - b) <= tol;
+const one = (root, sel) => root.querySelector(sel);
+const all = (root, sel) => [...root.querySelectorAll(sel)];
+
+theme.init();
+if (new URLSearchParams(location.search).get('theme') === 'dark') theme.setMode('dark', { persist: false });
+
+const host = document.querySelector('#host');
+
+/** 定宽挂载：几何断言依赖可预测的容器宽度 */
+const box = (node, width = 320) => {
+  const wrap = h('div', { style: { width: `${width}px` } }, node);
+  host.append(wrap);
+  return wrap;
+};
+
+/**
+ * 每段独立跑：段内抛错只丢这一段，段尾强制收层 + 清空临时 DOM。
+ * 浮层、弹窗、观察者一律在这里收口，避免上一段挡住下一段。
+ */
+const section = async (name, fn) => {
+  try {
+    await fn();
+  } catch (err) {
+    ok(`${name} · 段内无异常`, false, err?.stack?.split('\n')[0] ?? String(err));
+    console.error(err);
+  } finally {
+    closeAllLayers();
+    host.replaceChildren();
+    if (layerDepth() !== 0) closeAllLayers();
+  }
+};
+
+/* ============================================================
+   1. ColorWell（源：dev/tests/colorwell.html，49 条）
+   ============================================================ */
+await section('ColorWell', async () => {
+  const depth0 = layerDepth();
+
+  /* ---------------- 1. 渲染与 ARIA ---------------- */
+  const seen = { input: 0, change: 0 };
+  const well = ColorWell({
+    value: '#0a84ff',
+    onInput: () => { seen.input += 1; },
+    onChange: () => { seen.change += 1; },
+  });
+  host.append(well);
+
+  ok('ColorWell · 井是 role=button 且声明弹层', well.getAttribute('role') === 'button' && well.getAttribute('aria-haspopup') === 'dialog');
+  const aria = well.getAttribute('aria-label');
+  ok('ColorWell · aria-label 带色值与不透明度', /#0A84FF/.test(aria) && /不透明度 100%/.test(aria), aria);
+  ok('ColorWell · 井内有棋盘格填充层', !!well.querySelector('.c-colorwell__fill'));
+  const wellBox = well.getBoundingClientRect();
+  ok('ColorWell · 井尺寸从 --ctl-h 派生', wellBox.width > 40 && wellBox.height >= 24, `${Math.round(wellBox.width)}×${Math.round(wellBox.height)}`);
+
+  /* ---------------- 2. 打开面板 ---------------- */
+  well.focus();
+  well.open();
+  await raf();
+  const panel = well.panel;
+  ok('ColorWell · 面板挂到 document.body', panel.parentElement === document.body);
+  ok('ColorWell · 开层后层栈 +1', layerDepth() === depth0 + 1, `depth=${layerDepth()}`);
+  ok('ColorWell · aria-expanded 同步', well.getAttribute('aria-expanded') === 'true');
+  ok('ColorWell · 面板是 dialog 且有真尺寸', panel.getAttribute('role') === 'dialog' && panel.offsetWidth > 200, `${panel.offsetWidth}px`);
+
+  /* ---------------- 3. 十六进制提交 ---------------- */
+  const hexInput = panel.querySelector('.c-colorpicker__hex');
+  hexInput.value = '#ff0000';
+  key(hexInput, 'Enter');
+  ok('ColorWell · 十六进制 Enter 提交', well.value().hex === '#ff0000', well.value().hex);
+
+  hexInput.value = 'zzz';
+  key(hexInput, 'Enter');
+  ok('ColorWell · 非法十六进制回退且闪 invalid',
+    well.value().hex === '#ff0000' && hexInput.dataset.invalid === '1' && hexInput.value === '#ff0000');
+  await sleep(600);
+  ok('ColorWell · invalid 标记会自己消失', hexInput.dataset.invalid !== '1');
+
+  /* ---------------- 4. RGB 提交 ---------------- */
+  hexInput.blur(); // 光标离开十六进制框，避免它继续持有草稿
+  const nums = [...panel.querySelectorAll('.c-colorpicker__num')];
+  // 三个框各自独立提交（失焦/Enter），每次提交都会用当前值刷新其它两个框，
+  // 所以按 R → G → B 的顺序逐个打
+  nums[0].value = '0';
+  key(nums[0], 'Enter');
+  const s1 = well.value().hex;
+  nums[1].value = '0';
+  key(nums[1], 'Enter');
+  const s2 = well.value().hex;
+  nums[2].value = '255';
+  key(nums[2], 'Enter');
+  const s3 = well.value().hex;
+  ok('ColorWell · RGB 三个输入提交成蓝色', s3 === '#0000ff', `${s1} → ${s2} → ${s3}`);
+  ok('ColorWell · 提交后 RGB 框被规范化', nums[0].value === '0' && nums[2].value === '255', `${nums[0].value}/${nums[1].value}/${nums[2].value}`);
+
+  /* ---------------- 5. 不透明度 ---------------- */
+  const alphaBar = panel.querySelector('.c-colorpicker__alpha');
+  alphaBar.focus();
+  key(alphaBar, 'ArrowLeft');
+  key(alphaBar, 'ArrowLeft');
+  ok('ColorWell · 不透明度键盘 −2%', Math.abs(well.value().a - 0.98) < 1e-6, String(well.value().a));
+  ok('ColorWell · alpha 条 aria-valuenow 同源', alphaBar.getAttribute('aria-valuenow') === '98', alphaBar.getAttribute('aria-valuenow'));
+  key(alphaBar, 'Home');
+  ok('ColorWell · Home 到全透明', well.value().a === 0, String(well.value().a));
+  key(alphaBar, 'End');
+  ok('ColorWell · End 回全不透明', well.value().a === 1, String(well.value().a));
+
+  /* ---------------- 6. 色相键盘 ---------------- */
+  const hueBar = panel.querySelector('.c-colorpicker__hue');
+  hueBar.focus();
+  const h0 = Number(hueBar.getAttribute('aria-valuenow'));
+  key(hueBar, 'ArrowRight');
+  const h1 = Number(hueBar.getAttribute('aria-valuenow'));
+  ok('ColorWell · 色相 → 步进 1°', h1 === h0 + 1, `${h0} → ${h1}`);
+  key(hueBar, 'ArrowRight', { shiftKey: true });
+  ok('ColorWell · 色相 Shift → 步进 10°', Number(hueBar.getAttribute('aria-valuenow')) === h1 + 10);
+  key(hueBar, 'Home');
+  ok('ColorWell · 色相 Home 归零', hueBar.getAttribute('aria-valuenow') === '0');
+
+  /* ---------------- 7. 饱和度面板键盘 ---------------- */
+  const sv = panel.querySelector('.c-colorpicker__sv');
+  sv.focus();
+  key(sv, 'ArrowLeft');
+  ok('ColorWell · 饱和度面板 ← 减饱和', sv.getAttribute('aria-valuetext').includes('饱和度 99%'), sv.getAttribute('aria-valuetext'));
+
+  /* ---------------- 8. 预设 ---------------- */
+  const presets = [...panel.querySelectorAll('.c-colorpicker__preset')];
+  ok('ColorWell · 预设行取自 ACCENT_PRESETS', presets.length === 8, `n=${presets.length}`);
+  click(presets[0]);
+  ok('ColorWell · 点预设直接应用', well.value().hex === '#0a84ff', well.value().hex);
+  ok('ColorWell · 当前色在预设上标 aria-pressed', presets[0].getAttribute('aria-pressed') === 'true');
+
+  /* ---------------- 9. Esc 关闭与焦点归还 ---------------- */
+  well.focus();
+  key(well, 'Escape');
+  await raf();
+  ok('ColorWell · Esc 收起面板', !well.isOpen() && !panel.isConnected);
+  ok('ColorWell · 层栈归零', layerDepth() === 0, `depth=${layerDepth()}`);
+  ok('ColorWell · 关闭后焦点回到井', document.activeElement === well, document.activeElement?.className);
+
+  /* ---------------- 10. 点外面关闭 ---------------- */
+  well.open();
+  await raf();
+  pointer(document.body, 'pointerdown');
+  await raf();
+  ok('ColorWell · 点外面收起面板', !well.isOpen() && layerDepth() === 0);
+
+  /* ---------------- 11. 拖动（指针） ---------------- */
+  well.open();
+  await raf();
+  const fillBefore = well.value().css;
+  const inputBefore = seen.input;
+  pointer(panel.querySelector('.c-colorpicker__sv'), 'pointerdown');
+  await raf();
+  ok('ColorWell · 指针按下即取色', well.value().css !== fillBefore, `${fillBefore} → ${well.value().css}`);
+  pointer(panel.querySelector('.c-colorpicker__sv'), 'pointerup');
+  await raf();
+  ok('ColorWell · 拖动过程走 onInput（rAF 合并）', seen.input > inputBefore, `input=${seen.input}`);
+
+  /* ---------------- 12. set() 静默 ---------------- */
+  const silent = { change: 0 };
+  const w2 = ColorWell({ value: '#000000', onChange: () => { silent.change += 1; } });
+  host.append(w2);
+  w2.set({ r: 18, g: 52, b: 86, a: 0.5, space: 'srgb' });
+  ok('ColorWell · set() 不触发回调', silent.change === 0);
+  ok('ColorWell · set() 后 value 一致', w2.value().hex === '#123456' && Math.abs(w2.value().a - 0.5) < 1e-6, JSON.stringify(w2.value()));
+  ok('ColorWell · set() 输出可直接进 style', /^rgb\(18 52 86 \/ 0\.5\)$/.test(w2.value().css), w2.value().css);
+
+  /* ---------------- 13. Display P3 ---------------- */
+  const p3 = ColorWell({ value: '#0a84ff', space: 'display-p3' });
+  host.append(p3);
+  ok('ColorWell · p3 的 css 用 color(display-p3)', p3.value().css.startsWith('color(display-p3'), p3.value().css);
+  ok('ColorWell · p3 的 hex 仍是 6 位近似值', /^#[0-9a-f]{6}$/.test(p3.value().hex), p3.value().hex);
+  const p3Obj = ColorWell({ value: { r: 255, g: 0, b: 0, a: 1, space: 'display-p3' } });
+  ok('ColorWell · 对象值与 space 一起带进来', p3Obj.value().space === 'display-p3' && p3Obj.value().css.includes('display-p3'));
+
+  /* ---------------- 14. 禁用 ---------------- */
+  const off = ColorWell({ value: '#30d158', disabled: true });
+  host.append(off);
+  off.open();
+  ok('ColorWell · 禁用后打不开', !off.isOpen() && off.getAttribute('aria-disabled') === 'true');
+  ok('ColorWell · 禁用后不在 Tab 序列里', off.tabIndex === -1, `tabIndex=${off.tabIndex}`);
+
+  /* ---------------- 14b. showAlpha=false / Tab 进面板 / 再点井关闭 ---------------- */
+  const plain = ColorWell({ value: '#ffd60a', showAlpha: false });
+  host.append(plain);
+  plain.open();
+  await raf();
+  ok('ColorWell · showAlpha=false 不渲染 alpha 条', !plain.panel.querySelector('.c-colorpicker__alpha'));
+  ok('ColorWell · 没有 alpha 条时值仍是 1', plain.value().a === 1);
+  plain.close();
+  await raf();
+
+  well.focus();
+  well.open();
+  await raf();
+  key(well, 'Tab');
+  ok('ColorWell · Tab 从井进入面板', panel.contains(document.activeElement), document.activeElement?.className);
+  click(well);
+  await raf();
+  ok('ColorWell · 再点一次井关闭面板', !well.isOpen() && layerDepth() === 0);
+  plain.dispose();
+
+  /* ---------------- 14c. 打开时禁用会收起 ---------------- */
+  well.open();
+  await raf();
+  well.setDisabled(true);
+  ok('ColorWell · 打开时禁用立刻收起', !well.isOpen() && layerDepth() === 0);
+  well.setDisabled(false);
+  ok('ColorWell · 解除禁用后可以再打开', (well.open(), well.isOpen()));
+  well.close();
+  await raf();
+
+  /* ---------------- 14d. 只读：能开能看，改不动 ---------------- */
+  const ro = ColorWell({ value: '#bf5af2' });
+  host.append(ro);
+  ro.setReadonly(true);
+  ro.open();
+  await raf();
+  const roHex = ro.panel.querySelector('.c-colorpicker__hex');
+  roHex.value = '#000000';
+  key(roHex, 'Enter');
+  ok('ColorWell · 只读可以打开面板看值', ro.isOpen() && ro.getAttribute('aria-readonly') === 'true');
+  ok('ColorWell · 只读提交不改值', ro.value().hex === '#bf5af2', ro.value().hex);
+  ro.dispose();
+  await raf();
+  ok('ColorWell · 只读 dispose 后层栈归零', layerDepth() === 0, `depth=${layerDepth()}`);
+
+  /* ---------------- 15. dispose 幂等 ---------------- */
+  well.open();
+  await raf();
+  let threw = null;
+  try {
+    well.dispose();
+    well.dispose();
+    well.dispose();
+  } catch (err) {
+    threw = err;
+  }
+  ok('ColorWell · dispose 连调 3 次不抛', !threw, threw ? String(threw) : 'ok');
+  ok('ColorWell · dispose 会收起面板', !well.isOpen() && layerDepth() === 0, `depth=${layerDepth()}`);
+  w2.dispose();
+  p3.dispose();
+  off.dispose();
+  p3Obj.dispose();
+});
+
+/* ============================================================
+   2. RangeSlider（源：dev/tests/rangeslider.html，48 条）
+   ============================================================ */
+await section('RangeSlider', async () => {
+  const thumbOf = (el, side) => el.querySelector(`.c-rangeslider__thumb[data-side="${side}"]`);
+
+  /* ---------------- 结构 / 初始值 ---------------- */
+  const rs = RangeSlider({ value: [25, 75], label: '价格区间', showValue: true });
+  box(rs, 320);
+  await raf();
+
+  ok('RangeSlider · 初始值 = [25,75]', JSON.stringify(rs.value()) === '[25,75]', JSON.stringify(rs.value()));
+  ok('RangeSlider · 容器 role=group 且可命名',
+    rs.getAttribute('role') === 'group' && rs.getAttribute('aria-label') === '价格区间');
+  ok('RangeSlider · 两个拇指都是 role=slider',
+    rs.querySelectorAll('.c-rangeslider__thumb[role="slider"]').length === 2);
+
+  const lo = thumbOf(rs, 'lo');
+  const hi = thumbOf(rs, 'hi');
+  ok('RangeSlider · 拇指可 Tab（tabindex=0）',
+    lo.tabIndex === 0 && hi.tabIndex === 0,
+    `${lo.tabIndex}/${hi.tabIndex}`);
+  ok('RangeSlider · 拇指 aria 值与范围',
+    lo.getAttribute('aria-valuenow') === '25' &&
+    hi.getAttribute('aria-valuenow') === '75' &&
+    lo.getAttribute('aria-valuemin') === '0' &&
+    hi.getAttribute('aria-valuemax') === '100' &&
+    lo.getAttribute('aria-orientation') === 'horizontal',
+    `${lo.getAttribute('aria-valuenow')}/${hi.getAttribute('aria-valuenow')}`);
+  ok('RangeSlider · 拇指 aria-label 带组名前缀',
+    lo.getAttribute('aria-label') === '价格区间最小值' &&
+    hi.getAttribute('aria-label') === '价格区间最大值',
+    lo.getAttribute('aria-label'));
+  ok('RangeSlider · 读数显示 lo – hi',
+    rs.querySelector('.c-rangeslider__value')?.textContent === '25 – 75',
+    rs.querySelector('.c-rangeslider__value')?.textContent);
+
+  /* ---------------- 键盘 ---------------- */
+  lo.focus();
+  key(lo, 'ArrowRight');
+  ok('RangeSlider · → 步进 +1', rs.value()[0] === 26, JSON.stringify(rs.value()));
+
+  key(lo, 'ArrowRight', { shiftKey: true });
+  ok('RangeSlider · Shift+→ ×10', rs.value()[0] === 36, JSON.stringify(rs.value()));
+
+  key(lo, 'PageUp');
+  ok('RangeSlider · PageUp +10% 量程', rs.value()[0] === 46, JSON.stringify(rs.value()));
+
+  key(lo, 'Home');
+  ok('RangeSlider · Home 到 min', rs.value()[0] === 0, JSON.stringify(rs.value()));
+  key(hi, 'End');
+  ok('RangeSlider · End 到 max（hi 侧）', rs.value()[1] === 100, JSON.stringify(rs.value()));
+
+  key(lo, 'ArrowLeft');
+  key(lo, 'ArrowLeft');
+  ok('RangeSlider · ← 步进 −1（不受 Shift 残留影响）', rs.value()[0] === 0, JSON.stringify(rs.value()));
+
+  /* ---------------- push ---------------- */
+  const pushRs = RangeSlider({ value: [74, 75], crossing: 'push', label: '推挤' });
+  box(pushRs, 320);
+  await raf();
+  const plo = thumbOf(pushRs, 'lo');
+  plo.focus();
+  key(plo, 'ArrowRight'); // 75，贴住 hi
+  ok('RangeSlider · push：贴住另一侧时不越过', JSON.stringify(pushRs.value()) === '[75,75]', JSON.stringify(pushRs.value()));
+  key(plo, 'ArrowRight'); // 76 → 顶着 hi 一起走
+  ok('RangeSlider · push：继续推则带着另一侧走', JSON.stringify(pushRs.value()) === '[76,76]', JSON.stringify(pushRs.value()));
+  key(plo, 'ArrowLeft'); // 75，hi 留在 76
+  ok('RangeSlider · push：推着走之后间距不回填', JSON.stringify(pushRs.value()) === '[75,76]', JSON.stringify(pushRs.value()));
+
+  /* ---------------- clamp ---------------- */
+  const clampRs = RangeSlider({ value: [74, 75], crossing: 'clamp', label: '挡住' });
+  box(clampRs, 320);
+  await raf();
+  const clo = thumbOf(clampRs, 'lo');
+  clo.focus();
+  key(clo, 'ArrowRight');
+  key(clo, 'ArrowRight');
+  ok('RangeSlider · clamp：挡在另一侧，不越过', JSON.stringify(clampRs.value()) === '[75,75]', JSON.stringify(clampRs.value()));
+  ok('RangeSlider · clamp：焦点留在原拇指', document.activeElement === clo, document.activeElement?.dataset?.side);
+
+  /* ---------------- swap ---------------- */
+  const swapRs = RangeSlider({ value: [74, 75], crossing: 'swap', label: '交换' });
+  box(swapRs, 320);
+  await raf();
+  const slo = thumbOf(swapRs, 'lo');
+  const shi = thumbOf(swapRs, 'hi');
+  slo.focus();
+  key(slo, 'ArrowRight');
+  key(slo, 'ArrowRight');
+  ok('RangeSlider · swap：越过时值互换', JSON.stringify(swapRs.value()) === '[75,76]', JSON.stringify(swapRs.value()));
+  ok('RangeSlider · swap：焦点跟着值落到另一端', document.activeElement === shi, document.activeElement?.dataset?.side);
+  key(document.activeElement, 'ArrowRight');
+  ok('RangeSlider · swap：交换后继续按仍单调向右', JSON.stringify(swapRs.value()) === '[75,77]', JSON.stringify(swapRs.value()));
+
+  /* ---------------- set / value ---------------- */
+  let inputs = 0;
+  let changes = 0;
+  const apiRs = RangeSlider({
+    value: [10, 20],
+    label: 'API',
+    onInput: () => { inputs += 1; },
+    onChange: () => { changes += 1; },
+  });
+  box(apiRs, 320);
+  await raf();
+  apiRs.set([30, 40]);
+  ok('RangeSlider · set 静默：不触发 onInput/onChange',
+    inputs === 0 && changes === 0 && JSON.stringify(apiRs.value()) === '[30,40]',
+    `in=${inputs},ch=${changes}`);
+  apiRs.set([80, 20]);
+  ok('RangeSlider · set 乱序自动排序', JSON.stringify(apiRs.value()) === '[20,80]', JSON.stringify(apiRs.value()));
+  apiRs.set([-40, 500]);
+  ok('RangeSlider · set 越界夹取', JSON.stringify(apiRs.value()) === '[0,100]', JSON.stringify(apiRs.value()));
+  const snap = apiRs.value();
+  snap[0] = 99;
+  ok('RangeSlider · value() 返回副本，外部改不动内部', apiRs.value()[0] === 0, JSON.stringify(apiRs.value()));
+
+  /* ---------------- aria-valuetext / format ---------------- */
+  const fmtRs = RangeSlider({ value: [5, 9], label: '温度', format: (v) => `${v}℃` });
+  box(fmtRs, 320);
+  await raf();
+  ok('RangeSlider · format 决定 aria-valuetext',
+    thumbOf(fmtRs, 'lo').getAttribute('aria-valuetext') === '5℃' &&
+    thumbOf(fmtRs, 'hi').getAttribute('aria-valuetext') === '9℃',
+    thumbOf(fmtRs, 'lo').getAttribute('aria-valuetext'));
+
+  /* ---------------- 浮点 / 步进 ---------------- */
+  const floatRs = RangeSlider({ min: 0, max: 1, step: 0.1, value: [0.1, 0.3] });
+  box(floatRs, 320);
+  await raf();
+  const flo = thumbOf(floatRs, 'lo');
+  flo.focus();
+  key(flo, 'ArrowRight');
+  ok('RangeSlider · 步进量化不留浮点尾巴', flo.getAttribute('aria-valuenow') === '0.2', flo.getAttribute('aria-valuenow'));
+
+  /* ---------------- 禁用 ---------------- */
+  const disRs = RangeSlider({ value: [20, 60], disabled: true, label: '禁用' });
+  box(disRs, 320);
+  await raf();
+  const dlo = thumbOf(disRs, 'lo');
+  ok('RangeSlider · 禁用：根节点 aria-disabled',
+    disRs.getAttribute('aria-disabled') === 'true' && disRs.dataset.disabled === '1');
+  ok('RangeSlider · 禁用：拇指不可聚焦、带 aria-disabled',
+    dlo.tabIndex === -1 && dlo.getAttribute('aria-disabled') === 'true' && thumbOf(disRs, 'hi').tabIndex === -1);
+  dlo.focus();
+  key(dlo, 'ArrowRight');
+  ok('RangeSlider · 禁用：键盘改不动值', JSON.stringify(disRs.value()) === '[20,60]', JSON.stringify(disRs.value()));
+  disRs.setDisabled(false);
+  ok('RangeSlider · 解除禁用：恢复 tabindex', thumbOf(disRs, 'lo').tabIndex === 0 && !disRs.dataset.disabled);
+
+  const invRs = RangeSlider({ value: [1, 2], label: '校验' });
+  box(invRs, 320);
+  invRs.setInvalid(true);
+  ok('RangeSlider · setInvalid 落 aria-invalid + data-invalid',
+    invRs.getAttribute('aria-invalid') === 'true' && invRs.dataset.invalid === '1');
+
+  /* ---------------- 刻度 ---------------- */
+  const tickRs = RangeSlider({ value: [10, 90], ticks: 5 });
+  box(tickRs, 320);
+  await raf();
+  ok('RangeSlider · ticks=5 渲染 5 根刻度',
+    tickRs.querySelectorAll('.c-rangeslider__tick').length === 5,
+    String(tickRs.querySelectorAll('.c-rangeslider__tick').length));
+  const zeroTick = RangeSlider({ value: [10, 90], ticks: 0 });
+  ok('RangeSlider · ticks=0 不画刻度', zeroTick.querySelectorAll('.c-rangeslider__tick').length === 0);
+
+  /* ---------------- 指针拖动 ---------------- */
+  let dragInputs = 0;
+  let dragChanges = 0;
+  const dragRs = RangeSlider({
+    value: [20, 80],
+    label: '拖动',
+    onInput: () => { dragInputs += 1; },
+    onChange: () => { dragChanges += 1; },
+  });
+  box(dragRs, 320);
+  await raf();
+  const track = dragRs.querySelector('.c-rangeslider__track');
+  const tr = track.getBoundingClientRect();
+  const at = (p) => tr.left + tr.width * p;
+  const pe = (type, x) => new PointerEvent(type, {
+    bubbles: true, cancelable: true, pointerId: 1, pointerType: 'mouse', isPrimary: true,
+    button: type === 'pointermove' ? -1 : 0, buttons: type === 'pointerup' ? 0 : 1, clientX: x, clientY: tr.top + tr.height / 2,
+  });
+  dragRs.dispatchEvent(pe('pointerdown', at(0.1))); // 落在 lo 附近
+  dragRs.dispatchEvent(pe('pointermove', at(0.4)));
+  dragRs.dispatchEvent(pe('pointerup', at(0.4)));
+  const dv = dragRs.value();
+  ok('RangeSlider · 指针拖动改值（就近选拇指）', near(dv[0], 40, 1.5) && dv[1] === 80, JSON.stringify(dv));
+  ok('RangeSlider · 拖动中 onInput，抬起一次 onChange',
+    dragInputs >= 1 && dragChanges === 1,
+    `in=${dragInputs},ch=${dragChanges}`);
+  ok('RangeSlider · 抬起后清掉拖动态',
+    !dragRs.querySelector('.c-rangeslider__thumb[data-dragging="1"]'));
+
+  // 指针 + 交叉：push 顶走 / clamp 挡住 / swap 拖动权转交
+  const dragEv = (node, pointerId) => (type, p) => {
+    const r = node.querySelector('.c-rangeslider__track').getBoundingClientRect();
+    node.dispatchEvent(new PointerEvent(type, {
+      bubbles: true, cancelable: true, pointerId, pointerType: 'mouse', isPrimary: true,
+      button: type === 'pointermove' ? -1 : 0,
+      buttons: type === 'pointerup' ? 0 : 1,
+      clientX: r.left + r.width * p,
+      clientY: r.top + r.height / 2,
+    }));
+  };
+  const dragAt = (node, fromP, toP, id = 2) => {
+    const fire = dragEv(node, id);
+    fire('pointerdown', fromP);
+    fire('pointermove', toP);
+    fire('pointerup', toP);
+  };
+
+  const pushDrag = RangeSlider({ value: [40, 50], crossing: 'push', label: '推' });
+  box(pushDrag, 320);
+  await raf();
+  dragAt(pushDrag, 0.4, 0.9);
+  ok('RangeSlider · push：指针越过时带着另一侧走',
+    near(pushDrag.value()[0], 90, 1.5) && near(pushDrag.value()[1], 90, 1.5),
+    JSON.stringify(pushDrag.value()));
+
+  const clampDrag = RangeSlider({ value: [40, 50], crossing: 'clamp', label: '挡' });
+  box(clampDrag, 320);
+  await raf();
+  dragAt(clampDrag, 0.4, 0.9);
+  const cTrack = clampDrag.querySelector('.c-rangeslider__track').getBoundingClientRect();
+  const cLo = thumbOf(clampDrag, 'lo').getBoundingClientRect();
+  ok('RangeSlider · clamp：指针拖过头，拇指停在另一侧',
+    JSON.stringify(clampDrag.value()) === '[50,50]' &&
+    near(cLo.left + cLo.width / 2, cTrack.left + cTrack.width * 0.5, 2),
+    `${JSON.stringify(clampDrag.value())} @${(cLo.left + cLo.width / 2).toFixed(1)}`);
+
+  const swapDrag = RangeSlider({ value: [70, 80], crossing: 'swap', label: '换' });
+  box(swapDrag, 320);
+  await raf();
+  const swapFire = dragEv(swapDrag, 3);
+  swapFire('pointerdown', 0.7);
+  swapFire('pointermove', 0.95);
+  ok('RangeSlider · swap：拖动权转交给「现在持有该值」的一侧',
+    JSON.stringify(swapDrag.value()) === '[80,95]' &&
+    thumbOf(swapDrag, 'hi').dataset.dragging === '1' &&
+    !thumbOf(swapDrag, 'lo').dataset.dragging,
+    `${JSON.stringify(swapDrag.value())} dragging=${thumbOf(swapDrag, 'hi').dataset.dragging}`);
+  swapFire('pointerup', 0.95);
+  ok('RangeSlider · swap：抬手后收掉拖动态',
+    !swapDrag.querySelector('.c-rangeslider__thumb[data-dragging="1"]'));
+
+  /* ---------------- 几何：200px 宽不越界 ---------------- */
+  const narrow = RangeSlider({ value: [0, 100], ticks: 3, label: '窄' });
+  box(narrow, 200);
+  await raf();
+  const rootRect = narrow.getBoundingClientRect();
+  const nlo = thumbOf(narrow, 'lo').getBoundingClientRect();
+  const nhi = thumbOf(narrow, 'hi').getBoundingClientRect();
+  ok('RangeSlider · 200px 容器：两端拇指都不越界',
+    near(rootRect.width, 200, 1) &&
+    nlo.left >= rootRect.left - 0.5 && nhi.right <= rootRect.right + 0.5,
+    `w=${rootRect.width.toFixed(1)}, lo.left=${nlo.left.toFixed(2)}, hi.right=${nhi.right.toFixed(2)}, root=[${rootRect.left.toFixed(2)},${rootRect.right.toFixed(2)}]`);
+
+  const nTrack = narrow.querySelector('.c-rangeslider__track').getBoundingClientRect();
+  ok('RangeSlider · 拇指圆心与轨道端点对齐',
+    near(nlo.left + nlo.width / 2, nTrack.left, 0.75) &&
+    near(nhi.left + nhi.width / 2, nTrack.right, 0.75),
+    `c0=${(nlo.left + nlo.width / 2).toFixed(2)}/${nTrack.left.toFixed(2)}`);
+
+  const nfill = narrow.querySelector('.c-rangeslider__fill').getBoundingClientRect();
+  ok('RangeSlider · 选中段铺满轨道（0..100）',
+    near(nfill.width, nTrack.width, 1),
+    `${nfill.width.toFixed(2)}/${nTrack.width.toFixed(2)}`);
+
+  const tickEls = [...narrow.querySelectorAll('.c-rangeslider__tick')].map((t) => t.getBoundingClientRect());
+  const tickX = (i) => tickEls[i].left + tickEls[i].width / 2;
+  ok('RangeSlider · 刻度与轨道同起同止（含两端）',
+    tickEls.length === 3 &&
+    near(tickX(0), nTrack.left, 1) &&
+    near(tickX(1), nTrack.left + nTrack.width / 2, 1) &&
+    near(tickX(2), nTrack.right, 1),
+    `${tickX(0).toFixed(1)}/${nTrack.left.toFixed(1)} … ${tickX(2).toFixed(1)}/${nTrack.right.toFixed(1)}`);
+
+  narrow.set([50, 50]);
+  await raf();
+  const cfill = narrow.querySelector('.c-rangeslider__fill').getBoundingClientRect();
+  ok('RangeSlider · 两端重合时选中段宽度归零', near(cfill.width, 0, 0.6), cfill.width.toFixed(2));
+
+  /* ---------------- dispose ---------------- */
+  const gone = RangeSlider({ value: [10, 20], onChange: () => { throw new Error('不该再回调'); } });
+  box(gone, 320);
+  await raf();
+  const glo = thumbOf(gone, 'lo');
+  let threw = false;
+  try {
+    gone.dispose();
+    gone.dispose();
+  } catch {
+    threw = true;
+  }
+  ok('RangeSlider · dispose 幂等（连调两次不抛）', !threw);
+  glo.focus();
+  key(glo, 'ArrowRight');
+  ok('RangeSlider · dispose 后键盘不再改值', JSON.stringify(gone.value()) === '[10,20]', JSON.stringify(gone.value()));
+
+  // 段尾统一收资源（dispose 幂等，已销毁的再调一次无副作用）
+  [rs, pushRs, clampRs, swapRs, apiRs, fmtRs, floatRs, disRs, invRs, tickRs, zeroTick,
+    dragRs, pushDrag, clampDrag, swapDrag, narrow, gone].forEach((c) => c.dispose());
+});
+
+/* ============================================================
+   3. Pagination（源：dev/tests/pagination.html，43 条）
+   ============================================================ */
+await section('Pagination', async () => {
+  const texts = (root, sel) => all(root, sel).map((n) => n.textContent.trim());
+
+  /* ---------------- 基础形态：20 页 ---------------- */
+  let last = null;
+  const queries = [];
+  const p = Pagination({
+    total: 400,
+    page: 1,
+    pageSize: 20,
+    onChange: (v) => { last = v; },
+    onQuery: (qq) => { queries.push(qq); },
+  });
+  host.append(p);
+
+  ok('Pagination · 根节点是 nav + aria-label', p.tagName === 'NAV' && p.getAttribute('role') === 'navigation' && p.getAttribute('aria-label') === '分页');
+  ok('Pagination · 页码组 role=group', p.querySelector('.c-pagination__pager')?.getAttribute('role') === 'group');
+  ok('Pagination · 初始值 page=1 / 20 条', p.value().page === 1 && p.value().pageSize === 20);
+  ok('Pagination · 总数文本带 aria-live', p.querySelector('.c-pagination__summary')?.getAttribute('aria-live') === 'polite'
+    && p.querySelector('.c-pagination__summary').textContent === '第 1 页，共 20 页，400 项',
+    p.querySelector('.c-pagination__summary')?.textContent);
+  ok('Pagination · 第一页禁用「上一页」', p.querySelector('[aria-label="上一页"]').getAttribute('aria-disabled') === 'true');
+
+  p.set({ page: 5 });
+  const order = texts(p, '.c-pagination__pages > *');
+  ok('Pagination · 20 页时折叠成省略号窗口', order.join('|') === '1|…|4|5|6|…|20', order.join('|'));
+  ok('Pagination · 首末页永远显示', order.includes('1') && order.includes('20'));
+  const cur5 = p.querySelector('.c-pagination__page[aria-current="page"]');
+  ok('Pagination · 当前页有 aria-current=page 且唯一', cur5?.textContent === '5' && p.querySelectorAll('[aria-current="page"]').length === 1);
+
+  /* ---------------- 点击页码：乐观更新 + 回调 + 焦点 ---------------- */
+  last = null;
+  queries.length = 0;
+  const btn6 = p.querySelector('.c-pagination__page[data-page="6"]');
+  click(btn6);
+  ok('Pagination · 点页码 → onChange 带 page', last?.page === 6 && last?.pageSize === 20 && last?.mode === 'page', JSON.stringify(last));
+  ok('Pagination · onQuery 每次动作只发一次', queries.length === 1 && queries[0].page === 6 && queries[0].size === 20, JSON.stringify(queries));
+  ok('Pagination · UI 先乐观到第 6 页', p.value().page === 6 && p.querySelector('[aria-current="page"]')?.textContent === '6');
+  ok('Pagination · 翻页后焦点落在新的当前页按钮', document.activeElement === p.querySelector('.c-pagination__page[data-page="6"]'),
+    document.activeElement?.className);
+
+  /* ---------------- 两端禁用 / 页码跳转 ---------------- */
+  p.set({ page: 1 });
+  ok('Pagination · 首页禁用「上一页」', p.querySelector('[aria-label="上一页"]').getAttribute('aria-disabled') === 'true');
+  p.set({ page: 20 });
+  ok('Pagination · 末页禁用「下一页」', p.querySelector('[aria-label="下一页"]').getAttribute('aria-disabled') === 'true');
+  p.set({ page: 10 });
+  last = null;
+  click(p.querySelector('.c-pagination__page[data-page="20"]'));
+  ok('Pagination · 页码可直接跳到末页', p.value().page === 20 && last?.page === 20);
+
+  /* ---------------- Home / End ---------------- */
+  p.set({ page: 8 });
+  p.querySelector('.c-pagination__page[data-page="8"]').focus();
+  key(document.activeElement, 'Home');
+  ok('Pagination · Home 跳到首页', p.value().page === 1, `page=${p.value().page}`);
+  key(document.activeElement, 'End');
+  ok('Pagination · End 跳到末页', p.value().page === 20, `page=${p.value().page}`);
+
+  /* ---------------- 每页条数：复用 Select ---------------- */
+  last = null;
+  queries.length = 0;
+  click(p.querySelector('.c-pagination__size-btn'));
+  await raf();
+  const sizeItems = all(document, '.c-menu__item');
+  const fifty = sizeItems.find((n) => n.textContent.trim() === '50');
+  click(fifty);
+  await raf();
+  ok('Pagination · 切换每页条数重置到第 1 页', p.value().pageSize === 50 && p.value().page === 1, JSON.stringify(p.value()));
+  ok('Pagination · 切换条数也发一次查询', queries.length === 1 && queries.at(-1).size === 50, JSON.stringify(queries));
+
+  /* ---------------- set 静默 ---------------- */
+  last = null;
+  queries.length = 0;
+  p.set({ page: 3, total: 1000 });
+  ok('Pagination · set 静默：不触发任何回调', last === null && queries.length === 0);
+  ok('Pagination · set 后值与总数同步', p.value().page === 3 && p.querySelector('.c-pagination__summary').textContent === '第 3 页，共 20 页，1000 项',
+    p.querySelector('.c-pagination__summary').textContent);
+
+  /* ---------------- 序列化 / 反序列化 ---------------- */
+  const qp = p.query();
+  ok('Pagination · query() 返回 { page, size }', qp.page === 3 && qp.size === 50 && Object.keys(qp).length === 2, JSON.stringify(qp));
+  p.setQuery('page=7&size=100');
+  ok('Pagination · setQuery 恢复 page + size', p.value().page === 7 && p.value().pageSize === 100, JSON.stringify(p.value()));
+  p.setQuery('?page=999');
+  ok('Pagination · setQuery 越界夹到末页', p.value().page === 10, `page=${p.value().page}`);
+  p.setQuery(new URLSearchParams('page=2&size=50'));
+  ok('Pagination · setQuery 接受 URLSearchParams', p.value().page === 2 && p.value().pageSize === 50);
+  p.setQuery('page=abc&size=zzz');
+  ok('Pagination · setQuery 忽略非法值', p.value().page === 2 && p.value().pageSize === 50, JSON.stringify(p.value()));
+
+  /* ---------------- 请求中：setBusy ---------------- */
+  p.setBusy(true);
+  const busyPage = p.value().page;
+  click(p.querySelector('[aria-label="下一页"]'));
+  ok('Pagination · setBusy 期间忽略重复点击', p.value().page === busyPage, `page=${p.value().page}`);
+  ok('Pagination · setBusy 写 aria-busy', p.getAttribute('aria-busy') === 'true');
+  ok('Pagination · setBusy 保留当前页显示', p.querySelector('[aria-current="page"]')?.textContent === String(busyPage));
+  p.setBusy(false);
+  ok('Pagination · 解除 busy 后按钮恢复可点', p.querySelector('[aria-label="下一页"]').getAttribute('aria-disabled') !== 'true');
+  p.set({ page: 1 });
+
+  /* ---------------- 总数未知 ---------------- */
+  let unknownChange = null;
+  const pu = Pagination({ page: 2, total: null, hasNext: false, onChange: (v) => { unknownChange = v; } });
+  host.append(pu);
+  ok('Pagination · 总数未知只显示「第 N 页」', pu.querySelector('.c-pagination__status')?.textContent === '第 2 页'
+    && pu.querySelectorAll('.c-pagination__page').length === 0);
+  ok('Pagination · 总数未知 hasNext=false 禁用下一页', pu.querySelector('[aria-label="下一页"]').getAttribute('aria-disabled') === 'true');
+  click(pu.querySelector('[aria-label="下一页"]'));
+  ok('Pagination · 总数未知时禁用按钮真的点不动', unknownChange === null && pu.value().page === 2);
+
+  /* ---------------- 游标模式 ---------------- */
+  let cursorChange = null;
+  let cursorQuery = null;
+  const pc = Pagination({
+    mode: 'cursor',
+    page: 2,
+    cursor: 'cur-a',
+    hasPrev: true,
+    hasNext: true,
+    onChange: (v) => { cursorChange = v; },
+    onQuery: (qqq) => { cursorQuery = qqq; },
+  });
+  host.append(pc);
+  ok('Pagination · 游标模式不算总页数', pc.querySelectorAll('.c-pagination__page').length === 0
+    && pc.querySelector('.c-pagination__status')?.textContent === '第 2 页');
+  ok('Pagination · 游标模式按钮带文字', pc.querySelector('[aria-label="下一页"]').textContent.includes('下一页'));
+  click(pc.querySelector('[aria-label="下一页"]'));
+  ok('Pagination · 游标模式 onChange 原样带回 cursor', cursorChange?.cursor === 'cur-a' && cursorChange?.page === 3 && cursorChange?.mode === 'cursor',
+    JSON.stringify(cursorChange));
+  ok('Pagination · 游标模式 query() 是 { cursor, size }', cursorQuery?.cursor === 'cur-a' && cursorQuery?.size === 20 && !('page' in cursorQuery),
+    JSON.stringify(cursorQuery));
+
+  /* ---------------- compact ---------------- */
+  const pk = Pagination({ compact: true, total: 160, page: 3, pageSize: 20 });
+  host.append(pk);
+  ok('Pagination · compact 只留 N / M', pk.querySelectorAll('.c-pagination__page').length === 0
+    && pk.querySelector('.c-pagination__status')?.textContent === '3 / 8',
+    pk.querySelector('.c-pagination__status')?.textContent);
+
+  /* ---------------- disabled ---------------- */
+  const pd = Pagination({ total: 100, disabled: true });
+  host.append(pd);
+  ok('Pagination · disabled 落到根与按钮上', pd.getAttribute('aria-disabled') === 'true'
+    && pd.querySelector('[aria-label="下一页"]').getAttribute('aria-disabled') === 'true');
+
+  /* ---------------- 300px 窄容器 ---------------- */
+  const narrowBox = h('div', { style: { width: '300px' } });
+  const pn = Pagination({ total: 4000, page: 50, pageSize: 20 });
+  narrowBox.append(pn);
+  host.append(narrowBox);
+  await raf();
+  ok('Pagination · 300px 容器没有横向溢出', pn.scrollWidth <= pn.clientWidth + 1, `scroll=${pn.scrollWidth} client=${pn.clientWidth}`);
+  ok('Pagination · 300px 下不换行', pn.getBoundingClientRect().height <= 34, `h=${pn.getBoundingClientRect().height}`);
+  ok('Pagination · 300px 下页码仍然可读', pn.querySelector('[aria-current="page"]')?.textContent === '50');
+
+  /* ---------------- dispose ---------------- */
+  let threw = false;
+  try {
+    p.dispose();
+    p.dispose();
+  } catch (err) {
+    threw = true;
+    console.error(err);
+  }
+  ok('Pagination · dispose 幂等', !threw);
+
+  [pu, pc, pk, pd, pn].forEach((c) => c.dispose());
+});
+
+/* ============================================================
+   4. StatusBar（源：dev/tests/statusbar.html，40 条）
+   ============================================================ */
+await section('StatusBar', async () => {
+  const stage = () => h('div', { class: 'box', style: { width: '800px' } });
+
+  /* ---------------- 1. items 渲染 ---------------- */
+  const bar = StatusBar({
+    items: [
+      { id: 'lines', label: '行', value: '128' },
+      { id: 'enc', label: '编码', value: 'UTF-8', icon: 'file-text' },
+      { id: 'net', label: '已连接', value: 'Wi-Fi', align: 'end' },
+    ],
+    tasks: [{ id: 'export', label: '导出视频', phase: 'running', progress: 0.42, cancel: true }],
+  });
+  const barBox = stage();
+  barBox.append(bar);
+  host.append(barBox);
+  await sleep(40);
+
+  const items = all(bar, '.c-statusbar__item');
+  ok('StatusBar · items 渲染 3 项', items.length === 3, `n=${items.length}`);
+  ok('StatusBar · items 文本与值正确',
+    items[0].textContent.includes('行') && items[0].textContent.includes('128') && items[1].textContent.includes('UTF-8'));
+
+  /* ---------------- 2. align:end 靠右 ---------------- */
+  const startEndEdge = items[1].getBoundingClientRect().right;
+  const endLeft = items[2].getBoundingClientRect().left;
+  ok('StatusBar · align:end 的项靠右', endLeft >= startEndEdge, `startRight=${startEndEdge} endLeft=${endLeft}`);
+
+  /* ---------------- 3. 单任务显示 ---------------- */
+  ok('StatusBar · 单任务直接显示名称', one(bar, '.c-statusbar__task-label')?.textContent === '导出视频');
+  ok('StatusBar · 单任务不出现「还有 N 项」', !bar.textContent.includes('还有'));
+
+  /* ---------------- 6. progressbar aria ---------------- */
+  const prog = one(bar, '.c-statusbar__progress');
+  ok('StatusBar · progressbar 三个 aria 值齐全',
+    prog?.getAttribute('role') === 'progressbar' &&
+      prog.getAttribute('aria-valuemin') === '0' &&
+      prog.getAttribute('aria-valuemax') === '100' &&
+      prog.getAttribute('aria-valuenow') === '42',
+    `now=${prog?.getAttribute('aria-valuenow')}`);
+  ok('StatusBar · 有 progress 才显示百分比数字', one(bar, '.c-statusbar__pct')?.textContent === '42%');
+
+  /* ---------------- 7. 不确定进度 ---------------- */
+  bar.setTasks([{ id: 'copy', label: '正在拷贝', phase: 'running', cancel: true }]);
+  const indet = one(bar, '.c-statusbar__progress');
+  ok('StatusBar · 不确定进度没有 aria-valuenow',
+    indet && !indet.hasAttribute('aria-valuenow') && indet.dataset.indeterminate === '1',
+    `now=${indet?.getAttribute('aria-valuenow')}`);
+  ok('StatusBar · 不确定进度不画百分比', one(bar, '.c-statusbar__pct') === null);
+
+  /* ---------------- 8. phase 文案映射 ---------------- */
+  const noteOf = (task) => {
+    bar.setTasks([{ id: 't', label: '任务', ...task }]);
+    return one(bar, '.c-statusbar__note')?.textContent ?? '';
+  };
+  const notes = {
+    queued: noteOf({ phase: 'queued' }),
+    paused: noteOf({ phase: 'paused', progress: 0.5 }),
+    success: noteOf({ phase: 'success' }),
+    error: noteOf({ phase: 'error', retry: true }),
+    cancelled: noteOf({ phase: 'cancelled', retry: true }),
+  };
+  ok('StatusBar · phase 文案映射',
+    notes.queued === '等待中' &&
+      notes.paused === '已暂停' &&
+      notes.success === '完成' &&
+      notes.error === '失败' &&
+      notes.cancelled === '已取消',
+    JSON.stringify(notes));
+  bar.setTasks([{ id: 'err', label: '任务', phase: 'error', retry: true }]);
+  ok('StatusBar · phase 落到 data-phase', one(bar, '.c-statusbar__task')?.dataset.phase === 'error');
+
+  /* ---------------- 4. 多任务折叠计数 ---------------- */
+  bar.setTasks([
+    { id: 'a', label: '导出视频', phase: 'running', progress: 0.3, cancel: true },
+    { id: 'b', label: '压缩图片', phase: 'queued' },
+    { id: 'c', label: '上传备份', phase: 'queued' },
+  ]);
+  const more = one(bar, '.c-statusbar__more');
+  ok('StatusBar · 多任务显示当前任务', one(bar, '.c-statusbar__task-label')?.textContent === '导出视频');
+  ok('StatusBar · 多任务显示「还有 N 项」', more?.hidden === false && more.textContent.includes('还有 2 项'), more?.textContent);
+
+  /* ---------------- 5. 展开列表（层栈） ---------------- */
+  const depth0 = layerDepth();
+  click(more);
+  await sleep(40);
+  const depth1 = layerDepth();
+  const rows = all(document.body, '.c-statusbar__row');
+  ok('StatusBar · 展开任务列表：层栈 +1', depth1 === depth0 + 1, `${depth0} → ${depth1}`);
+  ok('StatusBar · 列表里每项都有独立操作', rows.length === 3 && all(rows[0], '.c-statusbar__action').length === 1);
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+  await sleep(40);
+  ok('StatusBar · Esc 收起列表，层栈归位', layerDepth() === depth0, `depth=${layerDepth()}`);
+
+  /* ---------------- 11. setTask 合并 ---------------- */
+  bar.setTask('a', { progress: 0.75 });
+  const merged = bar.value().tasks.find((t) => t.id === 'a');
+  ok('StatusBar · setTask 合并字段',
+    merged.progress === 0.75 && merged.label === '导出视频' && merged.phase === 'running' && merged.cancel === true,
+    JSON.stringify(merged));
+
+  /* ---------------- 12. 未知 id 忽略 ---------------- */
+  const before = JSON.stringify(bar.value());
+  bar.setTask('nope', { label: '凭空出现', phase: 'running' });
+  ok('StatusBar · setTask 未知 id 被忽略', JSON.stringify(bar.value()) === before);
+
+  /* ---------------- 9/10. cancel / retry 回调 ---------------- */
+  const calls = [];
+  const act = StatusBar({
+    tasks: [
+      { id: 'dl', label: '下载', phase: 'running', progress: 0.1, cancel: true },
+    ],
+    onTaskAction: (id, type) => calls.push([id, type]),
+  });
+  const actBox = stage();
+  actBox.append(act);
+  host.append(actBox);
+  await sleep(40);
+  click(one(act, '.c-statusbar__action[data-action="cancel"]'));
+  ok('StatusBar · cancel 回调带 id 与类型', calls.some(([i, t]) => i === 'dl' && t === 'cancel'), JSON.stringify(calls));
+  ok('StatusBar · 组件不自行改状态', act.value().tasks[0].phase === 'running');
+
+  act.setTasks([{ id: 'dl', label: '下载', phase: 'error', retry: true }]);
+  click(one(act, '.c-statusbar__action[data-action="retry"]'));
+  ok('StatusBar · retry 回调带 id 与类型', calls.some(([i, t]) => i === 'dl' && t === 'retry'), JSON.stringify(calls));
+  ok('StatusBar · 没有 cancel:true 就不渲染取消按钮', act.value().tasks[0].cancel === false && one(act, '.c-statusbar__action[data-action="cancel"]') === null);
+
+  /* ---------------- 13. 空态 hidden ---------------- */
+  const emptyBar = StatusBar({ items: [], tasks: [] });
+  const emptyBox = stage();
+  emptyBox.append(emptyBar);
+  host.append(emptyBox);
+  await sleep(40);
+  ok('StatusBar · items/tasks 都为空 → hidden', emptyBar.hidden === true);
+  emptyBar.set({ items: [{ id: 'x', label: '就绪', value: 'OK' }], tasks: [] });
+  ok('StatusBar · 有 items 就不隐藏', emptyBar.hidden === false && emptyBar.textContent.includes('就绪'));
+  emptyBar.set({ items: [], tasks: [] });
+  ok('StatusBar · 清空后重新 hidden', emptyBar.hidden === true);
+
+  /* ---------------- 14. 窄容器 ---------------- */
+  const narrowHost = h('div', { class: 'box', style: { width: '480px' } });
+  host.append(narrowHost);
+  const nBar = StatusBar({
+    items: [
+      { id: 'a', label: '行', value: '128' },
+      { id: 'b', label: '列', value: '64' },
+      { id: 'c', label: '编码', value: 'UTF-8' },
+      { id: 'd', label: '已连接', value: 'Wi-Fi', align: 'end' },
+    ],
+    tasks: [
+      { id: 't1', label: '一个特别长的任务名称用来测试截断', phase: 'running', progress: 0.5, detail: '3.2 MB / 12 MB', cancel: true, retry: true },
+      { id: 't2', label: '第二个任务', phase: 'queued' },
+      { id: 't3', label: '第三个任务', phase: 'queued' },
+    ],
+  });
+  narrowHost.append(nBar);
+  await sleep(80);
+  const visItems = all(nBar, '.c-statusbar__item');
+  ok('StatusBar · 窄容器标记生效', nBar.dataset.narrow === '1', `narrow=${nBar.dataset.narrow}`);
+  ok('StatusBar · 窄容器只保留前两项 start', visItems.length === 2, `n=${visItems.length}`);
+  ok('StatusBar · 窄容器出现 … 入口', one(nBar, '.c-statusbar__overflow')?.hidden === false);
+  ok('StatusBar · 窄容器不溢出',
+    nBar.scrollWidth <= nBar.clientWidth + 1,
+    `scroll=${nBar.scrollWidth} client=${nBar.clientWidth}`);
+
+  /* ---------------- 16. 朗读节流 ---------------- */
+  const lBar = StatusBar({
+    tasks: [{ id: 'r', label: '渲染', phase: 'running', progress: 0.1 }],
+  });
+  const lBox = stage();
+  lBox.append(lBar);
+  host.append(lBox);
+  await sleep(40);
+  const live = one(lBar, '.c-statusbar__live');
+  const firstLive = live.textContent;
+  lBar.setTask('r', { progress: 0.5 });
+  const throttled = live.textContent;
+  await sleep(1100);
+  lBar.setTask('r', { progress: 0.9 });
+  const later = live.textContent;
+  ok('StatusBar · 同一任务进度 1 秒内不重复播报', throttled === firstLive && firstLive.includes('10%'), `${firstLive} → ${throttled}`);
+  ok('StatusBar · 超过 1 秒后进度才播报', later.includes('90%'), later);
+  lBar.setTask('r', { phase: 'error' });
+  ok('StatusBar · phase 变化立即播报', live.textContent.includes('失败'), live.textContent);
+  ok('StatusBar · live 区是 polite 的 status', live.getAttribute('role') === 'status' && live.getAttribute('aria-live') === 'polite');
+
+  /* ---------------- 17. success 自动淡出 ---------------- */
+  const sBar = StatusBar({
+    tasks: [{ id: 's', label: '保存', phase: 'success', progress: 1 }],
+    linger: 20,
+  });
+  const sBox = stage();
+  sBox.append(sBar);
+  host.append(sBox);
+  await sleep(40);
+  const hadTask = one(sBar, '.c-statusbar__task') !== null;
+  await sleep(450);
+  const goneTask = one(sBar, '.c-statusbar__task') === null;
+  ok('StatusBar · success 延时后淡出', hadTask && goneTask, `had=${hadTask} gone=${goneTask}`);
+  ok('StatusBar · 淡出不改数据真相', sBar.value().tasks[0].phase === 'success');
+
+  /* ---------------- 18. value() 返回副本 / set 静默 ---------------- */
+  const copy = bar.value();
+  copy.tasks[0].label = '被外部改坏';
+  ok('StatusBar · value() 返回副本', bar.value().tasks[0].label === '导出视频');
+  let quiet = 0;
+  const orig = bar.setTask;
+  bar.setTask = (...args) => {
+    quiet++;
+    return orig(...args);
+  };
+  bar.set({ tasks: [{ id: 'z', label: '静默', phase: 'queued' }] });
+  ok('StatusBar · set 不触发 setTask', quiet === 0 && bar.value().tasks.length === 1);
+  bar.setTask = orig;
+
+  /* ---------------- 15. dispose 幂等 ---------------- */
+  let threw = false;
+  try {
+    bar.dispose();
+    bar.dispose();
+  } catch {
+    threw = true;
+  }
+  ok('StatusBar · dispose 幂等不抛错', threw === false);
+  ok('StatusBar · dispose 不摘自己的 DOM', bar.isConnected === true);
+  const connectedAfter = bar.isConnected;
+  bar.setTasks([{ id: 'after', label: '销毁后', phase: 'queued' }]);
+  ok('StatusBar · 销毁后接口不再改 DOM', connectedAfter && bar.value().tasks.length === 1);
+
+  act.dispose();
+  emptyBar.dispose();
+  nBar.dispose();
+  lBar.dispose();
+  sBar.dispose();
+});
+
+/* ============================================================
+   5. DocumentTabs（源：dev/tests/documenttabs.html，38 条）
+   ============================================================ */
+await section('DocumentTabs', async () => {
+  /* ---------------- 渲染 / ARIA ---------------- */
+  const picked = [];
+  const closed = [];
+  const base = DocumentTabs({
+    documents: [
+      { id: 'a', title: '设计稿', icon: 'file-text' },
+      { id: 'b', title: '输出日志', icon: 'app-window' },
+      { id: 'c', title: 'README', icon: 'file-text' },
+    ],
+    activeId: 'a',
+    onSelect: (id) => picked.push(id),
+    onClose: (id) => closed.push(id),
+  });
+  host.append(base);
+  const tabsOf = (root) => all(root, '.c-documenttabs__tab');
+
+  ok('DocumentTabs · 渲染 3 颗页签 + role=tablist', base.getAttribute('role') === 'tablist' && tabsOf(base).length === 3);
+  ok('DocumentTabs · tablist 有可访问名', base.getAttribute('aria-label') === '文档');
+  ok('DocumentTabs · 初始 aria-selected 与 roving tabindex 一致',
+    tabsOf(base)[0].getAttribute('aria-selected') === 'true' &&
+      tabsOf(base)[0].tabIndex === 0 &&
+      tabsOf(base)[1].tabIndex === -1);
+
+  /* ---------------- 键盘 ---------------- */
+  tabsOf(base)[0].focus();
+  key(tabsOf(base)[0], 'ArrowRight');
+  ok('DocumentTabs · → 移动焦点但不自动激活（手动激活模型）',
+    document.activeElement === tabsOf(base)[1] &&
+      tabsOf(base)[1].tabIndex === 0 &&
+      tabsOf(base)[1].getAttribute('aria-selected') === 'false',
+    `focus=${document.activeElement?.dataset?.docid}`);
+
+  key(document.activeElement, 'End');
+  const endTab = document.activeElement;
+  key(endTab, 'Home');
+  ok('DocumentTabs · Home / End 到首尾', endTab?.dataset.docid === 'c' && document.activeElement?.dataset.docid === 'a');
+
+  key(document.activeElement, 'ArrowRight');
+  key(document.activeElement, 'ArrowRight');
+  key(document.activeElement, 'Enter');
+  ok('DocumentTabs · Enter 激活焦点页签并回调',
+    picked.at(-1) === 'c' && tabsOf(base)[2].getAttribute('aria-selected') === 'true',
+    `picked=${picked.join(',')}`);
+
+  /* ---------------- dirty ---------------- */
+  base.markDirty('b', true);
+  const bTab = tabsOf(base)[1];
+  const dot = bTab.querySelector('.c-documenttabs__dirty');
+  ok('DocumentTabs · markDirty 出现圆点且不重排（DOM 顺序不变）',
+    dot && !dot.hidden && parseFloat(getComputedStyle(dot).width) === 5 && tabsOf(base).map((t) => t.dataset.docid).join() === 'a,b,c');
+  const title = bTab.querySelector('.c-documenttabs__title');
+  ok('DocumentTabs · 圆点在标题右侧', title?.nextElementSibling === dot);
+  base.markDirty('b', false);
+  ok('DocumentTabs · markDirty(false) 收起圆点', dot.hidden === true);
+
+  /* ---------------- 关闭钮 ---------------- */
+  const closeBtn = tabsOf(base)[1].querySelector('.c-documenttabs__close');
+  ok('DocumentTabs · 关闭钮是真按钮且不占 Tab 序列',
+    closeBtn?.tagName === 'BUTTON' && closeBtn.tabIndex === -1 && closeBtn.getAttribute('aria-label') === '关闭 输出日志');
+
+  /* ---------------- panel 关联 ---------------- */
+  const p1 = h('div', null, '视图一');
+  const p2 = h('div', null, '视图二');
+  const pnlCmp = DocumentTabs({
+    documents: [
+      { id: 'v1', title: '视图一', panel: p1 },
+      { id: 'v2', title: '视图二', panel: p2 },
+    ],
+    activeId: 'v1',
+  });
+  host.append(pnlCmp, p1, p2);
+  const vTabs = tabsOf(pnlCmp);
+  ok('DocumentTabs · 传 panel 时接好 aria-controls / tabpanel / hidden',
+    vTabs[0].getAttribute('aria-controls') === p1.id &&
+      p1.getAttribute('role') === 'tabpanel' &&
+      p1.getAttribute('aria-labelledby') === vTabs[0].id &&
+      p1.hidden === false &&
+      p2.hidden === true);
+  click(vTabs[1]);
+  ok('DocumentTabs · 切换后 panel 的 hidden 同步', p1.hidden === true && p2.hidden === false);
+
+  /* ---------------- 固定页签 ---------------- */
+  const pinnedCmp = DocumentTabs({
+    documents: [
+      { id: 'd1', title: '文稿', icon: 'file-text' },
+      { id: 'p1', title: '设置', icon: 'settings', pinned: true },
+      { id: 'd2', title: '草稿' },
+    ],
+    activeId: 'd1',
+  });
+  host.append(pinnedCmp);
+  const pTabs = tabsOf(pinnedCmp);
+  ok('DocumentTabs · 固定页签排在最前（即使输入在中间）', pTabs[0].dataset.docid === 'p1');
+  ok('DocumentTabs · 固定页签只剩图标：无关闭钮、无标题、aria-label 是标题',
+    !pTabs[0].querySelector('.c-documenttabs__close') &&
+      !pTabs[0].querySelector('.c-documenttabs__title') &&
+      pTabs[0].getAttribute('aria-label') === '设置' &&
+      pTabs[0].getBoundingClientRect().width < 40);
+
+  const lockedCmp = DocumentTabs({ documents: [{ id: 'r', title: '只读', closable: false }], activeId: 'r' });
+  ok('DocumentTabs · closable:false 不出关闭钮', !lockedCmp.querySelector('.c-documenttabs__close'));
+
+  /* ---------------- 新建 ---------------- */
+  let newCount = 0;
+  const withNew = DocumentTabs({ documents: [{ id: 'n', title: '文档' }], onNew: () => newCount++ });
+  host.append(withNew);
+  const addBtn = withNew.querySelector('.c-documenttabs__new');
+  click(addBtn);
+  ok('DocumentTabs · ＋ 固定在末尾且有中文 aria-label',
+    addBtn?.getAttribute('aria-label') === '新建文档' && newCount === 1 &&
+      addBtn.compareDocumentPosition(withNew.querySelector('.c-documenttabs__scroll')) & Node.DOCUMENT_POSITION_PRECEDING);
+
+  /* ---------------- 关闭流程 ---------------- */
+  const closingCmp = DocumentTabs({
+    documents: [
+      { id: 'x', title: 'X' },
+      { id: 'y', title: 'Y' },
+    ],
+    activeId: 'x',
+    onClose: (id) => closed.push(id),
+  });
+  host.append(closingCmp);
+  await closingCmp.close('x');
+  ok('DocumentTabs · close() 真移除并回调 onClose',
+    tabsOf(closingCmp).length === 1 && closed.includes('x') && closingCmp.value().activeId === 'y');
+
+  /* ---------------- closeRequest 拒绝 ---------------- */
+  let asked = 0;
+  const guardCmp = DocumentTabs({
+    documents: [{ id: 'g', title: '未保存', dirty: true }],
+    activeId: 'g',
+    onCloseRequest: () => {
+      asked++;
+      return false;
+    },
+  });
+  host.append(guardCmp);
+  const allowed = await guardCmp.close('g');
+  const gTab = tabsOf(guardCmp)[0];
+  ok('DocumentTabs · closeRequest 返回 false → 不关闭、焦点回到页签',
+    allowed === false && tabsOf(guardCmp).length === 1 && asked === 1 && document.activeElement === gTab);
+  ok('DocumentTabs · 拒绝后 aria-busy 已清除', gTab.getAttribute('aria-busy') === null);
+
+  /* ---------------- 异步 closeRequest ---------------- */
+  let release;
+  const pending = new Promise((r) => { release = r; });
+  const asyncCmp = DocumentTabs({
+    documents: [{ id: 'as', title: '异步', dirty: true }],
+    activeId: 'as',
+    onCloseRequest: () => pending,
+  });
+  host.append(asyncCmp);
+  const first = asyncCmp.close('as');
+  await sleep(10);
+  const asTab = tabsOf(asyncCmp)[0];
+  ok('DocumentTabs · 异步询问期间 aria-busy=true', asTab.getAttribute('aria-busy') === 'true');
+  const second = await asyncCmp.close('as');
+  ok('DocumentTabs · 异步期间重复关闭被忽略', second === false && tabsOf(asyncCmp).length === 1);
+  release(true);
+  ok('DocumentTabs · 异步允许后真正移除', (await first) === true && tabsOf(asyncCmp).length === 0);
+
+  /* ---------------- 关当前 → 右邻 / 空态 ---------------- */
+  const neigh = DocumentTabs({
+    documents: [
+      { id: 'n1', title: '一' },
+      { id: 'n2', title: '二' },
+      { id: 'n3', title: '三' },
+    ],
+    activeId: 'n2',
+  });
+  host.append(neigh);
+  await neigh.closeActive();
+  ok('DocumentTabs · 关掉当前页签后激活右邻', neigh.value().activeId === 'n3');
+  await neigh.closeActive();
+  ok('DocumentTabs · 没有右邻时回到左邻', neigh.value().activeId === 'n1');
+  await neigh.closeActive();
+  const empty = neigh.querySelector('.c-documenttabs__empty');
+  ok('DocumentTabs · 最后一颗关闭后显示空态且不塌陷',
+    neigh.value().activeId === null && !!empty && tabsOf(neigh).length === 0 && neigh.getBoundingClientRect().height > 20,
+    `h=${neigh.getBoundingClientRect().height}`);
+
+  /* ---------------- Delete 关闭 ---------------- */
+  const delCmp = DocumentTabs({
+    documents: [
+      { id: 'k1', title: 'K1' },
+      { id: 'k2', title: 'K2' },
+    ],
+    activeId: 'k1',
+  });
+  host.append(delCmp);
+  tabsOf(delCmp)[0].focus();
+  key(tabsOf(delCmp)[0], 'Delete');
+  ok('DocumentTabs · Delete 关闭焦点页签', tabsOf(delCmp).length === 1 && delCmp.value().activeId === 'k2');
+
+  /* ---------------- 会话序列化 / 恢复 ---------------- */
+  const src = DocumentTabs({
+    documents: [
+      { id: 's1', title: '固定', pinned: true, icon: 'star' },
+      { id: 's2', title: '脏文档', dirty: true },
+      { id: 's3', title: '普通' },
+    ],
+    activeId: 's2',
+  });
+  const state = src.serialize();
+  let restoredSelect = 0;
+  const dst = DocumentTabs({ documents: [], onSelect: () => restoredSelect++ });
+  host.append(dst);
+  dst.restore(state);
+  const back = dst.serialize();
+  ok('DocumentTabs · serialize / restore 往返一致且不触发 onSelect',
+    JSON.stringify(back) === JSON.stringify(state) && restoredSelect === 0 && tabsOf(dst).length === 3,
+    JSON.stringify(back));
+  ok('DocumentTabs · 恢复后固定页签仍在前、dirty 仍保留',
+    tabsOf(dst)[0].dataset.docid === 's1' && tabsOf(dst)[1].dataset.dirty === '1');
+
+  /* ---------------- persistKey ---------------- */
+  const pkey = `gg-documenttabs-test-${Date.now()}`;
+  const pCmp = DocumentTabs({
+    documents: [{ id: 'pa', title: 'A' }, { id: 'pb', title: 'B' }],
+    activeId: 'pa',
+    persistKey: pkey,
+  });
+  host.append(pCmp);
+  pCmp.setActive('pb');
+  let stored = null;
+  try { stored = JSON.parse(localStorage.getItem(pkey)); } catch { stored = null; }
+  ok('DocumentTabs · persistKey 把会话写入 localStorage', stored?.activeId === 'pb' && stored.documents.length === 2, JSON.stringify(stored));
+
+  const pCmp2 = DocumentTabs({ documents: [], persistKey: pkey });
+  ok('DocumentTabs · 同一 persistKey 初始化时恢复会话',
+    pCmp2.value().activeId === 'pb' && tabsOf(pCmp2).length === 2);
+  localStorage.removeItem(pkey);
+  ok('DocumentTabs · 临时 persistKey 已清理', localStorage.getItem(pkey) === null);
+
+  /* ---------------- setDocuments ---------------- */
+  const sdCmp = DocumentTabs({ documents: [{ id: 'm1', title: 'M1' }, { id: 'm2', title: 'M2' }], activeId: 'm2' });
+  host.append(sdCmp);
+  sdCmp.setDocuments([{ id: 'm2', title: 'M2' }, { id: 'm3', title: 'M3' }]);
+  const kept = sdCmp.value().activeId;
+  sdCmp.setDocuments([{ id: 'm9', title: 'M9' }]);
+  ok('DocumentTabs · setDocuments 保留 activeId，失效时落第一颗',
+    kept === 'm2' && sdCmp.value().activeId === 'm9');
+
+  /* ---------------- 溢出滚动 ---------------- */
+  const wide = DocumentTabs({
+    documents: Array.from({ length: 12 }, (_, i) => ({ id: `w${i}`, title: `文档 ${i}` })),
+    activeId: 'w0',
+  });
+  wide.style.width = '480px';
+  host.append(wide);
+  await raf();
+  const scroller = wide.querySelector('.c-documenttabs__scroll');
+  ok('DocumentTabs · 12 颗页签在 480px 里不换行且可横向滚动',
+    wide.getBoundingClientRect().height < 44 && scroller.scrollWidth > scroller.clientWidth,
+    `h=${Math.round(wide.getBoundingClientRect().height)} scroll=${scroller.scrollWidth}/${scroller.clientWidth}`);
+
+  wide.setActive('w11');
+  await raf();
+  const lastTab = tabsOf(wide).at(-1);
+  const lastRect = lastTab.getBoundingClientRect();
+  const scrollRect = scroller.getBoundingClientRect();
+  ok('DocumentTabs · 激活最后一颗后它进入视口',
+    lastRect.left >= scrollRect.left - 2 && lastRect.right <= scrollRect.right + 2,
+    `${Math.round(lastRect.left)}..${Math.round(lastRect.right)} vs ${Math.round(scrollRect.left)}..${Math.round(scrollRect.right)}`);
+
+  /* ---------------- 拖动重排 ---------------- */
+  let reordered = null;
+  const dragCmp = DocumentTabs({
+    documents: [
+      { id: 'g0', title: '甲' },
+      { id: 'g1', title: '乙' },
+      { id: 'g2', title: '丙' },
+    ],
+    activeId: 'g0',
+    onReorder: (list) => { reordered = list.map((d) => d.id); },
+  });
+  host.append(dragCmp);
+  const dTabs = tabsOf(dragCmp);
+  const r0 = dTabs[0].getBoundingClientRect();
+  const r1 = dTabs[1].getBoundingClientRect();
+  const y = r0.top + r0.height / 2;
+  const pe = (type, x, target = window) =>
+    target.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 7, button: 0 }));
+
+  pe('pointerdown', r0.left + 8, dTabs[0]);
+  pe('pointermove', r0.left + 30);
+  pe('pointermove', r1.right - 2);
+  ok('DocumentTabs · 拖动时出现插入指示线', dragCmp.querySelector('.c-documenttabs__drop').classList.contains('is-on'));
+  pe('pointerup', r1.right - 2);
+  ok('DocumentTabs · 拖动落位后回调 onReorder', JSON.stringify(reordered) === JSON.stringify(['g1', 'g0', 'g2']), JSON.stringify(reordered));
+
+  const dragPinned = DocumentTabs({
+    documents: [
+      { id: 'pp', title: '固定', pinned: true, icon: 'star' },
+      { id: 'qq', title: '可拖' },
+    ],
+    activeId: 'qq',
+    onReorder: () => { reordered = 'pinned-moved'; },
+  });
+  host.append(dragPinned);
+  const pinTab = tabsOf(dragPinned)[0];
+  const pr = pinTab.getBoundingClientRect();
+  pe('pointerdown', pr.left + 4, pinTab);
+  pe('pointermove', pr.left + 60);
+  pe('pointerup', pr.left + 60);
+  ok('DocumentTabs · 固定页签不可拖动', reordered !== 'pinned-moved' && tabsOf(dragPinned)[0].dataset.docid === 'pp');
+
+  /* ---------------- dispose ---------------- */
+  const bye = DocumentTabs({ documents: [{ id: 'z', title: 'Z' }], activeId: 'z' });
+  host.append(bye);
+  let threw = false;
+  try {
+    bye.dispose();
+    bye.dispose();
+  } catch (err) {
+    threw = true;
+    console.error(err);
+  }
+  const closedAfter = await bye.close('z');
+  ok('DocumentTabs · dispose 幂等且之后 close 不生效', !threw && closedAfter === false && tabsOf(bye).length === 1);
+
+  [base, pnlCmp, pinnedCmp, lockedCmp, withNew, closingCmp, guardCmp, asyncCmp, neigh,
+    delCmp, src, dst, pCmp, pCmp2, sdCmp, wide, dragCmp, dragPinned].forEach((c) => c.dispose());
+});
+
+/* ============================================================
+   6. ToolbarCustomization（源：dev/tests/toolbarcustomization.html，37 条）
+   ============================================================ */
+await section('ToolbarCustomization', async () => {
+  const tbRows = (root) => all(root, '.c-toolbarcustom__row');
+  const rowOf = (root, id) => tbRows(root).find((r) => r.dataset.id === id) || null;
+  const inputOf = (root, id) => rowOf(root, id)?.querySelector('.c-toolbarcustom__input') || null;
+  const gripOf = (root, id) => rowOf(root, id)?.querySelector('.c-toolbarcustom__grip') || null;
+  const currentIds = (root) => tbRows(root.querySelector('[data-region="current"]')).map((r) => r.dataset.id);
+
+  const ITEMS = [
+    { id: 'back', label: '后退', icon: 'chevron-left', required: true },
+    { id: 'share', label: '分享', icon: 'upload', group: '文件' },
+    { id: 'print', label: '打印', icon: 'printer', group: '文件' },
+    { id: 'zoom', label: '缩放', icon: 'zoom-in', group: '视图' },
+    { id: 'grid', label: '网格', icon: 'grid-2x2', group: '视图' },
+  ];
+
+  const changes = [];
+
+  /* ---------------- 初始值与开合 ---------------- */
+  const ctl = ToolbarCustomization({
+    items: ITEMS,
+    visible: ['back', 'share', 'zoom'],
+    onChange: (ids) => changes.push(ids),
+  });
+  ok('ToolbarCustomization · 初始 value 按传入顺序', ctl.value().join(',') === 'back,share,zoom', ctl.value().join(','));
+
+  const anchor = h('button', { class: 'c-btn', type: 'button' }, '自定义工具栏');
+  host.append(anchor);
+  anchor.focus();
+
+  const before = layerDepth();
+  ctl.open(anchor);
+  ok('ToolbarCustomization · open 后层深 +1', layerDepth() === before + 1, `${before} → ${layerDepth()}`);
+  await raf();
+
+  ok('ToolbarCustomization · 面板挂到 body', ctl.el.parentElement === document.body);
+  ok('ToolbarCustomization · 面板 role=dialog 且有中文可读名',
+    ctl.el.getAttribute('role') === 'dialog' && ctl.el.getAttribute('aria-label') === '自定义工具栏');
+  const desc = document.getElementById(ctl.el.getAttribute('aria-describedby'));
+  ok('ToolbarCustomization · aria-describedby 指向一行说明', !!desc && desc.textContent.includes('拖动排序'), desc?.textContent);
+
+  const currentRegion = ctl.el.querySelector('[data-region="current"]');
+  const moreRegion = ctl.el.querySelector('[data-region="more"]');
+  ok('ToolbarCustomization · 渲染「当前项 / 更多项」两区', !!currentRegion && !!moreRegion);
+  ok('ToolbarCustomization · 当前区按 visible 顺序', currentIds(ctl.el).join(',') === 'back,share,zoom', currentIds(ctl.el).join(','));
+  const moreIds = tbRows(moreRegion).map((r) => r.dataset.id);
+  ok('ToolbarCustomization · 更多区只含不可见项且保持 items 顺序', moreIds.join(',') === 'print,grid', moreIds.join(','));
+  const groups = [...moreRegion.querySelectorAll('.c-toolbarcustom__group')].map((n) => n.textContent);
+  ok('ToolbarCustomization · 更多区按 group 出小标题', groups.join(',') === '文件,视图', groups.join(','));
+
+  /* ---------------- 勾选 / 取消 ---------------- */
+  const shareCb = inputOf(ctl.el, 'share');
+  shareCb.checked = false;
+  shareCb.dispatchEvent(new Event('change', { bubbles: true }));
+  await raf();
+  ok('ToolbarCustomization · 取消勾选移除一项', !ctl.value().includes('share'), ctl.value().join(','));
+  ok('ToolbarCustomization · 移除后落到更多区', !!rowOf(ctl.el.querySelector('[data-region="more"]'), 'share'));
+  ok('ToolbarCustomization · onChange 收到新的有序 id', changes.at(-1)?.join(',') === 'back,zoom', changes.at(-1)?.join(','));
+  ok('ToolbarCustomization · 焦点跟到移走的那一行', document.activeElement === inputOf(ctl.el, 'share'));
+
+  const printCb = inputOf(ctl.el, 'print');
+  printCb.checked = true;
+  printCb.dispatchEvent(new Event('change', { bubbles: true }));
+  await raf();
+  ok('ToolbarCustomization · 勾选加入一项并追加到末尾', ctl.value().join(',') === 'back,zoom,print', ctl.value().join(','));
+  ok('ToolbarCustomization · 加入后从更多区消失', !rowOf(ctl.el.querySelector('[data-region="more"]'), 'print'));
+
+  const backCb = inputOf(ctl.el, 'back');
+  ok('ToolbarCustomization · required 项 checkbox 禁用', !!backCb && backCb.disabled === true);
+  backCb.checked = false;
+  backCb.dispatchEvent(new Event('change', { bubbles: true }));
+  await raf();
+  ok('ToolbarCustomization · required 项不可取消', ctl.value().includes('back'), ctl.value().join(','));
+
+  /* ---------------- 键盘排序 ---------------- */
+  const printGrip = gripOf(ctl.el, 'print');
+  printGrip.focus();
+  key(printGrip, 'ArrowUp', { altKey: true });
+  await raf();
+  ok('ToolbarCustomization · Alt+↑ 上移当前行', ctl.value().join(',') === 'back,print,zoom', ctl.value().join(','));
+  ok('ToolbarCustomization · 键盘移动后焦点留在同一行手柄',
+    document.activeElement?.getAttribute('aria-label') === '拖动排序 打印');
+
+  /* ---------------- 拖拽排序 ---------------- */
+  const backRow = rowOf(ctl.el, 'back').getBoundingClientRect();
+  const printRow = rowOf(ctl.el, 'print').getBoundingClientRect();
+  const dragGrip = gripOf(ctl.el, 'back');
+  const py = printRow.top + printRow.height * 0.9;
+  dragGrip.dispatchEvent(
+    new PointerEvent('pointerdown', {
+      bubbles: true,
+      cancelable: true,
+      pointerId: 7,
+      button: 0,
+      clientY: backRow.top + backRow.height / 2,
+    })
+  );
+  dragGrip.dispatchEvent(
+    new PointerEvent('pointermove', { bubbles: true, cancelable: true, pointerId: 7, clientY: py })
+  );
+  dragGrip.dispatchEvent(
+    new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerId: 7, clientY: py })
+  );
+  await raf();
+  ok('ToolbarCustomization · 拖动跨过中线后重排', ctl.value().join(',') === 'print,back,zoom', ctl.value().join(','));
+
+  /* ---------------- 恢复默认 ---------------- */
+  ctl.reset();
+  await raf();
+  ok('ToolbarCustomization · reset 恢复初始可见集', ctl.value().join(',') === 'back,share,zoom', ctl.value().join(','));
+  ok('ToolbarCustomization · reset 也回调', changes.at(-1)?.join(',') === 'back,share,zoom', changes.at(-1)?.join(','));
+
+  /* ---------------- 持久化 ---------------- */
+  const KEY = 'gg-test-tbc-storage';
+  localStorage.removeItem(KEY);
+  const ctl2 = ToolbarCustomization({
+    items: ITEMS,
+    visible: ['back', 'share'],
+    storageKey: KEY,
+  });
+  const pcb = inputOf(ctl2.el, 'print');
+  pcb.checked = true;
+  pcb.dispatchEvent(new Event('change', { bubbles: true }));
+  const saved = JSON.parse(localStorage.getItem(KEY) || '[]');
+  ok('ToolbarCustomization · storageKey 写入有序可见 id', saved.join(',') === 'back,share,print', saved.join(','));
+
+  localStorage.setItem(KEY, '{坏 JSON');
+  const ctl3 = ToolbarCustomization({ items: ITEMS, visible: ['back', 'zoom'], storageKey: KEY });
+  ok('ToolbarCustomization · 非法存储不抛错并回退默认', ctl3.value().join(',') === 'back,zoom', ctl3.value().join(','));
+
+  localStorage.setItem(KEY, JSON.stringify(['zoom', 'ghost', 'share']));
+  const ctl4 = ToolbarCustomization({ items: ITEMS, storageKey: KEY });
+  ok('ToolbarCustomization · 读取时过滤未知 id 并补 required',
+    ctl4.value().join(',') === 'zoom,share,back',
+    ctl4.value().join(','));
+  localStorage.removeItem(KEY);
+  ctl2.dispose();
+  ctl3.dispose();
+  ctl4.dispose();
+  ok('ToolbarCustomization · 临时 storage 已清理', localStorage.getItem(KEY) === null);
+
+  /* ---------------- Esc / 焦点归还 ---------------- */
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+  await raf();
+  await raf();
+  ok('ToolbarCustomization · Esc 关闭面板', !ctl.isOpen());
+  ok('ToolbarCustomization · 关闭后层栈归零', layerDepth() === 0, `depth=${layerDepth()}`);
+  ok('ToolbarCustomization · 关闭后焦点回到锚点', document.activeElement === anchor);
+
+  /* ---------------- 视口右边缘 ---------------- */
+  const anchor2 = h('button', { class: 'c-btn', type: 'button' }, '右缘');
+  anchor2.style.cssText = 'position:fixed;top:120px;right:0';
+  host.append(anchor2);
+  const ctl5 = ToolbarCustomization({ items: ITEMS, visible: ['back', 'share'] });
+  ctl5.open(anchor2);
+  await raf();
+  await raf();
+  const rect = ctl5.el.getBoundingClientRect();
+  ok('ToolbarCustomization · 右侧打开不溢出视口', rect.right <= window.innerWidth + 0.5, `right=${rect.right}, vw=${window.innerWidth}`);
+  ok('ToolbarCustomization · 面板宽 280–320', rect.width >= 280 && rect.width <= 320, `w=${rect.width}`);
+  ok('ToolbarCustomization · 面板高不超过 60vh', rect.height <= window.innerHeight * 0.6 + 1, `h=${rect.height}`);
+  ctl5.close();
+  await raf();
+
+  /* ---------------- 空态 ---------------- */
+  const empty = ToolbarCustomization({ items: [] });
+  empty.open(anchor);
+  await raf();
+  ok('ToolbarCustomization · 空态显示「没有可自定义的项」', empty.el.textContent.includes('没有可自定义的项'));
+  ok('ToolbarCustomization · 空态只留关闭',
+    !!empty.el.querySelector('.c-toolbarcustom__close') &&
+      !empty.el.querySelector('.c-toolbarcustom__reset'));
+  empty.close();
+  await raf();
+
+  /* ---------------- setVisible / dispose ---------------- */
+  const sv = ToolbarCustomization({ items: ITEMS, visible: ['back'] });
+  sv.setVisible(['grid', 'back']);
+  ok('ToolbarCustomization · setVisible 过滤并补 required', sv.value().join(',') === 'grid,back', sv.value().join(','));
+  sv.dispose();
+
+  const tmp = ToolbarCustomization({ items: ITEMS, visible: ['back'] });
+  tmp.open(anchor);
+  await raf();
+  tmp.dispose();
+  tmp.dispose();
+  ok('ToolbarCustomization · dispose 幂等且收层', layerDepth() === 0 && !tmp.el.isConnected);
+
+  ctl.dispose();
+  ok('ToolbarCustomization · 控制器 dispose 后不残留层', layerDepth() === 0, `depth=${layerDepth()}`);
+
+  ctl5.dispose();
+  empty.dispose();
+});
+
+closeAllLayers();
+host.remove();
+const out = document.querySelector('#out');
+out.textContent = results.join('\n');
+document.title = results.every((s) => s.startsWith('PASS')) ? 'ALL PASS' : 'HAS FAIL';
+</script>
+</body>
+</html>

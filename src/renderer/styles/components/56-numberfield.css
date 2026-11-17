@@ -1,0 +1,88 @@
+/* ==========================================================================
+   56. 数值输入 NumberField
+   —— 输入是草稿，失焦/Enter 才提交；右侧一对小箭头和 NSStepper 同构。
+   ========================================================================== */
+
+.c-numberfield {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: var(--ctl-h, 28px);
+  padding: 0 var(--s-2) 0 var(--s-4);
+  border-radius: var(--ctl-r, var(--r-sm));
+  background: var(--surface-control);
+  box-shadow: inset 0 0 0 0.5px transparent;
+  transition: background-color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out);
+}
+
+.c-numberfield:hover {
+  background: var(--surface-control-hover);
+}
+
+.c-numberfield:focus-within {
+  background: var(--surface-control-solid);
+  box-shadow: inset 0 0 0 0.5px var(--line-strong), 0 0 0 3px var(--accent-ring);
+}
+
+.c-numberfield[data-invalid="1"],
+.c-numberfield:has(.c-numberfield__input[aria-invalid="true"]) {
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+
+.c-numberfield__input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  background: none;
+  font-size: var(--ctl-fs, var(--fs-13));
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  text-align: right;
+}
+
+.c-numberfield__input:focus,
+.c-numberfield__input:focus-visible {
+  outline: none;
+}
+
+/* 不是数字的草稿：只闪一下，不把输入框长期标红 */
+.c-numberfield__input[data-invalid-draft="1"] {
+  color: var(--danger);
+}
+
+/* 一对小箭头叠在一颗小井里 */
+.c-numberfield__spin {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 14px;
+}
+
+.c-numberfield__btn {
+  display: grid;
+  place-items: center;
+  height: 11px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: none;
+  color: var(--text-tertiary);
+  cursor: default;
+}
+
+.c-numberfield__btn:hover {
+  background: var(--surface-control-active);
+  color: var(--text-primary);
+}
+
+.c-numberfield__btn:active {
+  background: var(--surface-control);
+}
+
+.c-numberfield[data-disabled="1"],
+.c-numberfield__input:disabled {
+  opacity: 0.45;
+}

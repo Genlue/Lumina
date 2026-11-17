@@ -1,0 +1,84 @@
+/* ==========================================================================
+   26. 数据表 Table
+   —— 列表是「一条一条读」，表格是「一列一列比」。两者不要互相顶替。
+   ========================================================================== */
+
+.c-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--fs-13);
+  color: var(--text-primary);
+}
+
+.c-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: 26px;
+  padding: 0 var(--s-6);
+  text-align: left;
+  font-size: var(--fs-11);
+  font-weight: 500;
+  letter-spacing: var(--tracking-section);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  background: var(--surface-content);
+  border-bottom: 0.5px solid var(--line);
+}
+
+.c-table td {
+  height: var(--row-h, 28px);
+  padding: 0 var(--s-6);
+  border-bottom: 0.5px solid var(--line-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.c-table tbody tr {
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+
+.c-table tbody tr:hover {
+  background: var(--surface-hover);
+}
+
+.c-table tbody tr[aria-selected="true"] {
+  background: var(--accent-soft);
+}
+
+.c-table--dense td {
+  height: 24px;
+  font-size: var(--fs-12);
+}
+
+.c-table__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.c-table__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+.c-table__sort .ic {
+  opacity: 0;
+  transition: opacity var(--dur-1) var(--ease-out);
+}
+
+.c-table__sort:hover .ic,
+.c-table th[aria-sort] .c-table__sort .ic {
+  opacity: 0.7;
+}
+
+.c-table th[aria-sort="ascending"] .c-table__sort,
+.c-table th[aria-sort="descending"] .c-table__sort {
+  color: var(--text-primary);
+}
+

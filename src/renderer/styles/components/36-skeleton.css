@@ -1,0 +1,37 @@
+/* ==========================================================================
+   35. 骨架屏 Skeleton
+   —— 只在「已经知道大概长什么样」时用。不知道就用 Spinner。
+   ========================================================================== */
+
+.c-skeleton {
+  border-radius: var(--r-sm);
+  background: linear-gradient(
+    90deg,
+    var(--surface-control) 25%,
+    var(--surface-control-hover) 37%,
+    var(--surface-control) 63%
+  );
+  background-size: 400% 100%;
+  animation: gg-shimmer 1.4s linear infinite;
+}
+
+.c-skeleton--text {
+  height: 10px;
+  border-radius: var(--r-pill);
+}
+
+.c-skeleton--circle {
+  border-radius: var(--r-pill);
+}
+
+@keyframes gg-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c-skeleton {
+    animation: none;
+  }
+}
+

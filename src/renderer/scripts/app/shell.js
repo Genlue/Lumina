@@ -9,24 +9,16 @@
 // ============================================================
 
 import { h } from '../core/dom.js';
-import {
-  NavItem,
-  NavSection,
-  NavGroup,
-  NavColumn,
-  NavInfo,
-  Button,
-  IconButton,
-  Progress,
-  TrafficLights,
-  Toolbar,
-  ToolbarTitle,
-  NavPair,
-  Capsule,
-  disposeComponentTree,
-  markNavMoving,
-  openMenu,
-} from '../ui/kit.js';
+import { disposeComponentTree } from '../ui/_shared/lifecycle.js';
+import { Progress } from '../ui/content/states.js';
+import { Button, IconButton } from '../ui/controls/button.js';
+import { NavColumn } from '../ui/navigation/nav-column.js';
+import { NavInfo } from '../ui/navigation/nav-info.js';
+import { NavItem, NavSection, NavGroup } from '../ui/navigation/nav-item.js';
+import { markNavMoving } from '../ui/navigation/nav-motion.js';
+import { Toolbar, ToolbarTitle, NavPair, Capsule } from '../ui/navigation/toolbar.js';
+import { TrafficLights } from '../ui/navigation/traffic-lights.js';
+import { openMenu } from '../ui/overlays/menu.js';
 import { revealOnScroll } from '../core/scrollbar.js';
 import { windowControls } from '../core/platform.js';
 import { S, childAlbums, hasChildren, totalCount } from './state.js';
@@ -389,6 +381,9 @@ function toggleNav() {
   const btn = topbarEl?.querySelector('.l-chrome__toggle .c-iconbtn');
   const label = hidden ? '展开导航栏' : '收起导航栏';
   if (btn) {
+    // 两态：开 / 关只改 aria-pressed（颜色由 .c-iconbtn[aria-pressed="true"] 给），
+    // 图标不换 —— 换图标会读成两个不同的动作。
+    btn.setAttribute('aria-pressed', String(!hidden));
     btn.setAttribute('aria-label', label);
     btn.setAttribute('title', label);
   }
@@ -405,13 +400,16 @@ function buildChrome() {
   lightsEl.dataset.lights = '1';
 
   // 收起/展开按钮是「会移动的」按钮：展开时停在导航栏右上角，收起时滑回红绿灯右侧。
-  // 它是点击事件，不是开关 —— 不给 c-iconbtn--on。
+  // 它是常驻区域的开关，必须两态（docs/06 ⑰）：开 = 图标强调色，关 = 中性；
+  // 实心（variant: 'on'）属于「这一项被选中」，不能借给开关用。
   const toggle = Capsule({
     round: true,
     className: 'l-chrome__toggle',
     children: IconButton({
       icon: 'panel-left',
       label: '收起导航栏',
+      toggle: true,
+      active: true,
       onClick: () => toggleNav(),
     }),
   });

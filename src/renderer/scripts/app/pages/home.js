@@ -5,7 +5,10 @@
 // ============================================================
 
 import { h, fill } from '../../core/dom.js';
-import { Button, Capsule, Badge, Card } from '../../ui/kit.js';
+import { Badge } from '../../ui/content/badge.js';
+import { Button } from '../../ui/controls/button.js';
+import { Capsule } from '../../ui/navigation/toolbar.js';
+import { Card } from '../../ui/surfaces/card.js';
 import { revealOnScroll } from '../../core/scrollbar.js';
 import { S, allImages, totalCount, totalSize } from '../state.js';
 import { fmtSize, fmtDay, lastSegment } from '../util.js';

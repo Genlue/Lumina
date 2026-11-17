@@ -4,7 +4,7 @@
 // 批量动作：取消收藏 / 导出 / 复制到壁纸。
 // ============================================================
 
-import { Button } from '../../ui/kit.js';
+import { Button } from '../../ui/controls/button.js';
 import { S } from '../state.js';
 import * as actions from '../actions.js';
 import * as router from '../router.js';

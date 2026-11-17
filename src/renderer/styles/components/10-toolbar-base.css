@@ -1,0 +1,71 @@
+/* ==========================================================================
+   10. 工具栏
+   ========================================================================== */
+
+.c-toolbar {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  height: var(--toolbar-h);
+  padding: 0 var(--s-6) 0 var(--s-7);
+  background: rgb(var(--glass-rgb) / var(--m-chrome-a));
+  backdrop-filter: blur(var(--m-chrome-blur)) saturate(var(--m-chrome-sat));
+  -webkit-backdrop-filter: blur(var(--m-chrome-blur)) saturate(var(--m-chrome-sat));
+  box-shadow: inset 0 -0.5px 0 var(--line-soft);
+}
+
+/* 半透明层上的文字需要一点额外的重量才够清楚 */
+.c-toolbar .c-title,
+.c-toolbar .c-subtitle {
+  text-shadow: none;
+}
+
+.c-title {
+  font-size: var(--fs-13);
+  font-weight: 500;
+  letter-spacing: var(--tracking-body);
+  color: var(--text-primary);
+  white-space: nowrap;
+  /* 和 .c-btn__label 同一条视觉中线修正：CJK 墨迹比 em 盒中心高，
+     不补这一下，标题会比同一行的 34px 胶囊整体高 1–2px。
+     顶栏里胶囊大、字小，这个偏差最显眼。 */
+  position: relative;
+  top: 0.07em;
+}
+
+.c-subtitle {
+  font-size: var(--fs-11);
+  color: var(--text-tertiary);
+  letter-spacing: var(--tracking-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  position: relative;
+  top: 0.06em;
+}
+
+.c-headline {
+  font-family: var(--font-display);
+  font-size: var(--fs-22);
+  font-weight: 500;
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-title);
+}
+
+.c-display {
+  font-family: var(--font-display);
+  font-size: var(--fs-34);
+  font-weight: 500;
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-display);
+}
+
+/* 工具栏里的纵向分隔 */
+.c-vline {
+  width: 0.5px;
+  height: 18px;
+  background: var(--line);
+  margin: 0 var(--s-1);
+}
+

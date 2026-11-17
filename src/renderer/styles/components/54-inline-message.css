@@ -1,0 +1,136 @@
+/* ==========================================================================
+   54. 行内消息 InlineMessage
+   —— 贴着任务的状态说明，不是浮起来的 Toast。所以它没有阴影、没有圆角
+      外框，只靠「左侧 2px 色条 + 图标 + 标题字重」三样东西表达语义。
+      只换底色的话，色觉障碍用户和黑白打印都读不出来。
+   ========================================================================== */
+
+.c-inline {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-5);
+  min-width: 0;
+  padding: var(--s-5) var(--s-6);
+  /* 左直右圆：像从内容里长出来的一小段批注，而不是又一张卡片 */
+  border-left: 2px solid var(--line-strong);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  background: var(--surface-well);
+  color: var(--text-primary);
+  font-size: var(--fs-13);
+  line-height: var(--lh-snug);
+}
+
+.c-inline__icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 18px;
+  color: var(--text-secondary);
+}
+
+.c-inline__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  flex: 1;
+  min-width: 0;
+}
+
+.c-inline__title {
+  font-size: var(--fs-13);
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: var(--tracking-body);
+}
+
+.c-inline__desc {
+  font-size: var(--fs-12);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.c-inline__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-4);
+  margin-top: var(--s-3);
+}
+
+.c-inline__actions[hidden],
+.c-inline__title[hidden],
+.c-inline__desc[hidden] {
+  display: none;
+}
+
+.c-inline__close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: -2px -4px 0 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-tertiary);
+  transition:
+    background-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out);
+}
+
+.c-inline__close:hover {
+  background: var(--surface-control-hover);
+  color: var(--text-primary);
+}
+
+.c-inline__close:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 1px;
+}
+
+/* —— 语气 ——
+   色条负责「扫一眼」，图标负责「不看颜色也能分辨」，标题字重负责「主次」。
+   背景只用低对比的软色，避免整块提示把页面压暗。 */
+
+.c-inline--info {
+  border-left-color: var(--accent);
+}
+
+.c-inline--info .c-inline__icon {
+  color: var(--accent);
+}
+
+.c-inline--success {
+  border-left-color: var(--success);
+}
+
+.c-inline--success .c-inline__icon {
+  color: var(--success);
+}
+
+.c-inline--warning {
+  border-left-color: var(--warning);
+}
+
+.c-inline--warning .c-inline__icon {
+  color: var(--warning);
+}
+
+/* 失败要更「站起来」一点：有软底、色条更实，但它仍然待在原地，不弹窗 */
+.c-inline--danger {
+  border-left-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.c-inline--danger .c-inline__icon {
+  color: var(--danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c-inline__close {
+    transition: none;
+  }
+}

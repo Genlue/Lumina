@@ -1,0 +1,46 @@
+/* ==========================================================================
+   33. 面包屑 Breadcrumb
+   ========================================================================== */
+
+.c-crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-width: 0;
+  font-size: var(--fs-12);
+  color: var(--text-secondary);
+}
+
+.c-crumbs__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex: none;
+  height: 20px;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-xs);
+  color: inherit;
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+
+.c-crumbs__item:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.c-crumbs__item[aria-current="page"] {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.c-crumbs__item--ellipsis {
+  padding: 0 var(--s-2);
+  color: var(--text-quaternary);
+}
+
+.c-crumbs__sep {
+  flex: none;
+  color: var(--text-quaternary);
+  opacity: 0.7;
+}
+

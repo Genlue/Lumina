@@ -1,0 +1,211 @@
+/* ==========================================================================
+   59. 分页 Pagination
+   —— 页码条与游标条共用一根轨道：左边翻页、右边说明与每页条数。
+
+   macOS 没有系统级分页条（系统 App 走增量加载），这是 07-coverage.md 登记的补位控件，
+   所以视觉全部借现有语言，不自创：
+     · 翻页 / 页码按钮 = .c-iconbtn 的做法（透明面、悬停灰、按下缩 0.94）
+     · 当前页 = Segmented 的实心强调色块（同一语义：这就是你所在的那一个）
+     · 高度 28、字号 --fs-12、数字 tabular-nums
+   高度从 --ctl-h 继承，放进工具栏或胶囊里会跟着外层一起变。
+   ========================================================================== */
+
+.c-pagination {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  min-width: 0;
+  min-height: var(--ctl-h, 28px);
+  font-size: var(--fs-12);
+  color: var(--text-secondary);
+  /* 自己的宽度自己量：窄容器下收紧间距，见文件末尾的 @container */
+  container-type: inline-size;
+}
+
+/* —— 翻页组：‹ 页码 … 页码 › —— */
+.c-pagination__pager {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s-1);
+  min-width: 0;
+}
+
+.c-pagination__pages {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s-1);
+  min-width: 0;
+}
+
+.c-pagination__btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-1);
+  height: var(--ctl-h, 28px);
+  min-width: var(--ctl-h, 28px);
+  padding: 0 var(--s-2);
+  border: 0;
+  border-radius: var(--ctl-r, var(--r-sm));
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: var(--fs-12);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  cursor: default;
+  transform: translateZ(0);
+  transition: background-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
+}
+
+.c-pagination__btn > .ic {
+  width: 14px;
+  height: 14px;
+}
+
+.c-pagination__btn:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.c-pagination__btn:active {
+  background: var(--surface-selection);
+  transform: scale(0.94);
+}
+
+/* 当前页：实心强调色小方块。它表示位置，不表示「可以再点一次」，所以没有任何悬停反馈。 */
+.c-pagination__page[aria-current="page"] {
+  color: var(--text-on-accent);
+  background: var(--accent);
+  font-weight: 600;
+  box-shadow: var(--shadow-thumb);
+  cursor: default;
+}
+
+.c-pagination__page[aria-current="page"]:hover,
+.c-pagination__page[aria-current="page"]:active {
+  color: var(--text-on-accent);
+  background: var(--accent);
+  transform: none;
+}
+
+/* 两端与忙碌态：压暗并让指针穿透，但保留可聚焦（见 pagination.js 里的注释） */
+.c-pagination__btn[aria-disabled="true"] {
+  opacity: 0.32;
+  pointer-events: none;
+}
+
+.c-pagination__page[aria-current="page"][aria-disabled="true"] {
+  opacity: 0.55;
+}
+
+.c-pagination__gap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--s-5);
+  height: var(--ctl-h, 28px);
+  color: var(--text-quaternary);
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
+/* 总数未知 / 紧凑形态里代替页码的文字 */
+.c-pagination__status {
+  display: inline-flex;
+  align-items: center;
+  height: var(--ctl-h, 28px);
+  padding: 0 var(--s-2);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.c-pagination__nav-label {
+  /* CJK 墨迹比 em 盒中心高 0.06em，和 .c-btn__label 用同一个回正量 */
+  position: relative;
+  top: 0.06em;
+  white-space: nowrap;
+}
+
+/* —— 右侧：说明文字 + 每页条数 —— */
+.c-pagination__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-inline-start: auto;
+  min-width: 0;
+}
+
+.c-pagination__summary {
+  min-width: 0;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.c-pagination__size {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+/* 嵌在 28 高的轨道里，下拉自己收一档，免得比页码按钮高出一头 */
+.c-pagination__size-btn {
+  --ctl-h: 24px;
+  --ctl-ic: 12px;
+  --ctl-r: var(--r-xs);
+  --ctl-pad: var(--s-3);
+  --ctl-fs: var(--fs-12);
+}
+
+.c-pagination[data-disabled="1"] {
+  opacity: 0.5;
+}
+
+/* —— 窄容器：外侧说明让位，按钮和间距各收一档，保证不换行、不横向溢出 —— */
+@container (max-width: 340px) {
+  .c-pagination__pager,
+  .c-pagination__pages {
+    gap: 1px;
+  }
+
+  .c-pagination__btn {
+    height: 24px;
+    min-width: 22px;
+    padding: 0 var(--s-1);
+  }
+
+  .c-pagination__btn > .ic {
+    width: 13px;
+    height: 13px;
+  }
+
+  .c-pagination__meta {
+    gap: var(--s-2);
+  }
+
+  /* 用裁切而不是 display:none：aria-live 的说明文字仍要留在无障碍树里 */
+  .c-pagination__summary {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .c-pagination__size-text {
+    display: none;
+  }
+}

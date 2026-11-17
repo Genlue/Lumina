@@ -1,0 +1,201 @@
+/* ==========================================================================
+   33. 抽屉
+   —— 贴边面板：只有拉出那一侧有圆角，另一侧和容器边缘齐平。
+      位置、圆角、变换三件事都按 data-side 分派，面板内部结构四边一致。
+   ========================================================================== */
+
+.c-drawer {
+  --dw-p: 0;
+  --dw-peek: 0px;
+  --dw-size: 62%;
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  /* 容器只负责定位，不吃点击；吃点击的是面板和遮罩 */
+  pointer-events: none;
+}
+
+/* 脱离文档流挂在窗口上（模态式用法） */
+.c-drawer--fixed {
+  position: fixed;
+  z-index: 520;
+}
+
+.c-drawer__scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--scrim);
+  /* 拖动过程中遮罩跟着进度淡入，松手不会突然「啪」一下 */
+  opacity: var(--dw-p);
+  pointer-events: none;
+}
+
+.c-drawer[data-open="1"] .c-drawer__scrim {
+  pointer-events: auto;
+}
+
+.c-drawer__sheet {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  box-shadow: var(--shadow-popover);
+  pointer-events: auto;
+  transition: transform var(--dur-3) var(--ease-out);
+  will-change: transform;
+  overscroll-behavior: contain;
+}
+
+.c-drawer__sheet:focus {
+  outline: none;
+}
+
+/* 拖动跟手和「瞬间归位」都不能带过渡 */
+.c-drawer[data-dragging="1"] .c-drawer__sheet,
+.c-drawer[data-jump="1"] .c-drawer__sheet {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c-drawer__sheet {
+    transition-duration: 1ms;
+  }
+}
+
+/* ---- 四条边 ---- */
+
+.c-drawer[data-side="bottom"] .c-drawer__sheet {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--dw-size);
+  border-radius: var(--r-window) var(--r-window) 0 0;
+  transform: translateY(calc((1 - var(--dw-p)) * (100% - var(--dw-peek))));
+}
+
+.c-drawer[data-side="top"] .c-drawer__sheet {
+  left: 0;
+  right: 0;
+  top: 0;
+  height: var(--dw-size);
+  /* 抓握带永远在拉出那一侧，所以整列顺序翻过来 */
+  flex-direction: column-reverse;
+  border-radius: 0 0 var(--r-window) var(--r-window);
+  transform: translateY(calc((var(--dw-p) - 1) * (100% - var(--dw-peek))));
+}
+
+.c-drawer[data-side="left"] .c-drawer__sheet,
+.c-drawer[data-side="right"] .c-drawer__sheet {
+  top: 0;
+  bottom: 0;
+  width: var(--dw-size);
+}
+
+.c-drawer[data-side="left"] .c-drawer__sheet {
+  left: 0;
+  border-radius: 0 var(--r-window) var(--r-window) 0;
+  transform: translateX(calc((var(--dw-p) - 1) * (100% - var(--dw-peek))));
+}
+
+.c-drawer[data-side="right"] .c-drawer__sheet {
+  right: 0;
+  border-radius: var(--r-window) 0 0 var(--r-window);
+  transform: translateX(calc((1 - var(--dw-p)) * (100% - var(--dw-peek))));
+}
+
+/* ---- 抓握带 ---- */
+
+.c-drawer__grip {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: grab;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.c-drawer__grip:active {
+  cursor: grabbing;
+}
+
+.c-drawer__grip:focus-visible {
+  outline: none;
+}
+
+/* 灰条：借用控件的填充色 —— 浅色下比纸面深一点，深色下比底色浅一点 */
+.c-drawer__bar {
+  width: 36px;
+  height: 5px;
+  border-radius: var(--r-pill);
+  background: var(--surface-control-active);
+  transition:
+    width var(--dur-2) var(--ease-out),
+    height var(--dur-2) var(--ease-out),
+    background var(--dur-1) var(--ease-out);
+}
+
+/* 悬停只把灰条拉长，不改颜色 —— 抓握带是「这里有东西可以拉」的提示，
+   不是可点按钮，变色会读成「已经被选中」。 */
+.c-drawer__grip:hover .c-drawer__bar {
+  width: 44px;
+}
+
+.c-drawer__grip:focus-visible .c-drawer__bar {
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* 左右两条边：抓握带竖过来，贴在内侧 */
+.c-drawer[data-side="left"] .c-drawer__grip,
+.c-drawer[data-side="right"] .c-drawer__grip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 22px;
+  height: auto;
+  cursor: col-resize;
+}
+
+.c-drawer[data-side="left"] .c-drawer__grip {
+  right: 0;
+}
+
+.c-drawer[data-side="right"] .c-drawer__grip {
+  left: 0;
+}
+
+.c-drawer[data-side="left"] .c-drawer__bar,
+.c-drawer[data-side="right"] .c-drawer__bar {
+  width: 5px;
+  height: 36px;
+}
+
+.c-drawer[data-side="left"] .c-drawer__grip:hover .c-drawer__bar,
+.c-drawer[data-side="right"] .c-drawer__grip:hover .c-drawer__bar {
+  width: 5px;
+  height: 44px;
+}
+
+/* ---- 内容 ---- */
+
+.c-drawer__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 var(--s-7) var(--s-7);
+  overscroll-behavior: contain;
+}
+
+.c-drawer[data-side="left"] .c-drawer__body {
+  padding: 0 var(--s-9) var(--s-7) var(--s-7);
+}
+
+.c-drawer[data-side="right"] .c-drawer__body {
+  padding: 0 var(--s-7) var(--s-7) var(--s-9);
+}
+

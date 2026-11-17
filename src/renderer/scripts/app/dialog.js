@@ -5,7 +5,9 @@
 // ============================================================
 
 import { h } from '../core/dom.js';
-import { Button, Field, Dialog, confirmDialog } from '../ui/kit.js';
+import { Button } from '../ui/controls/button.js';
+import { Field } from '../ui/forms/field.js';
+import { Dialog, confirmDialog } from '../ui/overlays/dialog.js';
 
 let current = null;
 

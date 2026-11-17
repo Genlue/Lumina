@@ -6,19 +6,15 @@
 
 import { h, fill } from '../../core/dom.js';
 import { icon } from '../../core/icons.js';
-import {
-  Button,
-  IconButton,
-  Capsule,
-  Empty,
-  Thumb,
-  Badge,
-  Card,
-  Breadcrumb,
-  List,
-  ListRow,
-  openMenu,
-} from '../../ui/kit.js';
+import { Badge } from '../../ui/content/badge.js';
+import { List, ListRow } from '../../ui/content/list.js';
+import { Thumb } from '../../ui/content/media-tile.js';
+import { Empty } from '../../ui/content/states.js';
+import { Button, IconButton } from '../../ui/controls/button.js';
+import { Breadcrumb } from '../../ui/navigation/breadcrumb.js';
+import { Capsule } from '../../ui/navigation/toolbar.js';
+import { openMenu } from '../../ui/overlays/menu.js';
+import { Card } from '../../ui/surfaces/card.js';
 import { revealOnScroll } from '../../core/scrollbar.js';
 import { S, childAlbums, hasChildren, imagesInFolder, albumCover } from '../state.js';
 import { lastSegment, readDragKeys } from '../util.js';

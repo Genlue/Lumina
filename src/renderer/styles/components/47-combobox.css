@@ -1,0 +1,254 @@
+/* ==========================================================================
+   47. 组合框 Combobox
+   —— 输入框 + 候选列表。文字是查询，值是选中，候选面板挂在 body 上由
+      层栈定位，所以这里只管外观，不写 position 的计算。
+   ========================================================================== */
+
+.c-combobox {
+  position: relative;
+  display: block;
+  min-width: 0;
+  color: var(--text-primary);
+}
+
+/* 外观沿用 .c-field：同样的高度/圆角/底色，放进工具栏时不会比旁边高半像素 */
+.c-combobox__input {
+  width: 100%;
+  height: 28px;
+  /* 右侧留出箭头的宽度，长文本不会压在箭头上 */
+  padding: 0 var(--s-7) 0 var(--s-4);
+  border: none;
+  border-radius: var(--r-sm);
+  background: var(--surface-control);
+  font-size: var(--fs-13);
+  color: var(--text-primary);
+  text-overflow: ellipsis;
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+
+.c-combobox__input::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* 禁用自己的状态自己写一份：组件离开全局 [data-disabled] 规则也要能读出来 */
+.c-combobox__input[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.c-combobox__input:hover {
+  background: var(--surface-control-hover);
+}
+
+/* 焦点环只画一圈，用 outline 而不是再叠一层 box-shadow */
+.c-combobox__input:focus {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 1px;
+  background: var(--surface-control-solid);
+}
+
+/* 校验失败：描边换色，焦点环跟着换 —— 不只靠颜色区分，文案由 FormField 给 */
+.c-combobox__input[aria-invalid="true"] {
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+
+.c-combobox__input[aria-invalid="true"]:focus {
+  outline-color: var(--danger);
+}
+
+.c-combobox__caret {
+  position: absolute;
+  top: 50%;
+  right: var(--s-4);
+  display: grid;
+  place-items: center;
+  color: var(--text-tertiary);
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: transform var(--dur-2) var(--ease-out);
+}
+
+/* 展开时箭头翻转，和 Select 的方向约定保持一致 */
+.c-combobox[data-open="1"] .c-combobox__caret {
+  transform: translateY(-50%) rotate(180deg);
+}
+
+.c-combobox[data-disabled="1"] .c-combobox__caret {
+  opacity: 0.4;
+}
+
+/* —— 候选面板 ——
+   圆角比输入框大一档：它是一块浮起来的表面，不是输入框的延长线。
+   自己滚而不撑高，260px 大约 10 行，超出就滚。 */
+.c-combobox__panel {
+  position: fixed;
+  z-index: 400;
+  min-width: 0;
+  max-height: 260px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: var(--s-1);
+  border-radius: var(--r-md);
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-popover);
+  transform-origin: var(--origin, top center);
+}
+
+.c-combobox__list {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.c-combobox__option {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  height: 26px;
+  padding: 0 var(--s-4);
+  /* 同心：外圆角 --r-md 减去面板内边距 --s-1，选中块才不会缩成更尖的角 */
+  border-radius: calc(var(--r-md) - var(--s-1));
+  font-size: var(--fs-13);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* 高亮跟着 aria-activedescendant 走：焦点始终在输入框，视觉上却像列表在选 */
+.c-combobox__option[data-active="1"] {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.c-combobox__option[data-active="1"] .c-combobox__hint,
+.c-combobox__option[data-active="1"] .ic {
+  color: inherit;
+  opacity: 0.8;
+}
+
+.c-combobox__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 选中项只加半档字重，不用第二套底色 —— 底色已经被「当前高亮」占用了 */
+.c-combobox__option[aria-selected="true"] .c-combobox__label {
+  font-weight: 500;
+}
+
+.c-combobox__hint {
+  flex: none;
+  margin-left: auto;
+  font-size: var(--fs-11);
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 禁用项：不可点也不可聚焦，透明度之外再压一档字色，不只靠一种手段 */
+.c-combobox__option[aria-disabled="true"] {
+  opacity: 0.4;
+  pointer-events: none;
+  color: var(--text-tertiary);
+}
+
+/* —— 加载 / 空 / 失败 —— */
+.c-combobox__state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  min-height: 26px;
+  padding: 0 var(--s-4);
+  font-size: var(--fs-12);
+  color: var(--text-tertiary);
+}
+
+.c-combobox__state[data-kind="loading"] {
+  /* 加载中不换颜色，靠文案与省略号说明状态 */
+  color: var(--text-tertiary);
+}
+
+.c-combobox__state button {
+  flex: none;
+  height: 20px;
+  padding: 0 var(--s-3);
+  border: none;
+  border-radius: var(--r-xs);
+  background: var(--surface-control);
+  color: var(--text-secondary);
+  font-size: var(--fs-11);
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+
+.c-combobox__state button:hover {
+  background: var(--surface-control-hover);
+  color: var(--text-primary);
+}
+
+.c-combobox__state button:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 1px;
+}
+
+/* —— 清空按钮 ——
+   只在 clearable 且有内容时出现，位置在箭头左侧。按下由 JS 拦掉默认行为，
+   焦点始终留在输入框，清完可以直接接着打字。 */
+.c-combobox__clear {
+  position: absolute;
+  top: 50%;
+  right: calc(var(--s-7) + var(--s-2));
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--surface-control-active);
+  color: var(--text-secondary);
+  transform: translateY(-50%);
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+
+.c-combobox__clear[hidden] {
+  display: none;
+}
+
+.c-combobox__clear:hover {
+  background: var(--surface-control-hover);
+  color: var(--text-primary);
+}
+
+.c-combobox__clear:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 1px;
+}
+
+/* 有清空按钮时右侧要多留一颗按钮的宽度，长文本不会压在它下面 */
+.c-combobox[data-clearable="1"] .c-combobox__input {
+  padding-right: calc(var(--s-7) + var(--s-2) + 14px);
+}
+
+/* —— 虚拟滚动 ——
+   窗口化时行高必须固定成 28px（JS 按这个数算偏移与占位），
+   两块占位只负责撑高度，不参与命中。 */
+.c-combobox__panel[data-virtual="1"] .c-combobox__option {
+  height: 28px;
+}
+
+.c-combobox__pad {
+  flex: none;
+  width: 100%;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c-combobox__input,
+  .c-combobox__caret,
+  .c-combobox__clear,
+  .c-combobox__state button {
+    transition: none;
+  }
+}

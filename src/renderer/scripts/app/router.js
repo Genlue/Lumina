@@ -5,7 +5,7 @@
 // ============================================================
 
 import { fill } from '../core/dom.js';
-import { closeMenu } from '../ui/kit.js';
+import { closeMenu } from '../ui/overlays/menu.js';
 import { closeDialog } from './dialog.js';
 import { S } from './state.js';
 import * as shell from './shell.js';

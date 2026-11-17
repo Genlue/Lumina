@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:,">
+<title>新控件回归测试</title>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/layout.css">
+<link rel="stylesheet" href="../styles/components.css">
+<style>
+  body { padding: 24px; }
+  #host { position: fixed; inset: 0; z-index: 5; background: var(--surface-window); overflow: auto; padding: 12px; }
+  pre { position: relative; z-index: 6; white-space: pre-wrap; font-size: 12px; }
+</style>
+</head>
+<body>
+<pre id="out">running…</pre>
+<main id="host"></main>
+<script type="module">
+import {
+  TreeView, CollectionView, DataTable, Form, FormField, Combobox, NumberField,
+  DatePicker, TimePicker, FilePicker, DropZone, TokenField, SplitView, Sheet,
+  ToolbarOverflow, InlineMessage, Field, Button, layerDepth,
+} from '../scripts/ui/kit.js';
+import { h } from '../scripts/core/dom.js';
+import { theme } from '../scripts/core/theme.js';
+
+const results = [];
+const ok = (name, pass, detail = '') => results.push(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? ` · ${detail}` : ''}`);
+const raf = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const key = (t, k, o = {}) => t.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...o }));
+const click = (t) => t.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+const dblclick = (t) => t.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+
+theme.init();
+const host = document.querySelector('#host');
+
+try {
+  /* ---------------- TreeView ---------------- */
+  const tree = TreeView({
+    nodes: [
+      { id: 'a', label: 'A', children: [{ id: 'a1', label: 'A1' }] },
+      { id: 'b', label: 'B' },
+    ],
+  });
+  host.append(tree);
+  const rows = () => [...tree.querySelectorAll('.c-tree__row[data-key]')];
+  ok('TreeView 初始只画根节点', rows().length === 2, `rows=${rows().length}`);
+  ok('TreeView 有 treeitem 层级', rows()[0].getAttribute('aria-level') === '1');
+  rows()[0].focus();
+  key(rows()[0], 'ArrowRight');
+  await raf();
+  ok('TreeView → 展开', rows().length === 3, `rows=${rows().length}`);
+  key(rows()[0], 'ArrowDown');
+  ok('TreeView ↓ 进子节点', document.activeElement?.dataset.key === 'a1');
+  key(document.activeElement, 'ArrowLeft');
+  await raf();
+  ok('TreeView ← 回父级', document.activeElement?.dataset.key === 'a');
+
+  /* ---------------- CollectionView ---------------- */
+  const many = Array.from({ length: 10000 }, (_, i) => ({ id: i, label: `项 ${i}` }));
+  const cv = CollectionView({ items: many, itemHeight: 28, renderItem: (it) => it.label });
+  cv.style.cssText = 'height:236px;width:420px';
+  host.append(cv);
+  await raf();
+  const rendered = cv.querySelectorAll('.c-collection__item').length;
+  ok('CollectionView 万条只渲染窗口', rendered > 0 && rendered < 120, `rendered=${rendered}`);
+  cv.querySelector('.c-collection__item')?.focus();
+  for (let i = 0; i < 20; i++) key(document.activeElement, 'ArrowDown');
+  await sleep(60);
+  ok('CollectionView 键盘移动保持焦点', document.activeElement?.dataset.key === '20', document.activeElement?.dataset.key);
+
+  /* ---------------- DataTable ---------------- */
+  let edited = null;
+  const dt = DataTable({
+    columns: [
+      { key: 'name', label: '名称', sortable: true, width: 160, editable: true },
+      { key: 'size', label: '大小', align: 'right', sortable: true },
+    ],
+    rows: [
+      { id: 1, name: 'bravo', size: 2 },
+      { id: 2, name: 'alpha', size: 9 },
+    ],
+    editable: true,
+    onCellEdit: (e) => { edited = e; },
+  });
+  dt.style.height = '200px';
+  host.append(dt);
+  click(dt.querySelector('.c-datatable__sort'));
+  await sleep(30);
+  ok('DataTable 表头排序', dt.querySelector('tbody .c-datatable__cell')?.textContent === 'alpha');
+  const cell = dt.querySelector('tbody .c-datatable__cell');
+  dblclick(cell);
+  await sleep(30);
+  ok('DataTable 双击进入编辑', !!dt.querySelector('.c-datatable__editor'));
+  const editor = dt.querySelector('.c-datatable__editor input');
+  if (editor) {
+    editor.value = 'delta';
+    key(editor, 'Enter');
+    await sleep(30);
+  }
+  ok('DataTable Enter 提交编辑', edited?.value === 'delta', JSON.stringify(edited));
+  const sep = dt.querySelector('.c-datatable__resizer');
+  const beforeW = sep?.getAttribute('aria-valuenow');
+  sep?.focus();
+  key(sep, 'ArrowRight');
+  ok('DataTable 分隔条键盘改列宽', sep?.getAttribute('aria-valuenow') !== beforeW, `${beforeW} → ${sep?.getAttribute('aria-valuenow')}`);
+
+  /* ---------------- Form / FormField ---------------- */
+  const control = Field({ placeholder: '名称' });
+  const ff = FormField({ id: 'gg-test-name', label: '名称', required: true, control });
+  host.append(ff);
+  const input = ff.querySelector('input');
+  ok('FormField 的 label 指向真实 input',
+    ff.querySelector('label')?.getAttribute('for') === input?.id && input?.id === 'gg-test-name');
+  ok('FormField 标记必填', input?.getAttribute('aria-required') === 'true');
+
+  /* ---------------- Combobox ---------------- */
+  let picked = null;
+  const cb = Combobox({
+    options: [{ value: 1, label: '苹果' }, { value: 2, label: '香蕉' }, { value: 3, label: '葡萄' }],
+    onChange: (v) => { picked = v; },
+  });
+  host.append(cb);
+  cb.open();
+  await raf();
+  ok('Combobox 首开显示全部候选', cb.panel.querySelectorAll('.c-combobox__option').length === 3);
+  cb.input.value = '香';
+  cb.input.dispatchEvent(new Event('input', { bubbles: true }));
+  await sleep(200);
+  ok('Combobox 本地过滤', cb.panel.querySelectorAll('.c-combobox__option').length === 1);
+  key(cb.input, 'ArrowDown');
+  key(cb.input, 'Enter');
+  await sleep(40);
+  ok('Combobox ↓ + Enter 选中', picked === 2 && cb.value() === 2, `picked=${picked}`);
+
+  /* ---------------- NumberField ---------------- */
+  const nf = NumberField({ value: 5, min: 0, max: 100, step: 1 });
+  host.append(nf);
+  const nInput = nf.querySelector('input');
+  nInput.focus();
+  nInput.value = '1.';
+  nInput.dispatchEvent(new Event('input', { bubbles: true }));
+  ok('NumberField 保留草稿中间态', nInput.value === '1.');
+  nInput.value = '120';
+  nInput.dispatchEvent(new Event('input', { bubbles: true }));
+  nInput.blur();
+  await sleep(20);
+  ok('NumberField 提交时夹取到 max', nf.value() === 100, `value=${nf.value()}`);
+
+  /* ---------------- Date / Time ---------------- */
+  const dp = DatePicker({ value: '2026-11-06' });
+  host.append(dp);
+  dp.open();
+  await raf();
+  ok('DatePicker 6×7 网格', document.querySelectorAll('.c-datepicker__panel .c-datepicker__day').length === 42);
+  const active = document.querySelector('.c-datepicker__panel .c-datepicker__day[tabindex="0"]');
+  active?.focus();
+  key(active, 'ArrowRight');
+  key(document.activeElement, 'Enter');
+  await sleep(60);
+  ok('DatePicker → + Enter 选日', dp.value() === '2026-11-07', dp.value());
+  const tp = TimePicker({ value: '09:30' });
+  ok('TimePicker 值为 HH:mm', tp.value() === '09:30');
+  tp.set('23:59');
+  ok('TimePicker set/value 契约', tp.value() === '23:59');
+
+  /* ---------------- 文件 ---------------- */
+  const fp = FilePicker({ label: '选择', accept: 'image/*' });
+  host.append(fp);
+  ok('FilePicker 暴露 open()', typeof fp.open === 'function');
+  const dz = DropZone({});
+  host.append(dz);
+  ok('DropZone 有键盘浏览入口', dz.querySelector('button')?.tagName === 'BUTTON');
+
+  /* ---------------- TokenField ---------------- */
+  let tokens = [];
+  const tf = TokenField({
+    tokens: [{ value: 'a', label: '设计' }],
+    onChange: (t) => { tokens = t; },
+  });
+  host.append(tf);
+  const tInput = tf.querySelector('.c-tokenfield__input');
+  tInput.focus();
+  tInput.value = '前端';
+  key(tInput, 'Enter');
+  await sleep(30);
+  ok('TokenField Enter 提交', tokens.length === 2, `n=${tokens.length}`);
+  tInput.value = '';
+  key(tInput, 'Backspace');
+  ok('TokenField Backspace 第一次选中', !!tf.querySelector('.c-tokenfield__token[data-armed="1"]'));
+  key(tInput, 'Backspace');
+  await sleep(30);
+  ok('TokenField Backspace 第二次删除', tokens.length === 1, `n=${tokens.length}`);
+
+  /* ---------------- SplitView ---------------- */
+  const sp = SplitView({
+    panes: [
+      { id: 'l', min: 80, size: 200, node: h('div', null, 'L') },
+      { id: 'r', min: 80, size: 300, node: h('div', null, 'R') },
+    ],
+  });
+  sp.style.cssText = 'width:700px;height:160px';
+  host.append(sp);
+  await raf();
+  const beforeSizes = sp.sizes();
+  const separator = sp.querySelector('[role="separator"]');
+  separator.focus();
+  key(separator, 'ArrowRight');
+  const afterSizes = sp.sizes();
+  ok('SplitView 键盘改尺寸', afterSizes[0] !== beforeSizes[0], `${beforeSizes[0]} → ${afterSizes[0]}`);
+  ok('SplitView 总宽守恒', Math.abs(afterSizes[0] + afterSizes[1] - beforeSizes[0] - beforeSizes[1]) < 2);
+
+  /* ---------------- Sheet ---------------- */
+  let reason = '';
+  const sheet = Sheet({
+    title: '测试',
+    body: h('p', null, '内容'),
+    onSubmit: async () => { await sleep(260); },
+    onClose: (r) => { reason = r; },
+  });
+  await raf();
+  const submit = [...sheet.sheet.querySelectorAll('.c-sheet__foot button')].at(-1);
+  click(submit);
+  await sleep(40);
+  ok('Sheet 提交中 pending', sheet.pending === true);
+  key(document.activeElement, 'Escape');
+  await sleep(40);
+  ok('Sheet 提交中 Esc 不关闭', !sheet.closed);
+  await sleep(360);
+  ok('Sheet 提交完成关闭', sheet.closed && reason === 'submit', `reason=${reason}`);
+  ok('Sheet 关闭后层栈归零', layerDepth() === 0, `depth=${layerDepth()}`);
+
+  /* ---------------- ToolbarOverflow / InlineMessage ---------------- */
+  const tb = ToolbarOverflow({
+    items: [1, 2, 3, 4, 5].map((i) => ({ id: `i${i}`, node: Button({ label: `动作 ${i}` }), priority: i, label: `动作 ${i}` })),
+  });
+  tb.style.width = '180px';
+  host.append(tb);
+  await raf();
+  ok('ToolbarOverflow 窄容器出现「更多」', !!tb.querySelector('.c-toolbaroverflow__more'));
+  const info = InlineMessage({ tone: 'info', title: '提示' });
+  const danger = InlineMessage({ tone: 'danger', title: '失败' });
+  host.append(info, danger);
+  ok('InlineMessage role 随语气', info.getAttribute('role') === 'status' && danger.getAttribute('role') === 'alert');
+} catch (err) {
+  ok('测试脚本无异常', false, err?.stack?.split('\n')[0] ?? String(err));
+  console.error(err);
+}
+
+host.remove();
+const out = document.querySelector('#out');
+out.textContent = results.join('\n');
+document.title = results.every((s) => s.startsWith('PASS')) ? 'ALL PASS' : 'HAS FAIL';
+</script>
+</body>
+</html>

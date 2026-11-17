@@ -5,7 +5,13 @@
 // ============================================================
 
 import { h, fill } from '../../core/dom.js';
-import { Button, IconButton, Capsule, Empty, Thumb, List, ListRow, openMenu, toast } from '../../ui/kit.js';
+import { List, ListRow } from '../../ui/content/list.js';
+import { Thumb } from '../../ui/content/media-tile.js';
+import { Empty } from '../../ui/content/states.js';
+import { Button, IconButton } from '../../ui/controls/button.js';
+import { Capsule } from '../../ui/navigation/toolbar.js';
+import { openMenu } from '../../ui/overlays/menu.js';
+import { toast } from '../../ui/overlays/toast.js';
 import { revealOnScroll } from '../../core/scrollbar.js';
 import { S, normalizeTrash } from '../state.js';
 import { fmtAgo } from '../util.js';

@@ -1,0 +1,18 @@
+/* ==========================================================================
+   7. 分节标题 / 分隔线
+   ========================================================================== */
+
+.c-section {
+  padding: var(--s-6) var(--s-8) var(--s-2);
+  font-size: var(--fs-11);
+  font-weight: 500;
+  color: var(--text-tertiary);
+  letter-spacing: var(--tracking-section);
+}
+
+.c-divider {
+  height: 0.5px;
+  background: var(--line);
+  margin: var(--s-4) var(--s-7);
+}
+

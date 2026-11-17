@@ -1,0 +1,802 @@
+/* ==========================================================================
+   Lumina · 页面级布局
+   --------------------------------------------------------------------------
+   规矩：这个文件里只写「位置与尺寸」。颜色、圆角、阴影、字号一律取自
+   tokens.css 的令牌（var(--…)），不出现任何字面色值。
+   控件外观归 glass.css，这里只解决「照片墙怎么排」「灯箱怎么盖」。
+   ========================================================================== */
+
+/* ---------------- 通用页面容器 ---------------- */
+
+.lumina-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  padding: var(--s-8) var(--s-9) var(--s-11);
+  min-height: 100%;
+}
+
+.lumina-page--flush {
+  gap: 0;
+  padding: 0;
+}
+
+/* 工具行：双搜索 + 排序 + 视图切换 */
+.lumina-toolrow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+  /* 顶栏让位是 .l-stage 的 padding-top 做的，这里不能再让一次 ——
+     多算一遍 --toolbar-h 就会在搜索栏上方留出一条空带。
+     左右内边距同理：外层 .lumina-page 已经给过了。 */
+  padding: 0;
+  margin: 0 0 var(--s-5);
+}
+
+.lumina-toolrow__grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 多选工具条：底部浮起 */
+.lumina-multibar {
+  position: absolute;
+  left: 50%;
+  bottom: var(--s-9);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  z-index: 30;
+}
+
+/* ---------------- 照片网格（虚拟化） ---------------- */
+
+.lumina-grid {
+  position: relative;
+  width: 100%;
+}
+
+.lumina-grid__row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  gap: var(--gap);
+}
+
+.lumina-grid__spacer {
+  width: 100%;
+}
+
+/* 单张照片 */
+.lumina-tile {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--surface-well);
+  box-shadow: var(--shadow-thumb);
+  cursor: default;
+  transition: transform var(--dur-2, 120ms) var(--ease-out, ease-out);
+}
+
+.lumina-tile[data-selected="true"] {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.lumina-tile[data-selected="true"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--accent-soft);
+}
+
+.lumina-tile__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.lumina-tile__name {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: var(--s-6) var(--s-5) var(--s-4);
+  font-size: var(--fs-11);
+  color: #fff;
+  background: linear-gradient(to top, rgb(0 0 0 / 0.62), transparent);
+  opacity: 0;
+  transition: opacity 140ms ease-out;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lumina-tile:hover .lumina-tile__name {
+  opacity: 1;
+}
+
+.lumina-tile__fav {
+  position: absolute;
+  top: var(--s-4);
+  right: var(--s-4);
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-pill);
+  background: rgb(0 0 0 / 0.32);
+  color: #fff;
+}
+
+.lumina-tile__check {
+  position: absolute;
+  top: var(--s-4);
+  left: var(--s-4);
+  width: 18px;
+  height: 18px;
+  border-radius: var(--r-pill);
+  border: 1.5px solid rgb(255 255 255 / 0.85);
+  background: rgb(0 0 0 / 0.25);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  opacity: 0;
+}
+
+.lumina-tile:hover .lumina-tile__check,
+.lumina-tile[data-selected="true"] .lumina-tile__check {
+  opacity: 1;
+}
+
+.lumina-tile[data-selected="true"] .lumina-tile__check {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-on-accent);
+}
+
+/* ---------------- 列表视图 ---------------- */
+
+.lumina-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.lumina-list__row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: var(--s-5);
+  padding: var(--s-3) var(--s-5);
+  border-radius: var(--r-sm);
+  cursor: default;
+}
+
+.lumina-list__row:hover {
+  background: var(--surface-hover);
+}
+
+.lumina-list__row[data-selected="true"] {
+  background: var(--accent-soft);
+}
+
+.lumina-list__thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-xs);
+  object-fit: cover;
+  background: var(--surface-well);
+  display: block;
+}
+
+.lumina-list__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-13);
+}
+
+.lumina-list__meta {
+  font-size: var(--fs-11);
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---------------- 主页工作台 ---------------- */
+
+.lumina-metrics {
+  display: flex;
+  align-items: stretch;
+  gap: var(--s-7);
+  flex-wrap: wrap;
+}
+
+.lumina-metric {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 104px;
+}
+
+.lumina-metric__value {
+  font-size: var(--fs-28);
+  line-height: 1.1;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.lumina-metric__label {
+  font-size: var(--fs-11);
+  color: var(--text-tertiary);
+}
+
+.lumina-vline {
+  width: 1px;
+  align-self: stretch;
+  background: var(--line);
+}
+
+.lumina-rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 168px;
+  gap: var(--s-5);
+  overflow-x: auto;
+  padding-bottom: var(--s-3);
+  scrollbar-width: none;
+}
+
+.lumina-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.lumina-album-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  cursor: default;
+}
+
+.lumina-album-card__cover {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--surface-well);
+  box-shadow: var(--shadow-thumb);
+}
+
+.lumina-album-card__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.lumina-album-card__name {
+  font-size: var(--fs-12);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lumina-album-card__meta {
+  font-size: var(--fs-11);
+  color: var(--text-tertiary);
+}
+
+/* 相册总览里「根目录照片」的标题行：左缘要和下面的网格对齐，
+   所以把 SectionTitle 自带的内边距压平（它本来是给卡片内用的）。 */
+.lumina-roothead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+}
+
+.lumina-roothead .c-section {
+  padding: 0;
+}
+
+/* 相册总览：卡片墙 */
+.lumina-album-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--s-7);
+}
+
+/* ---------------- 发现页 ---------------- */
+
+.lumina-waterfall {
+  columns: 4;
+  column-gap: var(--s-5);
+  padding: var(--s-5) var(--s-9) var(--s-11);
+}
+
+.lumina-waterfall__item {
+  break-inside: avoid;
+  margin-bottom: var(--s-5);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--surface-well);
+  box-shadow: var(--shadow-thumb);
+}
+
+.lumina-waterfall__item img {
+  width: 100%;
+  display: block;
+}
+
+.lumina-draw {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-7);
+  min-height: 100%;
+  padding: var(--s-9);
+}
+
+.lumina-draw__frame {
+  max-width: min(880px, 82vw);
+  max-height: 62vh;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-window);
+}
+
+.lumina-draw__frame img {
+  display: block;
+  max-width: 100%;
+  max-height: 62vh;
+  object-fit: contain;
+}
+
+.lumina-slideshow {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--surface-sunken);
+  z-index: 40;
+}
+
+.lumina-slideshow img {
+  max-width: 96vw;
+  max-height: 92vh;
+  object-fit: contain;
+  display: block;
+}
+
+/* ---------------- 回收站 ---------------- */
+
+.lumina-trash-row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 150px auto;
+  align-items: center;
+  gap: var(--s-5);
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-sm);
+}
+
+.lumina-trash-row:hover {
+  background: var(--surface-hover);
+}
+
+/* ---------------- 灯箱 ---------------- */
+
+.lumina-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: rgb(0 0 0 / 0.86);
+}
+
+/* 背景 = 当前图放大 + 模糊 + 暗化（不用 backdrop-filter：要折的是自己） */
+.lumina-lightbox__bg {
+  position: absolute;
+  inset: -12%;
+  background-size: cover;
+  background-position: center;
+  filter: blur(42px) brightness(0.42) saturate(1.2);
+  transform: scale(1.08);
+}
+
+.lumina-lightbox__stage {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  padding: calc(var(--toolbar-h) + var(--s-7)) var(--s-9) 96px;
+  cursor: zoom-out;
+}
+
+.lumina-lightbox__img {
+  /* 百分比高度在 grid 居中项上会退回 auto，这里直接对视口取值，
+     保证竖图也不会顶出屏幕、压到底部工具条上。 */
+  max-width: calc(100vw - 96px);
+  max-height: calc(100vh - 148px);
+  object-fit: contain;
+  border-radius: var(--r-sm);
+  box-shadow: 0 24px 64px -16px rgb(0 0 0 / 0.6);
+  transition: transform 160ms ease-out;
+  cursor: default;
+}
+
+.lumina-lightbox__bar {
+  position: absolute;
+  left: 50%;
+  bottom: var(--s-9);
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.lumina-lightbox__count {
+  font-size: var(--fs-11);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  padding: 0 var(--s-4);
+}
+
+/* ---------------- 状态条 ---------------- */
+
+.lumina-status {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.lumina-status > * {
+  pointer-events: auto;
+}
+
+/* ---------------- 空态容器 ---------------- */
+
+.lumina-empty {
+  display: grid;
+  place-items: center;
+  min-height: 46vh;
+}
+
+/* 卡片头：分节标题 + 右侧动作。
+   SectionTitle 自带内边距，这里把它压平，让「标题行」和「Row」左缘对齐。 */
+.lumina-cardhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  padding: var(--s-6) var(--s-8) var(--s-2);
+}
+
+.lumina-cardhead .c-section {
+  padding: 0;
+}
+
+/* 设置页：滑块行右侧的数值 */
+.lumina-setting-value {
+  font-size: var(--fs-12);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  min-width: 56px;
+  text-align: right;
+}
+
+.lumina-rowfill {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  width: 100%;
+}
+
+.lumina-rowfill > :first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 色板 */
+.lumina-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+}
+
+.lumina-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-pill);
+  border: 2px solid transparent;
+  box-shadow: 0 0 0 1px var(--line) inset;
+  cursor: default;
+  padding: 0;
+}
+
+.lumina-swatch[data-on="true"] {
+  border-color: var(--surface-card);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+/* 欢迎页（没有图库） */
+.lumina-welcome {
+  display: grid;
+  place-items: center;
+  min-height: 62vh;
+  text-align: center;
+}
+
+.lumina-welcome__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-7);
+  max-width: 420px;
+}
+
+.lumina-welcome__title {
+  font-size: var(--fs-22);
+  font-weight: 600;
+}
+
+.lumina-welcome__desc {
+  font-size: var(--fs-13);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* 窄窗口：瀑布流降列 */
+@media (max-width: 1180px) {
+  .lumina-waterfall { columns: 3; }
+}
+@media (max-width: 900px) {
+  .lumina-waterfall { columns: 2; }
+}
+
+/* ==========================================================================
+   封面页（启动第一屏）
+   —— 只负责排布；材质与文字色全走令牌。
+   ========================================================================== */
+
+.lumina-launcher {
+  display: flex;
+  justify-content: center;
+  min-height: 100%;
+  padding: var(--s-10) var(--s-9) var(--s-11);
+}
+
+.lumina-launcher__inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-9);
+  width: min(100%, 900px);
+}
+
+.lumina-launcher__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-6);
+}
+
+.lumina-launcher__mark {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  flex: none;
+  border-radius: var(--r-lg);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-card);
+  color: var(--accent);
+}
+
+.lumina-launcher__title {
+  font-size: var(--fs-22);
+  font-weight: 600;
+  letter-spacing: var(--tracking-title, 0);
+}
+
+.lumina-launcher__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(238px, 1fr));
+  gap: var(--s-6);
+}
+
+.lumina-launcher__empty {
+  display: grid;
+  place-items: center;
+  min-height: 46vh;
+}
+
+/* ---------------- 图库卡 ---------------- */
+
+.lumina-libcard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding: var(--s-5);
+  text-align: left;
+  border-radius: var(--r-lg);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-card);
+  cursor: default;
+  transition: box-shadow var(--dur-2, 160ms) var(--ease-out, ease-out),
+    transform var(--dur-2, 160ms) var(--ease-out, ease-out);
+}
+
+.lumina-libcard:hover {
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-1px);
+}
+
+.lumina-libcard:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 2px;
+}
+
+.lumina-libcard__art {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 21 / 9;
+  border-radius: var(--r-md);
+  /* 没有真封面时的占位：一层强调色的极淡渐变，比纯灰面更像「一本书」 */
+  background: linear-gradient(160deg, var(--accent-soft), var(--surface-well) 72%);
+  color: var(--text-secondary);
+  transition: color var(--dur-2, 160ms) var(--ease-out, ease-out);
+}
+
+.lumina-libcard:hover .lumina-libcard__art {
+  color: var(--accent);
+}
+
+.lumina-libcard__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  padding: 0 var(--s-2) var(--s-2);
+}
+
+.lumina-libcard__name {
+  font-size: var(--fs-15);
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lumina-libcard__path {
+  font-size: var(--fs-11);
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* 不要用 direction:rtl 去「保留路径尾部」——它会把盘符和反斜杠的
+     视觉顺序也一起翻过去，读起来是错的。 */
+}
+
+.lumina-libcard__meta {
+  margin-top: var(--s-2);
+  font-size: var(--fs-11);
+  color: var(--text-quaternary);
+}
+
+.lumina-libcard__actions {
+  position: absolute;
+  top: var(--s-4);
+  right: var(--s-4);
+  display: flex;
+  gap: var(--s-2);
+  opacity: 0;
+  transition: opacity var(--dur-2, 160ms) var(--ease-out, ease-out);
+}
+
+.lumina-libcard:hover .lumina-libcard__actions,
+.lumina-libcard:focus-within .lumina-libcard__actions {
+  opacity: 1;
+}
+
+.lumina-libcard__act {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-pill);
+  background: var(--surface-control);
+  color: var(--text-secondary);
+}
+
+.lumina-libcard__act:hover {
+  background: var(--surface-control-hover);
+  color: var(--text-primary);
+}
+
+/* 添加卡：虚线框，不参与「卡片」的重量感 */
+.lumina-libcard--add {
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-3);
+  border: 1.5px dashed var(--line-strong);
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-secondary);
+}
+
+.lumina-libcard--add:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: none;
+  transform: none;
+}
+
+.lumina-libcard__plus {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-pill);
+  background: var(--surface-well);
+}
+
+/* ==========================================================================
+   加载页（进入图库时）
+   ========================================================================== */
+
+.lumina-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-6);
+  min-height: 100%;
+  padding: var(--s-10);
+  text-align: center;
+}
+
+.lumina-loading__mark {
+  display: grid;
+  place-items: center;
+  width: 66px;
+  height: 66px;
+  border-radius: var(--r-xl);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-card);
+  color: var(--accent);
+}
+
+.lumina-loading__title {
+  font-size: var(--fs-17);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.lumina-loading__bar {
+  width: 220px;
+}
+
+.lumina-loading__status {
+  min-height: 18px;
+  font-size: var(--fs-12);
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}

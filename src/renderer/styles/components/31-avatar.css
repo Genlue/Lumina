@@ -1,0 +1,51 @@
+/* ==========================================================================
+   30. 头像 Avatar
+   ========================================================================== */
+
+.c-avatar {
+  --av: 28px;
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--av);
+  height: var(--av);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  background: var(--surface-control);
+  color: var(--text-secondary);
+  font-size: calc(var(--av) * 0.4);
+  font-weight: 600;
+  letter-spacing: 0;
+  user-select: none;
+}
+
+.c-avatar--sm { --av: 20px; }
+.c-avatar--lg { --av: 40px; }
+.c-avatar--xl { --av: 64px; }
+
+/* 方形头像：圆角按边长比例给，不是写死一个数 —— 换尺寸才不跑形 */
+.c-avatar--square {
+  border-radius: calc(var(--av) * 0.24);
+}
+
+.c-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.c-avatar__status {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--r-pill);
+  background: var(--success);
+  box-shadow: 0 0 0 2px var(--surface-content);
+}
+
+.c-avatar__status--busy { background: var(--danger); }
+.c-avatar__status--away { background: var(--warning); }
+

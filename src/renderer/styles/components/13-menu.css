@@ -1,0 +1,121 @@
+/* ==========================================================================
+   13. 菜单 / 弹出层
+   ========================================================================== */
+
+.c-menu {
+  position: fixed;
+  z-index: 400;
+  min-width: 180px;
+  padding: var(--s-1);
+  border-radius: var(--r-md);
+  /* 材质不在这里写：.c-menu 已并入下方 L2 玻璃那一组（见 .c-glass-chrome 选择器组） */
+  transform-origin: var(--origin, top left);
+  overflow: hidden;
+}
+
+.c-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  height: 26px;
+  padding: 0 var(--s-4);
+  /* 同心：外圆角 --r-md 减去菜单内边距 --s-1。
+     写死 --r-xs(6px) 时，选中块会在 12px 的外圆角里缩成一个更尖的角，看起来是两套圆角 */
+  border-radius: calc(var(--r-md) - var(--s-1));
+  font-size: var(--fs-13);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.c-menu__item:hover,
+.c-menu__item:focus {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  outline: none;
+}
+
+.c-menu__item:hover .c-menu__key,
+.c-menu__item:hover .ic,
+.c-menu__item:focus .c-menu__key,
+.c-menu__item:focus .ic,
+.c-menu__item:hover .c-menu__sub-arrow,
+.c-menu__item:focus .c-menu__sub-arrow {
+  color: inherit;
+  opacity: 0.8;
+}
+
+/* 勾选项：checkbox 用勾，radio 用点。两者都跟着 aria-checked 走，
+   不在 JS 里另存一份「看起来选中」的状态。 */
+.c-menu__item[aria-checked="true"] .c-menu__check {
+  opacity: 1;
+}
+
+.c-menu__check {
+  width: 12px;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  color: currentColor;
+}
+
+.c-menu__check[data-role="menuitemradio"] .ic {
+  display: none;
+}
+
+.c-menu__check[data-role="menuitemradio"]::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0;
+}
+
+.c-menu__item[aria-checked="true"] .c-menu__check[data-role="menuitemradio"]::before {
+  opacity: 1;
+}
+
+/* 子菜单父项：右侧箭头贴边，展开时旋转 90° */
+.c-menu__sub-arrow {
+  flex: none;
+  display: grid;
+  place-items: center;
+  margin-left: var(--s-2);
+  color: var(--text-tertiary);
+  transition: transform var(--dur-1) var(--ease-out);
+}
+
+.c-menu__item[aria-expanded="true"] .c-menu__sub-arrow {
+  transform: rotate(90deg);
+}
+
+.c-menu__label {
+  flex: 1;
+}
+
+.c-menu__key {
+  font-size: var(--fs-11);
+  color: var(--text-tertiary);
+  letter-spacing: var(--tracking-caption);
+}
+
+.c-menu__sep {
+  height: 0.5px;
+  margin: var(--s-2) var(--s-3);
+  background: var(--line);
+}
+
+.c-menu__item--danger {
+  color: var(--danger);
+}
+
+.c-menu__item--danger:hover {
+  background: var(--danger);
+  color: #fff;
+}
+
+.c-menu__item[aria-disabled="true"] {
+  opacity: 0.35;
+  pointer-events: none;
+}
+

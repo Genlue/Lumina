@@ -1,0 +1,115 @@
+/* ==========================================================================
+   17. 玻璃层
+   —— 三级材质各司其职，禁止浅色叠浅色
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Acrylic：侧边导航栏的材质
+   —— 真实软件里侧栏走系统 acrylic（模糊 + 提饱和 + 染色），
+      **不是液态玻璃**：没有折射位移、没有色散、没有上下聚光、没有镜面环。
+      所以它不进渲染层的滤镜链，也不该在导航栏上开菜单（菜单是 L2 玻璃，
+      压在 acrylic 上会读成两层不同的材质在打架）。
+   -------------------------------------------------------------------------- */
+
+.c-acrylic,
+.c-glass-panel {
+  position: relative;
+  background: color-mix(
+    in srgb,
+    var(--surface-window) calc(var(--m-acrylic-a) * 100%),
+    transparent
+  );
+  backdrop-filter: blur(var(--m-acrylic-blur)) saturate(var(--m-acrylic-sat));
+  -webkit-backdrop-filter: blur(var(--m-acrylic-blur)) saturate(var(--m-acrylic-sat));
+  /* acrylic 只有一条发丝边，没有高光：光打在玻璃上，不打在磨砂上 */
+  box-shadow: inset -0.5px 0 0 var(--line);
+}
+
+/* 材质分级：三档共用同一套光学管线（与胶囊、提示条同源），
+   只是浓度权重不同 —— 表面越大越厚，越靠近内容的越轻。
+   基础浓度仍由各自的 --m-*-a 决定，保证菜单这类必须可读的地方不会变透。 */
+.c-glass-chrome,
+.c-glass-sheet,
+.c-menu {
+  --glass-w: 1;
+  --glass-blur-k: 1;
+  --glass-blur-base: var(--m-panel-blur);
+  position: relative;
+  background:
+    /* 顶部聚光 */
+    radial-gradient(
+      150% 130% at 50% -34%,
+      rgb(255 255 255 / calc(0.5 * var(--lg-css-stroke-alpha, var(--lg-stroke-alpha)) * var(--glass-w))) 0%,
+      rgb(255 255 255 / 0) 62%
+    ),
+    /* 底部聚光：顶部的镜像，弱 --hl-bottom */
+    radial-gradient(
+      150% 130% at 50% 134%,
+      rgb(255 255 255 / calc(0.5 * var(--lg-css-stroke-alpha, var(--lg-stroke-alpha)) * var(--glass-w) * var(--hl-bottom))) 0%,
+      rgb(255 255 255 / 0) 62%
+    ),
+    /* 色散：左右边缘的暖/冷分离 */
+    linear-gradient(
+      90deg,
+      rgb(255 226 190 / calc(0.55 * var(--lg-css-dispersion, var(--lg-dispersion)) * var(--glass-w))) 0%,
+      rgb(255 255 255 / 0) 18%,
+      rgb(255 255 255 / 0) 82%,
+      rgb(186 220 255 / calc(0.55 * var(--lg-css-dispersion, var(--lg-dispersion)) * var(--glass-w))) 100%
+    ),
+    /* 涂层 = 底色浓度。渲染层的 coating 就是这个数，两条路看到的是同一层 */
+    color-mix(in srgb, var(--lg-coating-color, rgb(var(--glass-rgb))) calc(var(--lg-coating) * 100%), transparent);
+  backdrop-filter: blur(calc(var(--glass-blur-base) * var(--glass-blur-k)))
+    saturate(calc(var(--lg-vibrancy) * 100%));
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur-base) * var(--glass-blur-k)))
+    saturate(calc(var(--lg-vibrancy) * 100%));
+  box-shadow:
+    inset 0 0.5px 0 rgb(255 255 255 / calc(0.58 * var(--lg-css-stroke-alpha, var(--lg-stroke-alpha)))),
+    inset 0 -0.5px 0 rgb(255 255 255 / calc(0.58 * var(--lg-css-stroke-alpha, var(--lg-stroke-alpha)) * var(--hl-bottom))),
+    inset 0 -0.5px 0 rgb(0 0 0 / calc(0.06 * var(--shadow-k)));
+}
+
+/* L1 chrome —— 最轻 */
+.c-glass-chrome {
+  --glass-w: 0.55;
+  --glass-blur-k: 0.6;
+  --glass-blur-base: var(--m-chrome-blur);
+}
+
+/* L3 sheet —— 最重，另外带一层外影 */
+.c-glass-sheet {
+  --glass-w: 1.3;
+  --glass-blur-k: 1.5;
+  --glass-blur-base: var(--m-sheet-blur);
+  box-shadow:
+    var(--shadow-popover),
+    inset 0 0.5px 0 rgb(255 255 255 / calc(0.58 * var(--lg-css-stroke-alpha, var(--lg-stroke-alpha)))),
+    inset 0 -0.5px 0 rgb(255 255 255 / calc(0.58 * var(--lg-css-stroke-alpha, var(--lg-stroke-alpha)) * var(--hl-bottom))),
+    inset 0 -0.5px 0 rgb(0 0 0 / calc(0.06 * var(--shadow-k)));
+}
+
+/* 菜单：材质强制走 L2（和侧栏同一套管线），只有外影按弹层那一档。
+   上面那个组把 position 写成了 relative，菜单必须是 fixed，所以这里再压回来。 */
+.c-menu {
+  position: fixed;
+  box-shadow:
+    var(--shadow-popover),
+    inset 0 0.5px 0 rgb(255 255 255 / calc(0.58 * var(--lg-css-stroke-alpha, var(--lg-stroke-alpha)))),
+    inset 0 -0.5px 0 rgb(255 255 255 / calc(0.58 * var(--lg-css-stroke-alpha, var(--lg-stroke-alpha)) * var(--hl-bottom))),
+    inset 0 -0.5px 0 rgb(0 0 0 / calc(0.06 * var(--shadow-k)));
+}
+
+/* 玻璃边缘的高光：光打在材质上。
+   用伪元素而不是直接写 box-shadow —— 后者会把材质本身的外影覆盖掉。 */
+.c-glass-edge {
+  position: relative;
+}
+
+.c-glass-edge::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0.5px 0 var(--line-highlight);
+  pointer-events: none;
+}
+

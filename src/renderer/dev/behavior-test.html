@@ -1,0 +1,1404 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:,">
+<title>控件行为回归测试</title>
+<link rel="stylesheet" href="../styles/tokens.css">
+<link rel="stylesheet" href="../styles/base.css">
+<link rel="stylesheet" href="../styles/layout.css">
+<link rel="stylesheet" href="../styles/components.css">
+<style>
+  body { padding: 24px; }
+  #host { position: relative; width: 900px; max-width: calc(100vw - 48px); }
+  pre { white-space: pre-wrap; font-size: 12px; }
+</style>
+</head>
+<body>
+<pre id="out">running…</pre>
+<main id="host"></main>
+<script type="module">
+import {
+  DataTable, TreeView, CollectionView,
+  Combobox, DatePicker, TimePicker, NumberField, FilePicker,
+  Sheet, SplitView, ToolbarOverflow,
+  Dialog, Button, layerDepth, closeMenu,
+} from '../scripts/ui/kit.js';
+import { h } from '../scripts/core/dom.js';
+import { theme } from '../scripts/core/theme.js';
+
+/* ==========================================================================
+   控件行为回归测试
+   —— 三个「补洞」自检页（collections2 / inputs2 / containers2）的长期合并版。
+   每段独立：段首清空宿主，段末 dispose() 后清空宿主，浮层必须回到 0 层。
+   ========================================================================== */
+
+const results = [];
+const ok = (name, pass, detail = '') =>
+  results.push(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? ` · ${detail}` : ''}`);
+const raf = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const key = (target, k, opts = {}) =>
+  target.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...opts }));
+const click = (target) => target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+const dblclick = (target) => target.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+const pointer = (target, type, x, y, opts = {}) =>
+  target.dispatchEvent(
+    new PointerEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      pointerId: 1,
+      pointerType: 'mouse',
+      isPrimary: true,
+      buttons: 0,
+      clientX: x,
+      clientY: y,
+      ...opts,
+    })
+  );
+const typeIn = (target, value) => {
+  target.value = value;
+  target.dispatchEvent(new Event('input', { bubbles: true }));
+};
+
+/** 关闭控件时统一走这里：两次 dispose，失败只记一次，不打断后续断言 */
+let disposeAllOk = true;
+const disposeAll = (...nodes) => {
+  try {
+    for (const node of nodes) {
+      node?.dispose?.();
+      node?.dispose?.();
+    }
+  } catch (err) {
+    disposeAllOk = false;
+    console.error(err);
+  }
+};
+
+theme.init();
+// 支持 ?theme=dark 对比，只影响本次渲染，不写持久化
+if (new URLSearchParams(location.search).get('theme') === 'dark') theme.setMode('dark', { persist: false });
+const host = document.querySelector('#host');
+
+/** 段的公共收尾：清宿主、等一帧，确保下一段从干净状态开始 */
+const clearHost = async (...extra) => {
+  for (const node of extra) if (node?.isConnected) node.remove();
+  host.replaceChildren();
+  await raf();
+};
+
+const rowsOf = (table) => [...table.querySelectorAll('tbody tr[data-key]')];
+const cellAt = (table, col, row = 0) => rowsOf(table)[row]?.children[col];
+
+try {
+  /* ================= DataTable · 列重排 / 可见性 / 布局 ================= */
+  {
+    let layoutEcho = null;
+    const dt = DataTable({
+      columns: [
+        { key: 'name', label: '名称', width: 120, sortable: true, editable: true },
+        { key: 'kind', label: '类型', width: 100 },
+        { key: 'size', label: '大小', width: 90, align: 'right', sortable: true },
+      ],
+      rows: [
+        { id: 1, name: 'a', kind: 'x', size: 1 },
+        { id: 2, name: 'b', kind: 'y', size: 2 },
+        { id: 3, name: 'c', kind: 'z', size: 3 },
+      ],
+      editable: true,
+      onColumnsChange: (l) => { layoutEcho = l; },
+    });
+    dt.style.cssText = 'width:600px;height:260px';
+    host.append(dt);
+    await raf();
+
+    const dtRows = () => rowsOf(dt);
+    const headLabels = () =>
+      [...dt.querySelectorAll('thead th.c-datatable__th')].map((th) => th.textContent.trim()).join('/');
+
+    ok('DataTable · 初始渲染 3 行', dtRows().length === 3, `rows=${dtRows().length}`);
+    ok('DataTable · aria-rowcount 含表头', dt.getAttribute('aria-rowcount') === '4', dt.getAttribute('aria-rowcount'));
+    ok('DataTable · 初始列顺序', headLabels() === '名称/类型/大小', headLabels());
+
+    // 把第一列拖到最后：先按下，再横移超过阈值，最后松手
+    const th0 = dt.querySelector('thead th.c-datatable__th');
+    const thRect = th0.getBoundingClientRect();
+    const grabX = thRect.left + 16;
+    const grabY = thRect.top + thRect.height / 2;
+    pointer(th0, 'pointerdown', grabX, grabY);
+    pointer(window, 'pointermove', grabX + 420, grabY);
+    pointer(window, 'pointerup', grabX + 420, grabY);
+    await raf();
+
+    ok('DataTable · 拖表头改变列顺序', dt.getLayout().order.join('/') === 'kind/size/name', dt.getLayout().order.join('/'));
+    ok('DataTable · 重排后表头跟着换', headLabels() === '类型/大小/名称', headLabels());
+    ok('DataTable · 重排后单元格跟着换', cellAt(dt, 0)?.textContent === 'x', cellAt(dt, 0)?.textContent);
+    ok('DataTable · onColumnsChange 收到布局', layoutEcho?.order.join('/') === 'kind/size/name', JSON.stringify(layoutEcho?.order));
+
+    // 重排后点排序按钮仍然生效（拖动不该把后续点击吃掉）
+    const nameSort = [...dt.querySelectorAll('.c-datatable__sort')].find((b) => b.textContent.includes('名称'));
+    click(nameSort); // 「名称」现在在第三列
+    await sleep(30);
+    ok('DataTable · 重排后点击排序仍生效', cellAt(dt, 2)?.textContent === 'a', cellAt(dt, 2)?.textContent);
+
+    // 列可见性
+    const widthOfKind = dt.getLayout().widths.kind;
+    dt.setColumnVisible('kind', false);
+    await raf();
+    ok('DataTable · 隐藏列不再渲染', dt.querySelectorAll('thead th.c-datatable__th').length === 2,
+      `th=${dt.querySelectorAll('thead th.c-datatable__th').length}`);
+    ok('DataTable · 隐藏列进入 layout.hidden', dt.getLayout().hidden.join('/') === 'kind', dt.getLayout().hidden.join('/'));
+    ok('DataTable · 隐藏列宽度仍保留', dt.getLayout().widths.kind === widthOfKind, `${widthOfKind}`);
+    dt.setColumnVisible('kind', true);
+    await raf();
+    ok('DataTable · 恢复隐藏列', dt.querySelectorAll('thead th.c-datatable__th').length === 3);
+
+    // 布局快照往返
+    const snapshot = dt.getLayout();
+    dt.setColumnVisible('kind', false);
+    dt.setLayout({
+      order: [...snapshot.order].reverse(),
+      widths: { ...snapshot.widths, name: 222 },
+      hidden: snapshot.hidden,
+    });
+    await raf();
+    const reversed = dt.getLayout();
+    ok('DataTable · setLayout 换顺序与列宽',
+      reversed.order.join('/') === [...snapshot.order].reverse().join('/') && reversed.widths.name === 222,
+      `${reversed.order.join('/')}·${reversed.widths.name}`);
+    ok('DataTable · setLayout 恢复隐藏集合', reversed.hidden.length === snapshot.hidden.length,
+      `hidden=${reversed.hidden.join('/')}`);
+    dt.setLayout(snapshot);
+    await raf();
+    ok('DataTable · setLayout 往返回到原布局',
+      dt.getLayout().order.join('/') === snapshot.order.join('/') &&
+        dt.getLayout().widths.name === snapshot.widths.name,
+      dt.getLayout().order.join('/'));
+
+    dt.setLayout({ order: ['not-a-column', ...dt.getLayout().order] });
+    await raf();
+    ok('DataTable · setLayout 忽略非法 key',
+      !dt.getLayout().order.includes('not-a-column') && dt.getLayout().order.length === 3,
+      dt.getLayout().order.join('/'));
+
+    // 列宽手柄键盘回归
+    const sep = dt.querySelector('.c-datatable__resizer');
+    const sepBefore = sep.getAttribute('aria-valuenow');
+    sep.focus();
+    key(sep, 'ArrowRight');
+    ok('DataTable · 列宽手柄键盘仍可用', sep.getAttribute('aria-valuenow') !== sepBefore,
+      `${sepBefore} → ${sep.getAttribute('aria-valuenow')}`);
+
+    // 二维键盘回归
+    const dtCell00 = cellAt(dt, 0);
+    dtCell00.focus();
+    key(dtCell00, 'ArrowRight');
+    key(document.activeElement, 'ArrowDown');
+    ok('DataTable · 二维键盘仍可用',
+      document.activeElement?.dataset.col === '1' &&
+        document.activeElement?.closest('tr')?.dataset.index === '1',
+      `col=${document.activeElement?.dataset.col} row=${document.activeElement?.closest('tr')?.dataset.index}`);
+
+    // 禁用契约
+    dt.setDisabled(true);
+    ok('DataTable · setDisabled 落到 DOM',
+      dt.getAttribute('data-disabled') === '1' && dt.querySelector('.c-datatable__sort')?.disabled === true);
+    dt.setDisabled(false);
+
+    disposeAll(dt);
+    await clearHost();
+  }
+
+  /* ================= DataTable · 虚拟滚动 + 重排对齐 ================= */
+  {
+    const virt = DataTable({
+      columns: [
+        { key: 'a', label: '列 A', width: 100 },
+        { key: 'b', label: '列 B', width: 100 },
+      ],
+      rows: Array.from({ length: 200 }, (_, i) => ({ id: i, a: `A${i}`, b: `B${i}` })),
+      virtual: true,
+      rowHeight: 28,
+    });
+    virt.style.cssText = 'width:320px;height:220px';
+    host.append(virt);
+    await raf();
+
+    const vScroll = virt.querySelector('.c-datatable__scroll');
+    vScroll.scrollTop = 500;
+    await sleep(80);
+    ok('DataTable · 虚拟滚动只渲染窗口',
+      virt.querySelectorAll('tbody tr[data-key]').length < 40,
+      `rows=${virt.querySelectorAll('tbody tr[data-key]').length}`);
+
+    const vTh = virt.querySelector('thead th.c-datatable__th');
+    ok('DataTable · 冻结表头不随滚动移动',
+      Math.abs(vTh.getBoundingClientRect().top - vScroll.getBoundingClientRect().top) <= 1,
+      `${vTh.getBoundingClientRect().top} vs ${vScroll.getBoundingClientRect().top}`);
+
+    const vRect = vTh.getBoundingClientRect();
+    pointer(vTh, 'pointerdown', vRect.left + 10, vRect.top + vRect.height / 2);
+    pointer(window, 'pointermove', vRect.left + 300, vRect.top + 10);
+    pointer(window, 'pointerup', vRect.left + 300, vRect.top + 10);
+    await sleep(60);
+
+    const vRow = virt.querySelector('tbody tr[data-key]');
+    const vTdRect = vRow?.children[0].getBoundingClientRect();
+    const vThRect = virt.querySelector('thead th.c-datatable__th').getBoundingClientRect();
+    ok('DataTable · 重排后虚拟行与表头对齐',
+      virt.getLayout().order.join('/') === 'b/a' &&
+        vRow?.children[0].textContent.startsWith('B') &&
+        Math.abs((vTdRect?.left ?? 0) - vThRect.left) <= 1 &&
+        Math.abs((vTdRect?.width ?? 0) - vThRect.width) <= 1,
+      `${virt.getLayout().order.join('/')}·${vRow?.children[0].textContent}·${vTdRect?.left}/${vThRect.left}`);
+
+    disposeAll(virt);
+    await clearHost();
+  }
+
+  /* ================= DataTable · 单元格类型 ================= */
+  {
+    let editedCell = null;
+    const cells = DataTable({
+      columns: [
+        { key: 'title', label: '标题', width: 140, editable: true, sortable: true },
+        {
+          key: 'state',
+          label: '状态',
+          width: 120,
+          editable: true,
+          type: 'select',
+          options: [{ value: 1, label: '草稿' }, { value: 2, label: '已发布' }],
+        },
+        { key: 'due', label: '截止', width: 120, editable: true, type: 'date' },
+        { key: 'tags', label: '标签', width: 180, editable: true, type: 'tags' },
+      ],
+      rows: [{ id: 'r1', title: '初稿', state: 2, due: '2026-11-06', tags: ['设计', '前端'] }],
+      editable: true,
+      onCellEdit: (e) => { editedCell = e; },
+    });
+    cells.style.cssText = 'width:640px;height:200px';
+    host.append(cells);
+    await raf();
+
+    const c0 = cellAt(cells, 0);
+    const c1 = cellAt(cells, 1);
+    const c2 = cellAt(cells, 2);
+    const c3 = cellAt(cells, 3);
+
+    ok('DataTable · select 显示 label 而非 value', c1?.textContent === '已发布', c1?.textContent);
+    ok('DataTable · tags 显示为一排 chip', c3?.querySelectorAll('.c-datatable__tag').length === 2,
+      `tags=${c3?.querySelectorAll('.c-datatable__tag').length}`);
+    ok('DataTable · tags 不撑高行', Math.abs((c3?.getBoundingClientRect().height ?? 0) - 28) <= 1,
+      `${c3?.getBoundingClientRect().height}`);
+
+    // select 编辑：提交要交回 options 里的原始值（数字）
+    editedCell = null;
+    dblclick(c1);
+    await raf();
+    const selectEl = c1.querySelector('select');
+    ok('DataTable · select 用原生 select 编辑', !!selectEl);
+    if (selectEl) {
+      selectEl.value = '1';
+      selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    await sleep(30);
+    ok('DataTable · select 提交值为原始类型',
+      editedCell?.value === 1 && typeof editedCell?.value === 'number',
+      `${typeof editedCell?.value}:${editedCell?.value}`);
+
+    // date 非法：回退 + 闪 invalid，不触发回调
+    editedCell = null;
+    dblclick(c2);
+    await raf();
+    const badDate = c2.querySelector('input');
+    badDate.value = '2026-02-30';
+    key(badDate, 'Enter');
+    await raf();
+    ok('DataTable · 非法日期回退', editedCell === null && c2.textContent === '2026-11-06', c2.textContent);
+    ok('DataTable · 非法日期闪 invalid', c2.classList.contains('is-invalid'));
+
+    // date 合法：字符串原样提交
+    editedCell = null;
+    dblclick(c2);
+    await raf();
+    const goodDate = c2.querySelector('input');
+    goodDate.value = '2026-12-01';
+    key(goodDate, 'Enter');
+    ok('DataTable · 合法日期提交为字符串',
+      editedCell?.value === '2026-12-01' && typeof editedCell?.value === 'string',
+      String(editedCell?.value));
+
+    // tags 编辑：逗号文本 → 数组
+    editedCell = null;
+    dblclick(c3);
+    await raf();
+    const tagInput = c3.querySelector('input');
+    ok('DataTable · tags 编辑初值为逗号文本', tagInput?.value === '设计, 前端', tagInput?.value);
+    if (tagInput) {
+      tagInput.value = '设计, 后端';
+      key(tagInput, 'Enter');
+    }
+    ok('DataTable · tags 提交为数组',
+      Array.isArray(editedCell?.value) && editedCell.value.join('/') === '设计/后端',
+      JSON.stringify(editedCell?.value));
+
+    // 键盘编辑：Enter 进入、Enter 提交
+    editedCell = null;
+    c0.focus();
+    key(c0, 'Enter');
+    await raf();
+    const titleInput = c0.querySelector('input');
+    ok('DataTable · Enter 进入编辑', !!titleInput);
+    if (titleInput) {
+      titleInput.value = '终稿';
+      key(titleInput, 'Enter');
+    }
+    ok('DataTable · 键盘提交编辑', editedCell?.value === '终稿', String(editedCell?.value));
+
+    // Esc 取消：不提交，显示回数据源
+    editedCell = null;
+    dblclick(c0);
+    await raf();
+    const escInput = c0.querySelector('input');
+    escInput.value = '不要保存';
+    key(escInput, 'Escape');
+    await raf();
+    ok('DataTable · Esc 取消编辑', editedCell === null && c0.textContent === '初稿', c0.textContent);
+
+    // Tab 提交并右移
+    editedCell = null;
+    dblclick(c0);
+    await raf();
+    const tabInput = c0.querySelector('input');
+    tabInput.value = '改过';
+    key(tabInput, 'Tab');
+    await raf();
+    ok('DataTable · Tab 提交并右移',
+      editedCell?.value === '改过' && document.activeElement?.dataset.col === '1',
+      `col=${document.activeElement?.dataset.col}`);
+
+    disposeAll(cells);
+    await clearHost();
+  }
+
+  /* ================= DataTable · manual 分页协议 ================= */
+  {
+    const queries = [];
+    const remote = DataTable({
+      columns: [
+        { key: 'name', label: '名称', width: 140, sortable: true },
+        { key: 'size', label: '大小', width: 90, align: 'right' },
+      ],
+      rows: [
+        { id: 'p1', name: '第一页 A', size: 9 },
+        { id: 'p2', name: '第一页 B', size: 3 },
+      ],
+      manual: true,
+      page: 1,
+      pageSize: 10,
+      total: 42,
+      onQuery: (q) => queries.push(q),
+    });
+    remote.style.cssText = 'width:420px;height:200px';
+    host.append(remote);
+    await raf();
+
+    ok('DataTable · manual 的 aria-rowcount 用 total', remote.getAttribute('aria-rowcount') === '43',
+      remote.getAttribute('aria-rowcount'));
+    ok('DataTable · manual 显示「共 N 行」',
+      remote.querySelector('.c-datatable__status')?.textContent === '共 42 行',
+      remote.querySelector('.c-datatable__status')?.textContent);
+    ok('DataTable · manual 首页行号从 2 起',
+      remote.querySelector('tbody tr[data-key]')?.getAttribute('aria-rowindex') === '2',
+      remote.querySelector('tbody tr[data-key]')?.getAttribute('aria-rowindex'));
+
+    click(remote.querySelector('.c-datatable__sort'));
+    await raf();
+    const q1 = queries.at(-1);
+    ok('DataTable · manual 排序发出 onQuery',
+      q1?.sort?.key === 'name' && q1?.sort?.dir === 'asc' && q1?.page === 1 && q1?.pageSize === 10,
+      JSON.stringify(q1));
+    ok('DataTable · manual 不本地排序',
+      remote.querySelector('tbody tr[data-key] td')?.textContent === '第一页 A',
+      remote.querySelector('tbody tr[data-key] td')?.textContent);
+
+    remote.setPage(2);
+    ok('DataTable · setPage 发出第 2 页查询', queries.at(-1)?.page === 2, JSON.stringify(queries.at(-1)));
+
+    remote.setRows([{ id: 'p3', name: '第二页 A', size: 1 }], { total: 58 });
+    await raf();
+    ok('DataTable · 新一页行号带页偏移',
+      remote.querySelector('tbody tr[data-key]')?.getAttribute('aria-rowindex') === '12',
+      remote.querySelector('tbody tr[data-key]')?.getAttribute('aria-rowindex'));
+    ok('DataTable · setRows 带 total 更新行数与文案',
+      remote.getAttribute('aria-rowcount') === '59' &&
+        remote.querySelector('.c-datatable__status')?.textContent === '共 58 行',
+      `${remote.getAttribute('aria-rowcount')}·${remote.querySelector('.c-datatable__status')?.textContent}`);
+
+    disposeAll(remote);
+    await clearHost();
+  }
+
+  /* ================= TreeView ================= */
+  {
+    const tree = TreeView({
+      nodes: [
+        {
+          id: 'root-a',
+          label: '项目 A',
+          children: [
+            { id: 'a-1', label: '文件 1' },
+            { id: 'a-2', label: '文件 2' },
+          ],
+        },
+        { id: 'off', label: '离线卷', disabled: true },
+        { id: 'root-b', label: '项目 B' },
+      ],
+      multiple: true,
+    });
+    host.append(tree);
+    await raf();
+
+    const treeRows = () => [...tree.querySelectorAll('.c-tree__row[data-key]')];
+
+    ok('TreeView · 初始只画根节点', treeRows().length === 3, `rows=${treeRows().length}`);
+    treeRows()[0].focus();
+    key(treeRows()[0], 'a', { metaKey: true });
+    ok('TreeView · Cmd+A 只选可见项', tree.value().join('/') === 'root-a/root-b', tree.value().join('/'));
+    ok('TreeView · Cmd+A 跳过禁用节点', !tree.value().includes('off'), tree.value().join('/'));
+    ok('TreeView · 禁用行有 aria-disabled', treeRows()[1].getAttribute('aria-disabled') === 'true');
+
+    tree.clearSelection();
+    ok('TreeView · clearSelection 清空选中', tree.value().length === 0, tree.value().join('/'));
+
+    tree.expand('root-a');
+    await raf();
+    ok('TreeView · 展开后多出两行', treeRows().length === 5, `rows=${treeRows().length}`);
+    treeRows()[0].focus();
+    key(treeRows()[0], 'a', { metaKey: true });
+    ok('TreeView · 展开后 Cmd+A 含子节点',
+      tree.value().join('/') === 'root-a/a-1/a-2/root-b',
+      tree.value().join('/'));
+
+    tree.collapse('root-a');
+    await raf();
+    tree.clearSelection();
+    tree.selectAll();
+    ok('TreeView · 折叠子树不参与全选',
+      tree.value().join('/') === 'root-a/root-b', tree.value().join('/'));
+    ok('TreeView · selectAll() 与 Cmd+A 同义', tree.value().length === 2, `n=${tree.value().length}`);
+
+    // 方向键跳过禁用行
+    tree.clearSelection();
+    pointer(treeRows()[0], 'pointerdown', 12, 12);
+    key(treeRows()[0], 'ArrowDown');
+    ok('TreeView · 方向键跳过禁用节点',
+      document.activeElement?.dataset.key === 'root-b', document.activeElement?.dataset.key);
+
+    // 点击禁用行不改变选中
+    const beforeClick = tree.value().join('/');
+    pointer(treeRows()[1], 'pointerdown', 12, 12);
+    ok('TreeView · 点击禁用行不改变选中', tree.value().join('/') === beforeClick, tree.value().join('/'));
+
+    // 禁用行不接受焦点
+    treeRows()[1].focus();
+    ok('TreeView · 禁用行不承载 tabindex', treeRows()[1].tabIndex === -1, `tabindex=${treeRows()[1].tabIndex}`);
+
+    tree.setDisabled(true);
+    ok('TreeView · setDisabled 落到 DOM', tree.getAttribute('data-disabled') === '1');
+    tree.setDisabled(false);
+
+    disposeAll(tree);
+    await clearHost();
+  }
+
+  /* ================= CollectionView ================= */
+  {
+    let tileH = 80;
+    const gridItems = Array.from({ length: 60 }, (_, i) => ({ id: `g${i}`, label: `项 ${i}` }));
+    const grid = CollectionView({
+      items: gridItems,
+      getKey: (it) => it.id,
+      layout: 'grid',
+      itemWidth: 90,
+      itemHeight: 40,
+      gap: 8,
+      renderItem: (it) => h('div', { style: { height: `${tileH}px` } }, it.label),
+    });
+    grid.style.cssText = 'width:420px;height:300px';
+    host.append(grid);
+    await sleep(80);
+
+    const colsOf = (root) => {
+      const items = [...root.querySelectorAll('.c-collection__item')]
+        .map((n) => ({ index: Number(n.dataset.index), top: n.offsetTop }))
+        .sort((a, b) => a.index - b.index);
+      if (!items.length) return 0;
+      const firstTop = items[0].top;
+      return items.filter((it) => it.top === firstTop).length;
+    };
+
+    ok('CollectionView · 宽容器 4 列', colsOf(grid) === 4, `cols=${colsOf(grid)}`);
+
+    grid.style.width = '220px';
+    await sleep(120);
+    ok('CollectionView · 变窄后列数减少', colsOf(grid) === 2, `cols=${colsOf(grid)}`);
+
+    // 锚点：变窄前记住第一可见项与它的偏移，变窄后应当还在原位
+    grid.style.width = '420px';
+    await sleep(120);
+    grid.scrollTop = 300;
+    await sleep(120);
+
+    const firstVisible = () => {
+      const top = grid.scrollTop;
+      const items = [...grid.querySelectorAll('.c-collection__item')]
+        .map((n) => ({ key: n.dataset.key, top: n.offsetTop, bottom: n.offsetTop + n.offsetHeight }))
+        .filter((it) => it.bottom > top + 1)
+        .sort((a, b) => a.top - b.top);
+      return items[0] ? { key: items[0].key, delta: Math.round(items[0].top - top) } : null;
+    };
+
+    const anchorBefore = firstVisible();
+    grid.style.width = '220px';
+    await sleep(160);
+    const anchorAfter = firstVisible();
+    ok('CollectionView · 重排后滚动锚点保持',
+      !!anchorBefore && !!anchorAfter &&
+        anchorBefore.key === anchorAfter.key &&
+        Math.abs(anchorBefore.delta - anchorAfter.delta) <= 2,
+      `${JSON.stringify(anchorBefore)} → ${JSON.stringify(anchorAfter)}`);
+
+    // 行高允许变矮：内容在 DOM 里变矮后重测，行高要跟着缩
+    await sleep(40);
+    const hBefore = grid.querySelector('.c-collection__item')?.offsetHeight ?? 0;
+    for (const inner of grid.querySelectorAll('.c-collection__item > div')) inner.style.height = '24px';
+    grid.refresh();
+    await sleep(120);
+    const hAfter = grid.querySelector('.c-collection__item')?.offsetHeight ?? 0;
+    ok('CollectionView · 网格行高可以变矮', hAfter < hBefore, `${hBefore} → ${hAfter}`);
+
+    // 键盘导航回归
+    grid.scrollTop = 0;
+    await sleep(80);
+    const item0 = grid.querySelector('.c-collection__item[data-index="0"]');
+    item0?.focus();
+    key(item0, 'ArrowDown');
+    await sleep(80);
+    ok('CollectionView · 方向键仍可用', Number(document.activeElement?.dataset.index) === 2,
+      `index=${document.activeElement?.dataset.index}`);
+    ok('CollectionView · value 返回选中 key', grid.value() === 'g2', String(grid.value()));
+
+    grid.setDisabled(true);
+    ok('CollectionView · setDisabled 落到 DOM', grid.getAttribute('aria-disabled') === 'true');
+    grid.setDisabled(false);
+
+    disposeAll(grid);
+    await clearHost();
+  }
+
+  ok('DataTable / TreeView / CollectionView dispose 幂等', disposeAllOk);
+
+  /* ================= Combobox · 模态内挂载 ================= */
+  {
+    const dlgCb = Combobox({
+      options: [{ value: 1, label: '苹果' }, { value: 2, label: '香蕉' }, { value: 3, label: '葡萄' }],
+    });
+    const dlg = Dialog({ title: '组合框在模态里', body: h('div', null, dlgCb) });
+    await raf();
+    ok('Combobox · Dialog 打开后层栈深度为 1', layerDepth() === 1, `depth=${layerDepth()}`);
+
+    dlgCb.input.focus();
+    dlgCb.open();
+    await raf();
+    ok('Combobox · Dialog 内面板能打开', dlgCb.isOpen(), `open=${dlgCb.isOpen()}`);
+    ok('Combobox · Dialog 内输入框仍是 activeElement', document.activeElement === dlgCb.input,
+      document.activeElement?.className || document.activeElement?.tagName);
+    ok('Combobox · Dialog 自身没有被本层面板冻住', !dlg.sheet.closest('[inert]'));
+
+    key(dlgCb.input, 'ArrowDown');
+    const dlgActiveId = dlgCb.input.getAttribute('aria-activedescendant');
+    ok('Combobox · Dialog 内方向键可用于候选', !!dlgActiveId && !!dlgCb.panel.querySelector(`#${dlgActiveId}`), dlgActiveId || 'none');
+
+    // 挂进遮罩层之后仍然用 fixed + 视口坐标定位：面板必须贴着触发器，
+    // 而不是相对对话框（相对了就会整体偏移，这是最容易被忽略的回归）
+    const cbRect = dlgCb.getBoundingClientRect();
+    const panelRect = dlgCb.panel.getBoundingClientRect();
+    ok('Combobox · 模态内的面板仍按视口坐标贴合触发器',
+      Math.abs(panelRect.left - cbRect.left) <= 2 && panelRect.top >= cbRect.bottom - 1,
+      `panel=${Math.round(panelRect.left)},${Math.round(panelRect.top)} anchor=${Math.round(cbRect.left)},${Math.round(cbRect.bottom)}`);
+
+    key(dlgCb.input, 'Escape');
+    await raf();
+    ok('Combobox · Esc 只关面板不关 Dialog', !dlgCb.isOpen() && !dlg.closed, `open=${dlgCb.isOpen()} closed=${dlg.closed}`);
+    ok('Combobox · Esc 后面板收起、层深回到 Dialog 那一层', layerDepth() === 1, `depth=${layerDepth()}`);
+    ok('Combobox · Esc 后焦点仍在输入框', document.activeElement === dlgCb.input);
+
+    dlg.close();
+    await raf();
+    ok('Combobox · Dialog 关闭后层栈归零', layerDepth() === 0, `depth=${layerDepth()}`);
+
+    disposeAll(dlgCb);
+    await clearHost(dlg.el);
+  }
+
+  /* ================= Combobox · 清空按钮 / 虚拟滚动 ================= */
+  {
+    let cleared = null;
+    const cb = Combobox({
+      value: 2,
+      clearable: true,
+      options: [{ value: 1, label: '苹果' }, { value: 2, label: '香蕉' }, { value: 3, label: '葡萄' }],
+      onChange: (v) => { cleared = v; },
+    });
+    host.append(cb);
+    const clearBtn = cb.querySelector('.c-combobox__clear');
+    ok('Combobox · clearable 且有值时显示清空按钮', !!clearBtn && !clearBtn.hidden);
+    ok('Combobox · 清空按钮有无障碍名', clearBtn?.getAttribute('aria-label') === '清除');
+
+    cb.input.focus();
+    click(clearBtn);
+    await raf();
+    ok('Combobox · 清空按钮清掉 value', cb.value() === null, String(cb.value()));
+    ok('Combobox · 清空按钮清掉 query', cb.query() === '', `query=${cb.query()}`);
+    ok('Combobox · 清空后焦点仍在输入框', document.activeElement === cb.input);
+    ok('Combobox · 清空回调收到空串', cleared === '', JSON.stringify(cleared));
+    ok('Combobox · 清空后按钮自己隐藏', clearBtn.hidden);
+
+    // 虚拟滚动
+    const many = Array.from({ length: 250 }, (_, i) => ({ value: i, label: `选项 ${i}` }));
+    const vcb = Combobox({ options: many });
+    host.append(vcb);
+    vcb.open();
+    await raf();
+    const rowCount = vcb.panel.querySelectorAll('.c-combobox__option').length;
+    ok('Combobox · 250 条时候选节点数 < 60', rowCount > 0 && rowCount < 60, `nodes=${rowCount}`);
+
+    vcb.input.focus();
+    for (let i = 0; i < 30; i += 1) key(vcb.input, 'ArrowDown');
+    await raf();
+    const vId = vcb.input.getAttribute('aria-activedescendant');
+    const vNode = vId ? vcb.panel.querySelector(`#${vId}`) : null;
+    ok('Combobox · 虚拟滚动下 active descendant 指向真实节点', !!vNode, vId || 'none');
+    const pr = vcb.panel.getBoundingClientRect();
+    const nr = vNode?.getBoundingClientRect();
+    ok('Combobox · 键盘移动后高亮行在面板视口内',
+      !!nr && nr.height > 0 && nr.top >= pr.top - 1 && nr.bottom <= pr.bottom + 1,
+      nr ? `${Math.round(nr.top)}–${Math.round(nr.bottom)} / ${Math.round(pr.top)}–${Math.round(pr.bottom)}` : 'none');
+    ok('Combobox · 虚拟滚动不改变集合语义', vcb.value() === null && vcb.panel.querySelectorAll('.c-combobox__pad').length === 2);
+    vcb.close();
+    await raf();
+
+    // 小列表保持全量渲染
+    const scb = Combobox({ options: Array.from({ length: 40 }, (_, i) => ({ value: i, label: `S${i}` })) });
+    host.append(scb);
+    scb.open();
+    await raf();
+    ok('Combobox · 40 条时保持全量渲染', scb.panel.querySelectorAll('.c-combobox__option').length === 40);
+    scb.close();
+    await raf();
+
+    disposeAll(cb, vcb, scb);
+    await clearHost();
+  }
+
+  /* ================= DatePicker · 模态内 / 可编辑输入 ================= */
+  {
+    const dlgDp = DatePicker({ value: '2026-11-06' });
+    const dlg2 = Dialog({ title: '日期在模态里', body: h('div', null, dlgDp) });
+    await raf();
+    dlgDp.open();
+    await raf();
+    const dpCell = document.activeElement;
+    ok('DatePicker · Dialog 内日期面板能拿到焦点', dpCell?.classList?.contains('c-datepicker__day'), dpCell?.className || 'none');
+    const dlgDpRect = dlgDp.getBoundingClientRect();
+    const dlgPanelRect = document.querySelector('.c-datepicker__panel')?.getBoundingClientRect();
+    ok('DatePicker · 模态内的日期面板仍按视口坐标贴合触发器',
+      !!dlgPanelRect && Math.abs(dlgPanelRect.left - dlgDpRect.left) <= 2 && dlgPanelRect.top >= dlgDpRect.bottom - 1,
+      dlgPanelRect ? `${Math.round(dlgPanelRect.left)},${Math.round(dlgPanelRect.top)}` : 'none');
+    key(dpCell, 'Escape');
+    await sleep(40);
+    ok('DatePicker · Dialog 内 Esc 只关日期面板',
+      !dlg2.closed && layerDepth() === 1 && !document.querySelector('.c-datepicker__panel'),
+      `closed=${dlg2.closed} depth=${layerDepth()}`);
+    ok('DatePicker · Dialog 内关闭面板后焦点回到输入框',
+      document.activeElement === dlgDp.querySelector('.c-datepicker__input'));
+    dlg2.close();
+    await raf();
+    disposeAll(dlgDp);
+    await clearHost(dlg2.el);
+
+    let dateChanges = [];
+    const dp = DatePicker({ value: '2026-11-06', onChange: (v) => dateChanges.push(v) });
+    host.append(dp);
+    const dInput = dp.querySelector('.c-datepicker__input');
+    ok('DatePicker · 默认可编辑', !!dInput);
+    ok('DatePicker · 输入框带 aria-label', dInput?.getAttribute('aria-label') === '日期');
+    const dTrigger = dp.querySelector('.c-datepicker__trigger');
+    ok('DatePicker · 可编辑触发器与按钮同高（28）',
+      Math.round(dTrigger.getBoundingClientRect().height) === 28,
+      String(Math.round(dTrigger.getBoundingClientRect().height)));
+
+    dInput.focus();
+    typeIn(dInput, '2026-11-07');
+    key(dInput, 'Enter');
+    ok('DatePicker · 键入 YYYY-MM-DD 并 Enter 提交', dp.value() === '2026-11-07', dp.value());
+
+    dInput.focus();
+    typeIn(dInput, '2026/11/6');
+    key(dInput, 'Enter');
+    ok('DatePicker · 键入 2026/11/6 归一化成 2026-11-06',
+      dp.value() === '2026-11-06' && dInput.value === '2026-11-06', `${dp.value()} / ${dInput.value}`);
+
+    dInput.focus();
+    typeIn(dInput, '20261106');
+    key(dInput, 'Enter');
+    ok('DatePicker · 键入 20261106 也能识别', dp.value() === '2026-11-06', dp.value());
+
+    dInput.focus();
+    typeIn(dInput, '2026-13-01');
+    key(dInput, 'Enter');
+    ok('DatePicker · 非法日期回退到上一个合法值',
+      dp.value() === '2026-11-06' && dInput.value === '2026-11-06', `${dp.value()} / ${dInput.value}`);
+    ok('DatePicker · 非法日期闪一次 invalidDraft', dInput.dataset.invalidDraft === '1');
+    await sleep(700);
+    ok('DatePicker · invalidDraft 不会长期停留', !dInput.dataset.invalidDraft);
+
+    const depthBeforeType = layerDepth();
+    dInput.focus();
+    typeIn(dInput, '2026-11-09');
+    ok('DatePicker · 键入不会打开面板', layerDepth() === depthBeforeType && !document.querySelector('.c-datepicker__panel'));
+
+    // 月末方向键跨月
+    const dp2 = DatePicker({ value: '2026-02-28' });
+    host.append(dp2);
+    dp2.open();
+    await raf();
+    const feb28 = document.querySelector('.c-datepicker__panel .c-datepicker__day[data-date="2026-02-28"]');
+    feb28?.focus();
+    key(feb28, 'ArrowRight');
+    const afterRight = document.activeElement;
+    ok('DatePicker · 2 月 28 日按 → 进入 3 月 1 日', afterRight?.dataset?.date === '2026-03-01', afterRight?.dataset?.date || 'none');
+    dp2.close();
+    await raf();
+
+    // 整月禁用 → 导航按钮禁用
+    const dp3 = DatePicker({ value: '2026-11-15', disabledDate: (d) => d.startsWith('2026-12') });
+    host.append(dp3);
+    dp3.open();
+    await raf();
+    const nextMonthBtn = document.querySelector('.c-datepicker__panel .c-datepicker__nav[aria-label="下个月"]');
+    const prevMonthBtn = document.querySelector('.c-datepicker__panel .c-datepicker__nav[aria-label="上个月"]');
+    ok('DatePicker · 整月被禁用时「下个月」按钮禁用', nextMonthBtn?.disabled === true);
+    ok('DatePicker · 相邻可用月份按钮仍可点', prevMonthBtn?.disabled === false);
+    dp3.close();
+    await raf();
+
+    // 年导航同样按 disabledDate 判断
+    const dp4 = DatePicker({ value: '2026-06-15', disabledDate: (d) => d.startsWith('2027') });
+    host.append(dp4);
+    dp4.open();
+    await raf();
+    document.querySelector('.c-datepicker__panel .c-datepicker__title')?.click();
+    await raf();
+    const nextYearBtn = document.querySelector('.c-datepicker__panel .c-datepicker__nav[aria-label="下一年"]');
+    ok('DatePicker · 整年被禁用时「下一年」按钮禁用', nextYearBtn?.disabled === true);
+    dp4.close();
+    await raf();
+
+    disposeAll(dp, dp2, dp3, dp4);
+    await clearHost();
+  }
+
+  /* ================= TimePicker ================= */
+  {
+    const tp = TimePicker({ value: '09:00' });
+    host.append(tp);
+    const tInput = tp.input;
+    ok('TimePicker · 默认可编辑', !!tInput);
+    ok('TimePicker · 与日期控件同高（28）',
+      Math.round(tp.getBoundingClientRect().height) === 28,
+      String(Math.round(tp.getBoundingClientRect().height)));
+
+    tInput.focus();
+    typeIn(tInput, '9:5');
+    tInput.blur();
+    await sleep(20);
+    ok('TimePicker · 9:5 提交后归一化成 09:05', tp.value() === '09:05' && tInput.value === '09:05', `${tp.value()} / ${tInput.value}`);
+
+    tInput.focus();
+    typeIn(tInput, '9:75');
+    tInput.blur();
+    await sleep(20);
+    ok('TimePicker · 非法时间回退', tp.value() === '09:05' && tInput.value === '09:05', `${tp.value()} / ${tInput.value}`);
+
+    const tp2 = TimePicker({ value: '09:00', step: 15, disabledTime: (m) => m >= 540 && m < 600 });
+    host.append(tp2);
+    tp2.input.focus();
+    tp2.input.setSelectionRange(3, 5);
+    key(tp2.input, 'ArrowUp');
+    ok('TimePicker · disabledTime 让键盘跳过整段禁用分钟', tp2.value() === '10:00', tp2.value());
+    key(tp2.input, 'ArrowUp');
+    ok('TimePicker · 连续步进后光标仍停在分钟段', tp2.value() === '10:15', tp2.value());
+    tp2.input.focus();
+    typeIn(tp2.input, '09:30');
+    tp2.input.blur();
+    await sleep(20);
+    ok('TimePicker · 手输落在禁用时段时被拒绝', tp2.value() === '10:15', tp2.value());
+
+    const tp3 = TimePicker({ value: '09:05:30', withSeconds: true });
+    host.append(tp3);
+    ok('TimePicker · withSeconds 保留秒', tp3.value() === '09:05:30', tp3.value());
+    tp3.input.focus();
+    typeIn(tp3.input, '9:5:7');
+    tp3.input.blur();
+    await sleep(20);
+    ok('TimePicker · 带秒写法归一化', tp3.value() === '09:05:07' && tp3.input.value === '09:05:07', `${tp3.value()} / ${tp3.input.value}`);
+
+    disposeAll(tp, tp2, tp3);
+    await clearHost();
+  }
+
+  /* ================= NumberField ================= */
+  {
+    // step: 0 关闭步长吸附，专门验证「解析/格式化」这一层；
+    // 带电 step 时 1234.5 会被吸附成 1235，那是步进语义，不是解析出错
+    const nf = NumberField({ value: 1234.5, grouping: true, step: 0 });
+    host.append(nf);
+    const nInput = nf.input;
+    ok('NumberField · grouping 初始显示 1,234.5', nInput.value === '1,234.5', nInput.value);
+
+    const nfInt = NumberField({ value: 1234, grouping: true });
+    host.append(nfInt);
+    ok('NumberField · 整数千分位显示 1,234', nfInt.input.value === '1,234', nfInt.input.value);
+
+    nInput.focus();
+    ok('NumberField · 聚焦时去掉分组符', nInput.value === '1234.5', nInput.value);
+    typeIn(nInput, '1,234.5');
+    nInput.blur();
+    await sleep(20);
+    ok('NumberField · 解析带分组符的输入', nf.value() === 1234.5, String(nf.value()));
+    ok('NumberField · 失焦后重新加上分组符', nInput.value === '1,234.5', nInput.value);
+
+    nf.setInvalid(true);
+    ok('NumberField · setInvalid 写进内部 input 的 aria-invalid', nInput.getAttribute('aria-invalid') === 'true');
+    ok('NumberField · setInvalid 同时在容器上留 data-invalid', nf.dataset.invalid === '1');
+    nf.setInvalid(false);
+    ok('NumberField · 撤销 invalid 后两处都清掉', nInput.getAttribute('aria-invalid') === 'false' && !nf.dataset.invalid);
+
+    const nf2 = NumberField({ value: 1 });
+    host.append(nf2);
+    nf2.input.focus();
+    typeIn(nf2.input, 'abc');
+    nf2.input.blur();
+    nf2.dispose();
+    nf2.dispose();
+    await raf();
+    ok('NumberField · dispose 幂等且取消未执行的 rAF', !nf2.input.dataset.invalidDraft);
+
+    // dispose 之后再走一遍「非法草稿 + 失焦」，不应该再排任何一帧
+    typeIn(nf2.input, 'xyz');
+    nf2.input.blur();
+    await raf();
+    ok('NumberField · dispose 后不再触发 invalidDraft 帧', !nf2.input.dataset.invalidDraft);
+
+    disposeAll(nf, nfInt);
+    await clearHost();
+  }
+
+  /* ================= Sheet ================= */
+  {
+    const reason = { custom: '', dflt: '' };
+    const customCancel = Button({ label: '取消', variant: 'plain' });
+    const customDelete = Button({ label: '删除', variant: 'plain' });
+    const customSave = Button({ label: '保存', variant: 'primary' });
+
+    const sh = Sheet({
+      title: '自定义动作',
+      body: h('p', null, '内容'),
+      actions: [customCancel, customDelete, customSave],
+      onClose: (r) => { reason.custom = r; },
+    });
+    await raf();
+
+    ok(
+      'Sheet · 自定义 actions 初始主按钮文案',
+      customSave.textContent.trim() === '保存' && !customSave.hasAttribute('aria-busy'),
+      customSave.textContent.trim()
+    );
+
+    sh.setBusy(true);
+    ok(
+      'Sheet · 自定义 actions busy 时主按钮换成「保存中…」',
+      customSave.textContent.trim() === '保存中…' && customSave.getAttribute('aria-busy') === 'true',
+      `label=${customSave.textContent.trim()} aria-busy=${customSave.getAttribute('aria-busy')}`
+    );
+    ok(
+      'Sheet · 自定义 actions busy 时其余动作禁用',
+      customCancel.disabled && customDelete.disabled && customSave.disabled,
+      `cancel=${customCancel.disabled} delete=${customDelete.disabled} save=${customSave.disabled}`
+    );
+    ok('Sheet · busy 时面板 aria-busy', sh.sheet.getAttribute('aria-busy') === 'true' && sh.pending === true);
+
+    key(sh.sheet, 'Escape');
+    await sleep(30);
+    ok('Sheet · busy 时 Esc 拒绝关闭', !sh.closed && sh.pending === true, `closed=${sh.closed}`);
+
+    sh.setBusy(false);
+    ok(
+      'Sheet · 解除 busy 还原文案与可用态',
+      customSave.textContent.trim() === '保存' &&
+        !customSave.hasAttribute('aria-busy') &&
+        !customSave.disabled &&
+        !customCancel.disabled &&
+        !customDelete.disabled,
+      `label=${customSave.textContent.trim()}`
+    );
+
+    key(sh.sheet, 'Escape');
+    await sleep(40);
+    ok('Sheet · 解除 busy 后 Esc 能关闭', sh.closed && reason.custom === 'escape', `reason=${reason.custom}`);
+
+    /* 默认 actions 走同一条路径 */
+    const dflt = Sheet({
+      title: '默认动作',
+      body: h('p', null, '内容'),
+      onSubmit: async () => { await sleep(140); },
+      onClose: (r) => { reason.dflt = r; },
+    });
+    await raf();
+    const dfltBtns = [...dflt.sheet.querySelectorAll('.c-sheet__foot button')];
+    const dfltSubmit = dfltBtns.at(-1);
+    click(dfltSubmit);
+    await sleep(40);
+    const dfltLabel = dfltSubmit.querySelector('.c-btn__label')?.textContent;
+    ok(
+      'Sheet · 默认 actions busy 行为一致',
+      dflt.pending === true &&
+        dfltLabel === '保存中…' &&
+        dfltSubmit.getAttribute('aria-busy') === 'true' &&
+        dfltSubmit.disabled,
+      `label=${dfltLabel} disabled=${dfltSubmit.disabled}`
+    );
+    await sleep(220);
+    ok('Sheet · 默认 actions 提交完成关闭', dflt.closed && reason.dflt === 'submit', `reason=${reason.dflt}`);
+
+    /* canDismiss 是应用自己的闸，busy 解除不能把它覆盖掉 */
+    let allowClose = false;
+    const gated = Sheet({
+      title: '关闭闸',
+      body: h('p', null, '内容'),
+      canDismiss: () => allowClose,
+    });
+    await raf();
+    gated.setBusy(true);
+    gated.setBusy(false);
+    key(gated.sheet, 'Escape');
+    await sleep(30);
+    ok('Sheet · 解除 busy 不覆盖 canDismiss 判断', !gated.closed, `closed=${gated.closed}`);
+
+    allowClose = true;
+    key(gated.sheet, 'Escape');
+    await sleep(30);
+    ok('Sheet · canDismiss 为真时恢复可关', gated.closed, `closed=${gated.closed}`);
+    gated.dispose();
+    ok('Sheet · 全部关闭后层栈归零', layerDepth() === 0 && sh.closed && dflt.closed, `depth=${layerDepth()}`);
+
+    disposeAll(sh, dflt);
+    await clearHost();
+  }
+
+  /* ================= ToolbarOverflow ================= */
+  {
+    const mkItems = (n) =>
+      Array.from({ length: n }, (_, i) => ({
+        id: `t${i}`,
+        node: Button({ label: `动作 ${i + 1}` }),
+        priority: i,
+        label: `动作 ${i + 1}`,
+      }));
+
+    const wrap = h('div', { style: { width: '700px' } });
+    const tb = ToolbarOverflow({ items: mkItems(6) });
+    wrap.append(tb);
+    host.append(wrap);
+    await raf();
+    await sleep(100);
+
+    const moreBtn = tb.querySelector('.c-toolbaroverflow__more');
+    const itemNodes = [...tb.children].filter((n) => n !== moreBtn);
+    const hiddenCount = () => itemNodes.filter((n) => n.hidden).length;
+    // 自然宽度 = 所有项宽 + 间距（scrollWidth 拿到的是客户端宽度，不是内容宽度）
+    const needed = itemNodes.reduce((sum, n) => sum + n.offsetWidth, 0) + 4 * (itemNodes.length - 1);
+
+    ok('ToolbarOverflow · 宽容器全部可见', hiddenCount() === 0 && moreBtn.hidden === true, `needed=${needed}`);
+
+    const setWidth = async (w) => {
+      wrap.style.width = `${w}px`;
+      await sleep(120);
+    };
+
+    await setWidth(needed - 8);
+    ok(
+      'ToolbarOverflow · 变窄后出现「更多」并收起动作',
+      moreBtn.hidden === false && hiddenCount() > 0,
+      `hidden=${hiddenCount()}`
+    );
+
+    // 临界宽度来回改 10 次：隐藏集合只允许在「真的过阈值」时变一次
+    const sig = () => itemNodes.map((n) => (n.hidden ? '0' : '1')).join('');
+    let lastSig = sig();
+    let transitions = 0;
+    const mo = new MutationObserver(() => {
+      const s = sig();
+      if (s !== lastSig) {
+        lastSig = s;
+        transitions += 1;
+      }
+    });
+    mo.observe(tb, { attributes: true, subtree: true, attributeFilter: ['hidden'] });
+
+    for (let i = 0; i < 10; i += 1) await setWidth(i % 2 === 0 ? needed + 8 : needed - 8);
+
+    await setWidth(needed + 260);
+    await sleep(60);
+    mo.disconnect();
+
+    ok(
+      'ToolbarOverflow · 临界宽度 10 次往返不振荡',
+      transitions <= 2 && hiddenCount() === 0 && moreBtn.hidden === true,
+      `transitions=${transitions} hidden=${hiddenCount()}`
+    );
+
+    /* 父级是 max-content 时：可用宽度不能跟着自己的隐藏结果一起缩 */
+    const mcOuter = h('div', { style: { width: '320px' } });
+    const mcParent = h('div', { style: { width: 'max-content', maxWidth: '320px' } });
+    const tbMc = ToolbarOverflow({ items: mkItems(6) });
+    mcParent.append(tbMc);
+    mcOuter.append(mcParent);
+    host.append(mcOuter);
+    await raf();
+    await sleep(140);
+
+    const mcMore = tbMc.querySelector('.c-toolbaroverflow__more');
+    const mcItems = [...tbMc.children].filter((n) => n !== mcMore);
+    const mcHidden1 = mcItems.filter((n) => n.hidden).length;
+    const mcWidth1 = Math.round(tbMc.getBoundingClientRect().width);
+    await sleep(220);
+    const mcHidden2 = mcItems.filter((n) => n.hidden).length;
+    const mcWidth2 = Math.round(tbMc.getBoundingClientRect().width);
+
+    ok(
+      'ToolbarOverflow · 父级 max-content 下仍能溢出',
+      mcMore.hidden === false && mcHidden1 > 0,
+      `hidden=${mcHidden1} width=${mcWidth1}`
+    );
+    ok(
+      'ToolbarOverflow · max-content 下不继续收缩',
+      mcHidden2 === mcHidden1 && Math.abs(mcWidth2 - mcWidth1) < 2,
+      `${mcWidth1}→${mcWidth2}px hidden ${mcHidden1}→${mcHidden2}`
+    );
+
+    /* 菜单保留 checked / disabled */
+    const boldNode = Button({ label: '加粗' });
+    boldNode.setAttribute('aria-pressed', 'true');
+    const italicNode = Button({ label: '斜体', disabled: true });
+    const tbMenu = ToolbarOverflow({
+      items: [
+        { id: 'bold', node: boldNode, priority: 0, label: '加粗' },
+        { id: 'italic', node: italicNode, priority: 0, label: '斜体' },
+        ...mkItems(4).map((it, i) => ({ ...it, id: `m${i}`, priority: 10 + i })),
+      ],
+    });
+    const menuWrap = h('div', { style: { width: '160px' } });
+    menuWrap.append(tbMenu);
+    host.append(menuWrap);
+    await raf();
+    await sleep(120);
+    click(tbMenu.querySelector('.c-toolbaroverflow__more'));
+    await raf();
+
+    const menuItems = [...document.querySelectorAll('[role^="menuitem"]')];
+    const boldItem = menuItems.find((n) => n.textContent.includes('加粗'));
+    const italicItem = menuItems.find((n) => n.textContent.includes('斜体'));
+    ok(
+      'ToolbarOverflow · 菜单保留 checked 状态',
+      !!boldItem && boldItem.getAttribute('aria-checked') === 'true',
+      `role=${boldItem?.getAttribute('role')} checked=${boldItem?.getAttribute('aria-checked')}`
+    );
+    ok(
+      'ToolbarOverflow · 菜单保留 disabled 状态',
+      !!italicItem && italicItem.getAttribute('aria-disabled') === 'true',
+      `aria-disabled=${italicItem?.getAttribute('aria-disabled')}`
+    );
+    tbMenu.dispose();
+    await sleep(20);
+    // 菜单是浮层，必须显式收掉，否则下一段的层深断言会被上一段污染
+    closeMenu();
+    await raf();
+
+    disposeAll(tb, tbMc);
+    await clearHost();
+  }
+
+  /* ================= FilePicker ================= */
+  {
+    const mkFile = (name, type, size) => {
+      const f = new File(['x'], name, { type });
+      Object.defineProperty(f, 'size', { value: size });
+      return f;
+    };
+    const pngA = mkFile('a.png', 'image/png', 1024);
+    const pngB = mkFile('b.png', 'image/png', 2048);
+    const pngBig = mkFile('c.png', 'image/png', 21 * 1024 * 1024);
+
+    let gotFiles = null;
+    let gotRejected = null;
+    let rejectCalls = 0;
+    const fp = FilePicker({
+      accept: 'image/*',
+      multiple: true,
+      maxFiles: 5,
+      maxSize: 20 * 1024 * 1024,
+      onFiles: (files, meta) => { gotFiles = { files, meta }; },
+      onReject: (list) => { gotRejected = list; rejectCalls += 1; },
+    });
+    host.append(fp);
+    await raf();
+
+    // 让隐藏 input 真的挂进文档，但不弹系统文件面板
+    const realClick = HTMLInputElement.prototype.click;
+    HTMLInputElement.prototype.click = function noop() {};
+    fp.open();
+    HTMLInputElement.prototype.click = realClick;
+
+    const fileInput = fp.querySelector('input[type="file"]') ?? host.querySelector('input[type="file"]');
+    const pick = async (list) => {
+      const dt = new DataTransfer();
+      for (const f of list) dt.items.add(f);
+      Object.defineProperty(fileInput, 'files', { value: dt.files, configurable: true, writable: true });
+      fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+      await sleep(30);
+    };
+
+    await pick([pngA, pngB, pngBig]);
+    ok('FilePicker · 逐文件收下合格的两个', fp.files().length === 2, `n=${fp.files().length}`);
+    ok(
+      'FilePicker · 超限文件带具体原因退回',
+      fp.rejected().length === 1 && fp.rejected()[0].reason === '超过 20 MB',
+      `${fp.rejected().length} · ${fp.rejected()[0]?.reason}`
+    );
+    ok(
+      'FilePicker · onFiles 带回 rejected / onReject 单独回调',
+      gotFiles?.files?.length === 2 && gotFiles?.meta?.rejected?.length === 1 && gotRejected?.length === 1 && rejectCalls === 1,
+      `accepted=${gotFiles?.files?.length} rejected=${gotFiles?.meta?.rejected?.length} onReject=${rejectCalls}`
+    );
+    // 清单是按钮的兄弟节点（块级内容不能塞进 button），所以在宿主里找而不是在 fp 里找
+    ok(
+      'FilePicker · 已选清单：名称 + 大小 + 可聚焦移除钮',
+      host.querySelectorAll('.c-filepicker__item').length === 2 &&
+        host.querySelector('.c-filepicker__remove')?.getAttribute('aria-label') === '移除 a.png' &&
+        host.querySelector('.c-filepicker__item-size')?.textContent === '1 KB',
+      host.querySelector('.c-filepicker__remove')?.getAttribute('aria-label')
+    );
+
+    const firstItem = host.querySelector('.c-filepicker__item');
+    const itemRect = firstItem?.getBoundingClientRect();
+    const removeRect = host.querySelector('.c-filepicker__remove')?.getBoundingClientRect();
+    ok(
+      'FilePicker · 清单排版：单行高度、移除钮可点',
+      !!itemRect &&
+        itemRect.height > 12 &&
+        itemRect.height < 34 &&
+        removeRect.width >= 16 &&
+        itemRect.width > removeRect.width,
+      `item=${Math.round(itemRect?.height)}px remove=${Math.round(removeRect?.width)}px`
+    );
+
+    click(host.querySelector('.c-filepicker__remove'));
+    await sleep(30);
+    ok(
+      'FilePicker · 单个移除',
+      fp.files().length === 1 && host.querySelectorAll('.c-filepicker__item').length === 1,
+      `n=${fp.files().length}`
+    );
+
+    fp.clear();
+    ok(
+      'FilePicker · clear 清空清单与拒绝记录',
+      fp.files().length === 0 && fp.rejected().length === 0 && host.querySelectorAll('.c-filepicker__item').length === 0
+    );
+
+    const beforeReject = rejectCalls;
+    const setRes = fp.setFiles([mkFile('d.exe', 'application/x-msdownload', 10), pngA]);
+    ok(
+      'FilePicker · setFiles 逐文件判定且静默',
+      setRes.files.length === 1 &&
+        setRes.rejected.length === 1 &&
+        setRes.rejected[0].reason === '类型不支持（.exe）' &&
+        rejectCalls === beforeReject,
+      `${setRes.rejected.map((r) => r.reason).join(',')}`
+    );
+
+    disposeAll(fp);
+    await clearHost();
+  }
+
+  /* ================= SplitView ================= */
+  {
+    const row = h('div', { style: { display: 'flex', width: '520px', height: '120px' } });
+    const flexSplit = SplitView({
+      panes: [
+        { id: 'fl', min: 40, node: h('div', null, '左') },
+        { id: 'fr', min: 40, node: h('div', null, '右') },
+      ],
+    });
+    row.append(flexSplit);
+    host.append(row);
+    await raf();
+    await sleep(80);
+    const flexW = Math.round(flexSplit.getBoundingClientRect().width);
+    ok(
+      'SplitView · 作为 flex 子项（无显式宽度）仍有非零尺寸',
+      flexW > 100 && flexSplit.sizes().every((v) => v > 0),
+      `w=${flexW} sizes=${flexSplit.sizes().join('/')}`
+    );
+
+    const sv = SplitView({
+      panes: [
+        { id: 'a', min: 80, size: 160, node: h('div', null, 'A') },
+        { id: 'b', min: 80, size: 200, node: h('div', null, 'B') },
+        { id: 'c', min: 80, size: 300, node: h('div', null, 'C') },
+      ],
+    });
+    sv.style.cssText = 'width:700px;height:160px';
+    host.append(sv);
+    await raf();
+    await sleep(80);
+
+    const separators = [...sv.querySelectorAll('[role="separator"]')];
+    const ptr = (type, x) =>
+      separators[0].dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          pointerId: 7,
+          isPrimary: true,
+          button: 0,
+          buttons: type === 'pointerup' ? 0 : 1,
+          clientX: x,
+          clientY: 40,
+        })
+      );
+
+    const before = sv.sizes();
+    ptr('pointerdown', 200);
+    ptr('pointermove', 280);
+    ptr('pointerup', 280);
+    await sleep(40);
+    const dragged = sv.sizes();
+    ok(
+      'SplitView · 拖动改变相邻两栏',
+      dragged[0] > before[0] + 20 && Math.abs(dragged[0] + dragged[1] - before[0] - before[1]) < 2,
+      `${before.map(Math.round).join('/')} → ${dragged.map(Math.round).join('/')}`
+    );
+
+    sv.style.width = '1000px';
+    await sleep(150);
+    const grown = sv.sizes();
+    ok(
+      'SplitView · 变宽后不把拖过的栏拉回默认比例',
+      Math.abs(grown[0] - dragged[0]) < 12 && grown[2] - dragged[2] > 180,
+      `${dragged.map(Math.round).join('/')} → ${grown.map(Math.round).join('/')}`
+    );
+
+    const snap = sv.serialize();
+    sv.setSizes([100, 140, 300]);
+    await sleep(20);
+    sv.restore(snap);
+    await sleep(20);
+    const back = sv.sizes();
+    ok(
+      'SplitView · serialize / restore 往返',
+      snap.sizes.length === 3 &&
+        snap.collapsed.length === 0 &&
+        back.every((v, i) => Math.abs(v - snap.sizes[i]) < 2),
+      `${snap.sizes.map(Math.round).join('/')} → ${back.map(Math.round).join('/')}`
+    );
+
+    /* 折叠 + persistKey（临时 key，段末删除，避免污染） */
+    const storeKey = `gg-behavior-split-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    try { localStorage.removeItem(storeKey); } catch {}
+
+    const svp = SplitView({
+      persistKey: storeKey,
+      panes: [
+        { id: 'x', min: 60, collapsible: true, node: h('div', null, 'X') },
+        { id: 'y', min: 60, node: h('div', null, 'Y') },
+      ],
+    });
+    svp.style.cssText = 'width:600px;height:140px';
+    host.append(svp);
+    await raf();
+    await sleep(80);
+
+    svp.collapse('x');
+    await sleep(40);
+    let stored = null;
+    try { stored = JSON.parse(localStorage.getItem(storeKey) || 'null'); } catch {}
+    ok(
+      'SplitView · persistKey 写入尺寸与折叠状态',
+      !!stored && Array.isArray(stored.sizes) && Array.isArray(stored.collapsed) && stored.collapsed.includes('x'),
+      JSON.stringify(stored)
+    );
+
+    const svq = SplitView({
+      persistKey: storeKey,
+      panes: [
+        { id: 'x', min: 60, collapsible: true, node: h('div', null, 'X') },
+        { id: 'y', min: 60, node: h('div', null, 'Y') },
+      ],
+    });
+    svq.style.cssText = 'width:600px;height:140px';
+    host.append(svq);
+    await raf();
+    await sleep(100);
+    ok(
+      'SplitView · 折叠状态随 persistKey 恢复',
+      svq.isCollapsed('x') === true && svq.sizes()[0] === 0,
+      `collapsed=${svq.isCollapsed('x')} sizes=${svq.sizes().join('/')}`
+    );
+
+    try { localStorage.removeItem(storeKey); } catch {}
+    svp.dispose();
+    svq.dispose();
+
+    sv.dispose();
+    const frozen = sv.sizes().join('/');
+    sv.setSizes([10, 10, 10]);
+    sv.dispose();
+    ok('SplitView · dispose 幂等且之后不再改布局', sv.sizes().join('/') === frozen, frozen);
+
+    flexSplit.dispose();
+    await clearHost();
+  }
+
+  /* ================= 收尾 ================= */
+  closeMenu();
+  host.replaceChildren();
+  await raf();
+  ok('收尾 · 所有浮层可完全关闭', layerDepth() === 0, `depth=${layerDepth()}`);
+  ok('收尾 · 背景没有残留 inert', [...document.body.children].every((n) => !n.hasAttribute('inert')));
+} catch (err) {
+  ok('测试脚本无异常', false, err?.stack?.split('\n').slice(0, 2).join(' ') ?? String(err));
+  console.error(err);
+}
+
+const out = document.querySelector('#out');
+out.textContent = results.join('\n');
+document.title = results.every((s) => s.startsWith('PASS')) ? 'ALL PASS' : 'HAS FAIL';
+</script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+/* ==========================================================================
+   18. 复选
+   ========================================================================== */
+
+.c-check {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-xs);
+  background: var(--surface-control);
+  color: var(--text-on-accent);
+  box-shadow: inset 0 0 0 0.5px var(--line-strong);
+  pointer-events: none;
+  transition: background-color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out);
+}
+
+/* 整行（框 + 文字）都是热区，框本身不单独响应，避免一次点击触发两次切换 */
+.c-check-row {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  border-radius: var(--r-xs);
+  cursor: default;
+}
+
+.c-check-row:hover .c-check {
+  background: var(--surface-control-hover);
+}
+
+/* 已勾选时悬停要更深，不能变回灰色——与其它控件保持同一套按压语义 */
+.c-check-row:hover .c-check[aria-checked="true"] {
+  background: var(--accent-hover);
+}
+
+.c-check[aria-checked="true"] {
+  background: var(--accent);
+  box-shadow: none;
+}
+
