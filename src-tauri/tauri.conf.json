@@ -4,8 +4,8 @@
   "identifier": "com.lumina.album",
   "build": {
     "frontendDist": "../dist",
-    "beforeDevCommand": "node ../scripts/build-ui.mjs",
-    "beforeBuildCommand": "node ../scripts/build-ui.mjs"
+    "beforeDevCommand": "node scripts/build-ui.mjs",
+    "beforeBuildCommand": "node scripts/build-ui.mjs"
   },
   "app": {
     "withGlobalTauri": true,
