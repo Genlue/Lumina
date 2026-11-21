@@ -131,33 +131,29 @@ pub fn ModalHost() -> impl IntoView {
                     let folders = app.folders.get();
                     view! {
                         <div class="l-stack l-stack--2" style="max-height:320px;overflow-y:auto">
-                            <button
-                                class="c-nav__item"
-                                on:click=move |_| {
+                            <FolderRow
+                                label="根目录"
+                                on_pick=Callback::new(move |_| {
                                     let img = app.modal.with(|m| m.as_ref().and_then(|x| x.image.clone()));
                                     app.modal.set(None);
                                     if let Some(img) = img {
                                         move_to_root(app, img);
                                     }
-                                }
-                            >
-                                <span class="c-nav__label">"根目录"</span>
-                            </button>
+                                })
+                            />
                             {folders.into_iter().map(|f| {
                                 let f2 = f.clone();
                                 view! {
-                                    <button
-                                        class="c-nav__item"
-                                        on:click=move |_| {
+                                    <FolderRow
+                                        label=f
+                                        on_pick=Callback::new(move |_| {
                                             let img = app.modal.with(|m| m.as_ref().and_then(|x| x.image.clone()));
                                             app.modal.set(None);
                                             if let Some(img) = img {
                                                 move_to(app, img, f2.clone());
                                             }
-                                        }
-                                    >
-                                        <span class="c-nav__label">{f}</span>
-                                    </button>
+                                        })
+                                    />
                                 }
                             }).collect_view()}
                         </div>
@@ -207,6 +203,20 @@ pub fn ModalHost() -> impl IntoView {
             }
             .into_any()
         }}
+    }
+}
+
+/// 「移动到文件夹」列表里的一行。
+///
+/// 用原生 `<button>` 而不是库的 `NavItem`：后者输出 `role="option"`，
+/// 这里没有 listbox 父级，语义反而是错的；按钮自带 Enter/Space 激活。
+/// 复用 `.c-nav__item` 只为外观与导航栏一致，不参与导航栏的键盘模型。
+#[component]
+fn FolderRow(#[prop(into)] label: String, on_pick: Callback<()>) -> impl IntoView {
+    view! {
+        <button class="c-nav__item" on:click=move |_| on_pick.run(())>
+            <span class="c-nav__label">{label}</span>
+        </button>
     }
 }
 

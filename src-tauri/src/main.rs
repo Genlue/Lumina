@@ -86,8 +86,6 @@ pub fn run() {
             commands::cache_generate_status,
             commands::cache_reconcile,
             commands::window_set_effect,
-            commands::window_set_titlebar,
-            commands::startup_get_titlebar_mode,
             commands::favorites_export,
             commands::favorites_import,
             commands::favorites_copy_to_backgrounds,

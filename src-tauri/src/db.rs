@@ -322,6 +322,8 @@ fn init_profile_db_schema(conn: &Connection) -> rusqlite::Result<()> {
     }
 
     if version < 15 {
+        // 字段已随 v4 的无边框改造废弃（窗口恒为 decorations:false，没有第二套标题栏）。
+        // 迁移本身保留：删掉它会让后面的版本号整体前移，已有库的 _schema_version 就对不上。
         conn.execute_batch(
             "ALTER TABLE settings ADD COLUMN titlebar_mode TEXT NOT NULL DEFAULT 'native';"
         )?;

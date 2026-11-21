@@ -1,6 +1,6 @@
 [package]
 name = "lumina-ui"
-version = "4.0.0"
+version = "4.0.1"
 edition = "2021"
 description = "Lumina 前端渲染层（Leptos CSR + GlassDesign）"
 

@@ -677,10 +677,6 @@ pub async fn window_set_effect(enabled: bool, effect_type: Option<&str>) -> Resu
     .await
 }
 
-pub async fn window_set_titlebar(mode: &str) -> Result<(), String> {
-    invoke_void("window_set_titlebar", args(&serde_json::json!({ "mode": mode }))).await
-}
-
 /// 窗口按钮：关闭 / 最小化 / 最大化。走 `__TAURI__.window`，不额外引插件。
 pub fn window_action(action: &str) {
     let Some(t) = tauri() else { return };

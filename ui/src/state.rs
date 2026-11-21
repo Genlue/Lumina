@@ -1063,7 +1063,6 @@ fn apply_local(s: &mut Settings, updates: &serde_json::Value) {
             "bg_effect_type" => s.bg_effect_type = v.as_str().unwrap_or("acrylic").to_string(),
             "font_family" => s.font_family = v.as_str().unwrap_or("").to_string(),
             "panel_radius" => s.panel_radius = i(v).unwrap_or(s.panel_radius),
-            "titlebar_mode" => s.titlebar_mode = v.as_str().unwrap_or("macos").to_string(),
             "home_title" => s.home_title = v.as_str().map(str::to_string),
             _ => {}
         }

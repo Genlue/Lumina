@@ -6,6 +6,22 @@
    控件外观归 glass.css，这里只解决「照片墙怎么排」「灯箱怎么盖」。
    ========================================================================== */
 
+/* ---------------- 本地令牌（照片覆盖层） ---------------- */
+
+/* 压在照片上的那几层（文件名渐变、收藏角标、选择圈、灯箱底）。
+   库里的 --scrim 是给整窗遮罩用的（亮 0.34 / 暗 0.52），铺在照片上太薄，
+   白字读不出来 —— 所以媒体层单独给一组令牌，规则里不再写字面色值。
+   值只在亮色主题下定义：这几层始终压在自己的照片上，与主题无关。 */
+:root {
+  --media-ink: #ffffff;
+  --media-scrim-soft: rgb(0 0 0 / 0.25);
+  --media-scrim: rgb(0 0 0 / 0.32);
+  --media-scrim-strong: rgb(0 0 0 / 0.62);
+  --media-scrim-solid: rgb(0 0 0 / 0.86);
+  --media-ring: rgb(255 255 255 / 0.85);
+  --media-shadow: 0 24px 64px -16px rgb(0 0 0 / 0.6);
+}
+
 /* ---------------- 通用页面容器 ---------------- */
 
 .lumina-page {
@@ -51,24 +67,29 @@
   z-index: 30;
 }
 
-/* ---------------- 照片网格（虚拟化） ---------------- */
+/* 「已选 n 张」的文字，左右各留 4px 才不贴胶囊边 */
+.lumina-multibar__count {
+  padding: 0 var(--s-2);
+}
+
+/* ---------------- 照片网格 ---------------- */
 
 .lumina-grid {
   position: relative;
   width: 100%;
-}
-
-.lumina-grid__row {
-  position: absolute;
-  left: 0;
-  right: 0;
+  /* 列模板与间隙是按用户设置算出来的，页面只注入两个变量，
+     不把 display / gap 写进行内 style（GlassDesign docs/02 §13）。 */
   display: grid;
-  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
-  gap: var(--gap);
+  grid-template-columns: var(--grid-cols, repeat(auto-fill, minmax(160px, 1fr)));
+  gap: var(--grid-gap, var(--s-4));
 }
 
-.lumina-grid__spacer {
-  width: 100%;
+/* 「加载更多」那一行。以前把 justify-content / padding 写在标签上，
+   现在收进类里 —— 页面不写布局属性（docs/02 §13）。 */
+.lumina-loadmore {
+  display: flex;
+  justify-content: center;
+  padding: var(--s-7) 0;
 }
 
 /* 单张照片 */
@@ -109,8 +130,8 @@
   bottom: 0;
   padding: var(--s-6) var(--s-5) var(--s-4);
   font-size: var(--fs-11);
-  color: #fff;
-  background: linear-gradient(to top, rgb(0 0 0 / 0.62), transparent);
+  color: var(--media-ink);
+  background: linear-gradient(to top, var(--media-scrim-strong), transparent);
   opacity: 0;
   transition: opacity 140ms ease-out;
   white-space: nowrap;
@@ -131,8 +152,8 @@
   width: 22px;
   height: 22px;
   border-radius: var(--r-pill);
-  background: rgb(0 0 0 / 0.32);
-  color: #fff;
+  background: var(--media-scrim);
+  color: var(--media-ink);
 }
 
 .lumina-tile__check {
@@ -142,11 +163,11 @@
   width: 18px;
   height: 18px;
   border-radius: var(--r-pill);
-  border: 1.5px solid rgb(255 255 255 / 0.85);
-  background: rgb(0 0 0 / 0.25);
+  border: 1.5px solid var(--media-ring);
+  background: var(--media-scrim-soft);
   display: grid;
   place-items: center;
-  color: #fff;
+  color: var(--media-ink);
   opacity: 0;
 }
 
@@ -316,6 +337,13 @@
 
 /* ---------------- 发现页 ---------------- */
 
+/* 「换一批」那一行。对齐与边距写在类里，标签上不再挂 display/padding。 */
+.lumina-discover__foot {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 var(--s-9) var(--s-6);
+}
+
 .lumina-waterfall {
   columns: 4;
   column-gap: var(--s-5);
@@ -401,7 +429,7 @@
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: rgb(0 0 0 / 0.86);
+  background: var(--media-scrim-solid);
 }
 
 /* 背景 = 当前图放大 + 模糊 + 暗化（不用 backdrop-filter：要折的是自己） */
@@ -432,7 +460,7 @@
   max-height: calc(100vh - 148px);
   object-fit: contain;
   border-radius: var(--r-sm);
-  box-shadow: 0 24px 64px -16px rgb(0 0 0 / 0.6);
+  box-shadow: var(--media-shadow);
   transition: transform 160ms ease-out;
   cursor: default;
 }
@@ -453,6 +481,40 @@
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
   padding: 0 var(--s-4);
+}
+
+/* ---------------- 与库版本的差异补丁 ---------------- */
+
+/* 0.8.3 的 `Cluster` 渲染成裸 `.l-row`，而这一版的 `.l-row` / `.l-stack`
+   **没有默认 gap** —— 间距只写在 `--2/--3/--4…` 这些档位类上。
+   0.9.0 才把默认值补进去（.l-row = --s-4，.l-stack = --s-5）。
+   不补这两行，凡是用 `Cluster` 摆的按钮组都是 0 间距贴死
+   （设置页「生成缩略图 / 检查孤儿缓存 / 清理缓存」就是最明显的一处）。
+
+   glass.css 是运行期注入的，排在 app.css 之后；档位类同权重且更晚，
+   所以显式写了 `l-row--3` 的地方仍然按 6px 走，不会被这里改掉。
+   升到 0.9.x 之后这两条可以删。 */
+.l-row {
+  gap: var(--s-4);
+}
+
+.l-stack {
+  gap: var(--s-5);
+}
+
+/* ---------------- 顶栏拖窗层 ---------------- */
+
+/* `.c-topbar` 是 `pointer-events: none` 的透明浮层：Tauri 的
+   `data-tauri-drag-region` 挂在它身上永远收不到 mousedown（详见 shell.rs 里
+   那层 div 的注释）。这一层铺满顶栏、靠 z-index:-1 待在所有胶囊下面，
+   只负责「空白处按下去能拖窗」，不改变任何点击语义。
+
+   不要给它加 cursor: grab —— 指针形状归系统，自绘会变成一只手
+   （GlassDesign docs/03「构建与验证」的验收表）。 */
+.lumina-drag {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
 }
 
 /* ---------------- 状态条 ---------------- */

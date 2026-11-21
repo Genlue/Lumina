@@ -96,7 +96,6 @@ pub struct Settings {
     pub extract_color_dark: String,                // 自动提取的深色（不覆盖自定义）
     pub extract_color_light: String,               // 自动提取的浅色（不覆盖自定义）
     pub transparent_accent_mode: String,  // 透明模式下的强调色模式: 'custom' | 'system' | 'extract'
-    pub titlebar_mode: String,            // 顶栏模式: 'native'(Windows 原生) | 'macos'(macOS 风格)
     pub font_family: String,              // 界面字体族（空字符串 = 跟随系统默认）
     pub thumb_gen_concurrency: i64,       // 缩略图生成并发数（0 = 无上限，默认 10）
     pub panel_radius: i64,                // 内容区左上角圆角（0-24，0=直角，默认 12）

@@ -2,6 +2,17 @@
 
 > 按时间倒序，最新在上。项目结构见 [README](../README.md)。
 
+## 2026-11-21 — v4.0.1 — 顶栏可拖窗 + 控件间距对齐
+
+两处都源于 GlassDesign 0.8.3 与本项目写法的错位，补齐后不改观感、只补漏。
+
+- 🪟 **无边框窗口顶栏可拖动** — `.c-topbar` 是 `pointer-events: none` 的透明浮层，而 Tauri 的 `data-tauri-drag-region` 裸值只在「事件目标就是该元素」时生效，属性从来没被命中过。补一层铺满顶栏、压在所有胶囊之下的 `.lumina-drag`，空白处可拖窗、双击最大化，按钮与胶囊的点击不受影响。
+- 📐 **`Cluster` 按钮组不再贴死** — 0.8.3 的 `.l-row` / `.l-stack` 没有默认 gap（0.9.0 才补 `--s-4` / `--s-5`），`Cluster` 输出的裸 `.l-row` 因此是 0 间距。按上游默认值补一段兼容层，七个页面的按钮组实测回到 8px；显式档位（`l-row--3` 等）仍然优先。
+- 🧹 **规范清理** — 三处页面内联布局（照片网格、加载更多、换一批）改为类与 CSS 变量；八处字面色值收进 `--media-*` 本地令牌；列表视图手写 `<button class="c-btn">` 换回 `Button`；删掉 v4 遗留的死样式 `.lumina-grid__row/__spacer` 与未定义类 `l-row--center`；移动照片的文件夹列表抽出 `FolderRow`（保留原生按钮语义，不用 `NavItem` 的 `role="option"`）。
+- 🗑️ **移除 `titlebar_mode` 死链路** — v4 窗口恒为 `decorations:false`，前端从不调用 `window_set_titlebar`。删掉两条命令、前端 API / 模型 / 状态映射与仓储字段；DB 迁移 V15 保留（删掉会让后续版本号前移）。
+- 🧪 **测试** — 后端 83 条全绿；顺带把两条断言里过期的默认值（`sidebar_width 150`、`theme dark` / `#6D79F6`）对齐到实现。
+- 📦 **安装包** — `Lumina_4.0.1_x64-setup.exe`。
+
 ## 2026-11-17 — v4.0.0 — 前端重写为 Rust + Leptos（大版本）
 
 渲染层整体换语言：原生 JS + 手写 CSS → **Rust + Leptos 0.8（CSR）+ GlassDesign 0.8.3**，

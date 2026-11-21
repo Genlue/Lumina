@@ -108,6 +108,16 @@ pub fn Shell() -> impl IntoView {
     view! {
         <AppShell nav_hidden=nav_hidden>
             <Toolbar>
+                // 顶栏空白处的拖窗层（必须铺满整条、压在胶囊之下）。
+                //
+                // 库的 `.c-topbar` 是 `pointer-events: none` —— 空白处让事件穿过去，
+                // 而 Tauri 的 `data-tauri-drag-region` 裸值只在**事件目标就是该元素本身**
+                // 时才算拖拽区：`pointer-events: none` 的元素永远当不了目标，
+                // 于是 `Toolbar` 上那个属性从来没生效过，整条顶栏一个像素都拖不动。
+                // 无边框窗口（decorations:false）没有系统标题栏兜底，这就成了死区。
+                // 补一层有实体尺寸的 div，把拖拽区落到真正能被点到的元素上；
+                // z-index:-1 保证它只在空白处接管，胶囊 / 按钮仍在它上面照常点击。
+                <div class="lumina-drag" data-tauri-drag-region="true"></div>
                 <ToolbarChrome>
                     <WindowChrome />
                     {move || {

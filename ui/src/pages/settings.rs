@@ -18,7 +18,7 @@ use crate::state::App;
 use crate::theme;
 use crate::ui::{toast, toast_with};
 
-const APP_VERSION: &str = "4.0.0";
+const APP_VERSION: &str = "4.0.1";
 
 #[component]
 pub fn SettingsPage() -> impl IntoView {

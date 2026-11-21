@@ -101,7 +101,7 @@ fn Waterfall() -> impl IntoView {
                 list.truncate(240);
 
                 view! {
-                    <div style="display:flex;justify-content:flex-end;padding:0 24px 12px">
+                    <div class="lumina-discover__foot">
                         <Button
                             label="换一批"
                             icon=IconName::SHUFFLE

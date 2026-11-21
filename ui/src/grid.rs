@@ -115,7 +115,7 @@ pub fn MultiBar(view: String) -> impl IntoView {
             view! {
                 <div class="lumina-multibar">
                     <Capsule size=CapsuleSize::Auto>
-                        <span class="c-subtitle" style="padding:0 4px">{format!("已选 {n} 张")}</span>
+                        <span class="c-subtitle lumina-multibar__count">{format!("已选 {n} 张")}</span>
                     </Capsule>
                     <Capsule size=CapsuleSize::Auto>
                         <Button
@@ -271,10 +271,11 @@ pub fn PhotoView(
                     <div class="lumina-list">
                         {slice.into_iter().map(|img| view! { <ListRow img=img menu=menu /> }).collect_view()}
                         {has_more.then(|| view! {
-                            <button
-                                class="c-btn c-btn--plain"
-                                on:click=move |_| limit.update(|n| *n += CHUNK)
-                            >"加载更多"</button>
+                            <Button
+                                label="加载更多"
+                                variant=ButtonVariant::Plain
+                                on_click=Callback::new(move |_| limit.update(|n| *n += CHUNK))
+                            />
                         })}
                     </div>
                 }
@@ -292,14 +293,14 @@ pub fn PhotoView(
             } else {
                 format!("repeat(auto-fill, minmax({cell}px, 1fr))")
             };
-            let style = format!("display:grid;grid-template-columns:{template};gap:{gap}px");
+            let style = format!("--grid-cols:{template};--grid-gap:{gap}px");
 
             view! {
                 <div class="lumina-grid" style=style>
                     {slice.into_iter().map(|img| view! { <Tile img=img menu=menu /> }).collect_view()}
                 </div>
                 {has_more.then(|| view! {
-                    <div class="l-row l-row--center" style="justify-content:center;padding:16px">
+                    <div class="lumina-loadmore">
                         <Button
                             label=format!("加载更多（还有 {} 张）", total - shown)
                             variant=ButtonVariant::Plain
