@@ -413,10 +413,18 @@ pub struct App {
 
 impl App {
     pub fn provide() -> Self {
+        // 首帧的 settings 先用「上次主题」垫着：封面页还没读库里的设置，
+        // 如果拿默认值（跟随系统）去驱动 Theme，会把 bootstrap 恢复出来的
+        // 深色/强调色重新冲成浅色——表现就是「封面永远是浅色」。
+        let seed = Settings {
+            theme_mode: crate::theme::mode_str(crate::theme::cached_mode()).to_string(),
+            accent_color: crate::theme::cached_accent().to_string(),
+            ..Settings::fallback()
+        };
         let app = Self {
             profiles: RwSignal::new(Vec::new()),
             profile_id: RwSignal::new(String::new()),
-            settings: RwSignal::new(Settings::fallback()),
+            settings: RwSignal::new(seed),
             root: RwSignal::new(Vec::new()),
             folders: RwSignal::new(Vec::new()),
             album_images: RwSignal::new(HashMap::new()),

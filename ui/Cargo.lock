@@ -447,8 +447,8 @@ dependencies = [
 
 [[package]]
 name = "glass-design"
-version = "0.8.3"
-source = "git+https://github.com/Genlue/GlassDesign?tag=v0.8.3#b4b9b791137a0a868938c9d9a0fb8ac4dd8414a4"
+version = "0.10.0"
+source = "git+https://github.com/Genlue/GlassDesign?tag=v0.10.0#13603bc888a9b0191991f2ef5b13444a3f3a51db"
 dependencies = [
  "js-sys",
  "leptos",
@@ -835,7 +835,7 @@ checksum = "47d9d19d1d6efa0109d2f65ff4c85cddd50bd572e5a00127ab10987290bcefae"
 
 [[package]]
 name = "lumina-ui"
-version = "4.0.1"
+version = "4.2.0"
 dependencies = [
  "glass-design",
  "js-sys",

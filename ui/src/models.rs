@@ -395,8 +395,13 @@ pub fn format_ms(ms: i64) -> String {
     if ms <= 0 {
         return "—".into();
     }
-    let total_days = ms.div_euclid(86_400_000);
-    let rem = ms.rem_euclid(86_400_000);
+    // 下面的 civil_from_days 只按 UTC 切分；先按浏览器时区把时间戳挪到本地，
+    // 否则东八区会把 14:09 显示成 06:09（差 8 小时）。
+    let offset_min = js_sys::Date::new(&wasm_bindgen::JsValue::from_f64(ms as f64))
+        .get_timezone_offset() as i64;
+    let local = ms - offset_min * 60_000;
+    let total_days = local.div_euclid(86_400_000);
+    let rem = local.rem_euclid(86_400_000);
     let (y, m, d) = civil_from_days(total_days);
     let h = rem / 3_600_000;
     let mi = (rem % 3_600_000) / 60_000;

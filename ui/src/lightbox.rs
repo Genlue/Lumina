@@ -6,9 +6,14 @@
 // 原图 URL 存在 Lightbox 自己身上，不在渲染闭包里建信号：
 // 渲染闭包每次重跑都会 new 一个 RwSignal，值刚写进去就被丢掉，
 // 表现是「永远转圈」。
+//
+// 缩放 / 平移不进 Lightbox 结构体：拖拽每帧都要改，走响应式会把
+// 整个覆盖层（含工具条与浮层栈）重跑一遍。这里用 StoredValue 存视图状态 +
+// 直接写 `style.transform`，结构体只管「打开的是哪张、转了多少度」。
 // ============================================================
 
 use glass_design::prelude::*;
+use leptos::html;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use wasm_bindgen::JsCast;
@@ -71,6 +76,82 @@ impl Lightbox {
     }
 }
 
+/* ---------------- 缩放 / 平移 ---------------- */
+
+/// 灯箱里的视图变换：`scale` 是相对「适合窗口」的倍数，`tx`/`ty` 是屏幕像素平移。
+#[derive(Clone, Copy)]
+struct ZoomView {
+    scale: f64,
+    tx: f64,
+    ty: f64,
+}
+
+impl Default for ZoomView {
+    fn default() -> Self {
+        Self {
+            scale: 1.0,
+            tx: 0.0,
+            ty: 0.0,
+        }
+    }
+}
+
+const ZOOM_MIN: f64 = 1.0;
+const ZOOM_MAX: f64 = 8.0;
+
+/// 把变换写回 DOM。只有这里碰 `style.transform`：
+/// 拖拽每帧调它，不走响应式，覆盖层不会被重算。
+fn apply_zoom(
+    el: Option<&web_sys::HtmlImageElement>,
+    view: StoredValue<ZoomView>,
+    rotation: i32,
+    pct: RwSignal<u32>,
+) {
+    let v = view.get_value();
+    if let Some(el) = el {
+        let _ = el.set_attribute(
+            "style",
+            &format!(
+                "transform:translate({:.2}px, {:.2}px) rotate({rotation}deg) scale({:.4})",
+                v.tx, v.ty, v.scale
+            ),
+        );
+        let zoomed = v.scale > ZOOM_MIN + 0.001;
+        let _ = el.set_attribute("data-zoomed", if zoomed { "true" } else { "false" });
+    }
+    let p = (v.scale * 100.0).round() as u32;
+    if pct.get_untracked() != p {
+        pct.set(p);
+    }
+}
+
+/// 以屏幕点 `(cx, cy)` 为锚点缩放到 `target`：锚点下的那块图不动。
+///
+/// 推导很短：变换是 `T + k·q`（q 是图片内坐标），要让 P 处的 q 不变，
+/// 只有 `t' = t + (1 - k)·(P − rect.center)`；`rect` 取当前变换后的包围盒，
+/// 旋转 90° 时它的中心仍是图片中心。
+///
+/// 平移**不设边界**：照片查看器里「拖到哪算哪」比「永远盖满窗口」更好用，
+/// 想回原位双击或缩回 1× 即可（两者都会把位移清零）。
+fn zoom_to(view: &mut ZoomView, el: &web_sys::HtmlImageElement, target: f64, cx: f64, cy: f64) {
+    let target = target.clamp(ZOOM_MIN, ZOOM_MAX);
+    let k = target / view.scale;
+    if (k - 1.0).abs() < 1e-4 {
+        return;
+    }
+    let rect = el.get_bounding_client_rect();
+    let dx = cx - (rect.left() + rect.width() / 2.0);
+    let dy = cy - (rect.top() + rect.height() / 2.0);
+    view.tx += (1.0 - k) * dx;
+    view.ty += (1.0 - k) * dy;
+    view.scale = target;
+    // 回到「适合窗口」时归中，不把上一次的位移留在原地
+    if view.scale <= ZOOM_MIN + 0.001 {
+        view.tx = 0.0;
+        view.ty = 0.0;
+    }
+}
+
 /// 把当前图的原图拉回来。切页 / 翻页后都要调一次。
 pub fn load_current(app: App) {
     let Some(lb) = app.lightbox.get_untracked() else {
@@ -118,6 +199,15 @@ pub fn load_current(app: App) {
 pub fn LightboxView() -> impl IntoView {
     let app = App::use_ctx();
 
+    // 缩放 / 平移是命令式状态：拖拽每帧只写 style，不触发覆盖层重渲染。
+    let img_ref: NodeRef<html::Img> = NodeRef::new();
+    let view: StoredValue<ZoomView> = StoredValue::new(ZoomView::default());
+    let drag_from: StoredValue<Option<(f64, f64, f64, f64)>> = StoredValue::new(None);
+    let dragged: StoredValue<bool> = StoredValue::new(false);
+    let zoom_pct = RwSignal::new(100_u32);
+    // 换图时把缩放归零。用 URL 判断：翻页、重进灯箱都覆盖得到。
+    let shown_url: StoredValue<String> = StoredValue::new(String::new());
+
     // 打开 / 翻页后拉原图
     Effect::new(move |_| {
         let Some(lb) = app.lightbox.get() else {
@@ -127,6 +217,24 @@ pub fn LightboxView() -> impl IntoView {
             load_current(app);
         }
     });
+
+    // 换图 → 归零；旋转 → 保留缩放，只换角度。两者都靠这个 Effect 重写 transform。
+    {
+        let img_ref = img_ref.clone();
+        Effect::new(move |_| {
+            let Some(lb) = app.lightbox.get() else {
+                shown_url.set_value(String::new());
+                return;
+            };
+            let url = lb.url.clone().unwrap_or_default();
+            if shown_url.get_value() != url {
+                shown_url.set_value(url);
+                view.set_value(ZoomView::default());
+            }
+            let el = img_ref.get();
+            apply_zoom(el.as_ref(), view, lb.rotation, zoom_pct);
+        });
+    }
 
     view! {
         {move || {
@@ -166,22 +274,51 @@ pub fn LightboxView() -> impl IntoView {
                 });
             };
 
+            // NodeRef 每个处理器各要一份；StoredValue 本身是 Copy，直接共用。
+            let img_effect = img_ref;
+            let img_wheel = img_ref.clone();
+            let img_down = img_ref.clone();
+            let img_move = img_ref.clone();
+            let img_up = img_ref.clone();
+            let img_cancel = img_ref.clone();
+            let img_zoom = img_ref.clone();
+
             view! {
                 <div
                     class="lumina-lightbox"
                     on:click=move |ev: web_sys::MouseEvent| {
-                        // 点图片外面任意区域退出
-                        if let Some(t) = ev.target() {
-                            if let Some(el) = t.dyn_ref::<web_sys::HtmlElement>() {
-                                if el.class_list().contains("lumina-lightbox__img") {
-                                    return;
-                                }
-                            }
+                        // 拖完浏览器还会补一个 click，别当成「点了空白」
+                        let was_drag = dragged.get_value();
+                        dragged.set_value(false);
+                        if was_drag {
+                            return;
                         }
-                        close();
+                        // 图片与底部工具条之外的地方才退出
+                        let on_chrome = ev
+                            .target()
+                            .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
+                            .and_then(|el| {
+                                el.closest(".lumina-lightbox__img, .lumina-lightbox__bar")
+                                    .ok()
+                                    .flatten()
+                            })
+                            .is_some();
+                        if !on_chrome {
+                            close();
+                        }
                     }
                     on:wheel=move |ev: web_sys::WheelEvent| {
-                        if ev.delta_y() > 0.0 { next(); } else { prev(); }
+                        // 滚轮＝缩放（锚在光标上），翻页交给 ←/→ 与底部按钮
+                        ev.prevent_default();
+                        let Some(el) = img_wheel.get() else { return };
+                        let step = (-ev.delta_y() * 0.0015).exp();
+                        {
+                            let mut v = view.get_value();
+                            let target = v.scale * step;
+                            zoom_to(&mut v, &el, target, ev.client_x() as f64, ev.client_y() as f64);
+                            view.set_value(v);
+                        }
+                        apply_zoom(Some(&el), view, rotation, zoom_pct);
                     }
                 >
                     {bg.map(|src| view! {
@@ -191,10 +328,77 @@ pub fn LightboxView() -> impl IntoView {
                         {match url {
                             Some(src) => view! {
                                 <img
+                                    node_ref=img_effect
                                     class="lumina-lightbox__img"
                                     src=src
                                     alt=""
-                                    style=format!("transform:rotate({rotation}deg)")
+                                    draggable="false"
+                                    on:pointerdown=move |ev: web_sys::PointerEvent| {
+                                        if ev.button() != 0 {
+                                            return;
+                                        }
+                                        let Some(el) = img_down.get() else { return };
+                                        let _ = el.set_pointer_capture(ev.pointer_id());
+                                        {
+                                            let v = view.get_value();
+                                            drag_from.set_value(Some((
+                                                ev.client_x() as f64,
+                                                ev.client_y() as f64,
+                                                v.tx,
+                                                v.ty,
+                                            )));
+                                        }
+                                        dragged.set_value(false);
+                                        let _ = el.set_attribute("data-dragging", "true");
+                                        ev.prevent_default();
+                                    }
+                                    on:pointermove=move |ev: web_sys::PointerEvent| {
+                                        let Some((sx, sy, tx0, ty0)) = drag_from.get_value() else {
+                                            return;
+                                        };
+                                        let dx = ev.client_x() as f64 - sx;
+                                        let dy = ev.client_y() as f64 - sy;
+                                        if dx.abs() > 3.0 || dy.abs() > 3.0 {
+                                            dragged.set_value(true);
+                                        }
+                                        let Some(el) = img_move.get() else { return };
+                                        {
+                                            // 自由平移：不钳制，拖到窗口外也随你
+                                            let mut v = view.get_value();
+                                            v.tx = tx0 + dx;
+                                            v.ty = ty0 + dy;
+                                            view.set_value(v);
+                                        }
+                                        apply_zoom(Some(&el), view, rotation, zoom_pct);
+                                    }
+                                    on:pointerup=move |ev: web_sys::PointerEvent| {
+                                        end_pan(img_up.get().as_ref(), drag_from, ev.pointer_id());
+                                    }
+                                    on:pointercancel=move |ev: web_sys::PointerEvent| {
+                                        end_pan(img_cancel.get().as_ref(), drag_from, ev.pointer_id());
+                                    }
+                                    on:dblclick=move |ev: web_sys::MouseEvent| {
+                                        // 双击：动过（放大或拖开）就一键归位；
+                                        // 原本居中 1× 时才放大到 2.5×（锚在光标上）
+                                        let Some(el) = img_zoom.get() else { return };
+                                        {
+                                            let mut v = view.get_value();
+                                            let moved = v.tx.abs() > 0.5 || v.ty.abs() > 0.5;
+                                            if v.scale > ZOOM_MIN + 0.001 || moved {
+                                                v = ZoomView::default();
+                                            } else {
+                                                zoom_to(
+                                                    &mut v,
+                                                    &el,
+                                                    2.5,
+                                                    ev.client_x() as f64,
+                                                    ev.client_y() as f64,
+                                                );
+                                            }
+                                            view.set_value(v);
+                                        }
+                                        apply_zoom(Some(&el), view, rotation, zoom_pct);
+                                    }
                                 />
                             }.into_any(),
                             None => view! { <Spinner label="载入中" /> }.into_any(),
@@ -208,6 +412,9 @@ pub fn LightboxView() -> impl IntoView {
                             <span class="lumina-lightbox__count">
                                 {format!("{} / {total}", index + 1)}
                             </span>
+                            {move || (zoom_pct.get() > 100).then(|| view! {
+                                <span class="lumina-lightbox__zoom">{format!("{}%", zoom_pct.get())}</span>
+                            })}
                             <IconButton
                                 icon=IconName::ROTATE_CCW
                                 label="逆时针旋转"
@@ -232,6 +439,19 @@ pub fn LightboxView() -> impl IntoView {
             .into_any()
         }}
     }
+}
+
+/// 结束一次拖拽：解开指针捕获、复原光标、清掉起点。
+fn end_pan(
+    el: Option<&web_sys::HtmlImageElement>,
+    drag: StoredValue<Option<(f64, f64, f64, f64)>>,
+    pointer_id: i32,
+) {
+    if let Some(el) = el {
+        let _ = el.release_pointer_capture(pointer_id);
+        let _ = el.remove_attribute("data-dragging");
+    }
+    drag.set_value(None);
 }
 
 /// 灯箱键盘：←/→ 翻页、R 旋转、Esc 关闭、空格收藏。

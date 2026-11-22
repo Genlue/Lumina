@@ -18,12 +18,16 @@ use crate::state::App;
 use crate::theme;
 use crate::ui::{toast, toast_with};
 
-const APP_VERSION: &str = "4.0.1";
+const APP_VERSION: &str = "4.2.0";
 
 #[component]
 pub fn SettingsPage() -> impl IntoView {
     let app = App::use_ctx();
     let th = use_context::<Theme>().expect("Theme");
+
+    // 玻璃效果档位由 GlassDesign 存在 localStorage（glass-design:effects），
+    // 这里只维护一份镜像信号驱动 Segmented，刷新时用 effects() 回读。
+    let fx = RwSignal::new(effects());
 
     view! {
         <div class="lumina-page">
@@ -53,6 +57,25 @@ pub fn SettingsPage() -> impl IntoView {
                         on_change=Callback::new(move |hex: String| {
                             theme::set_accent(th, &hex);
                             app.patch(serde_json::json!({ "accent_color": hex }));
+                        })
+                    />
+                </Row>
+                <Row label="玻璃效果" hint="完整效果保留 SVG 折射；仅模糊只留背景模糊；性能优先改用不透明面，低配机器更跟手">
+                    <Segmented
+                        options=vec![
+                            SegmentedOption::new("auto", "完整效果"),
+                            SegmentedOption::new("blur", "仅模糊"),
+                            SegmentedOption::new("solid", "性能优先"),
+                        ]
+                        value=Signal::derive(move || fx.get().as_str().to_string())
+                        label="玻璃效果"
+                        on_change=Callback::new(move |v: String| {
+                            // 非法值保持原状；写文档属性 + localStorage 都归库管，
+                            // 下次启动由 bootstrap 在挂载前恢复。
+                            if let Some(next) = GlassEffects::from_value(&v) {
+                                fx.set(next);
+                                save_effects_preference(next);
+                            }
                         })
                     />
                 </Row>
@@ -372,7 +395,7 @@ pub fn SettingsPage() -> impl IntoView {
                         })
                     />
                 </Row>
-                <Row label="设计系统" hint="GlassDesign 0.8 · 104 个组件 · 构建期预计算液态玻璃">
+                <Row label="设计系统" hint="GlassDesign 0.10 · 构建期预计算液态玻璃 · 效果可分三档">
                     <Badge label="glass-design" variant=BadgeVariant::Accent />
                 </Row>
             </Card>

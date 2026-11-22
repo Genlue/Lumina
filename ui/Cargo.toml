@@ -1,6 +1,6 @@
 [package]
 name = "lumina-ui"
-version = "4.0.1"
+version = "4.2.0"
 edition = "2021"
 description = "Lumina 前端渲染层（Leptos CSR + GlassDesign）"
 
@@ -10,11 +10,12 @@ description = "Lumina 前端渲染层（Leptos CSR + GlassDesign）"
 # 别写 `=0.8.x` 精确锁 —— 库用 caret，锁死会各拿一份 leptos，Signal 变成两个类型。
 leptos = { version = "0.8", features = ["csr"] }
 wasm-bindgen = "0.2"
-# 0.8.1 起：覆盖式滚动条由库自己挂（ScrollArea / NavColumn），滑块拖拽不再被
-# 按压过渡缓动，`Row` 有 `wide` 开关。这三条以前是在 app.css 里打补丁绕过的。
-# 0.8.2 是打包修复（模板清单改名 .liquid，首次拉取不再刷两行包名错误）；
-# 0.8.3 修 0.8.1 引入的回归：滑块拇指与进度条脱节。
-glass-design = { git = "https://github.com/Genlue/GlassDesign", tag = "v0.8.3" }
+# 依赖直接认上游仓库的 tag，不在本仓库留副本：
+# 升级＝改这一行的 tag → `cargo update -p glass-design` → 提交 Cargo.lock。
+# 0.10.0 起有文档级「玻璃效果」三档（Auto / Blur / Solid），由安装期的
+# `restore_effects_preference` 恢复，选择存 localStorage（键 glass-design:effects）。
+# 0.8.1 起覆盖式滚动条由库自己挂、`Row` 有 `wide`；0.8.3 修滑块拇指与填充脱节。
+glass-design = { git = "https://github.com/Genlue/GlassDesign", tag = "v0.10.0" }
 
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
@@ -33,6 +34,9 @@ features = [
   "EventTarget",
   "KeyboardEvent",
   "MouseEvent",
+  "WheelEvent",
+  "PointerEvent",
+  "HtmlImageElement",
   "ResizeObserver",
   "ResizeObserverEntry",
   "ResizeObserverSize",

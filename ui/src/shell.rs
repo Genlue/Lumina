@@ -816,14 +816,14 @@ fn LauncherBody() -> impl IntoView {
     view! {
         <div class="lumina-launcher">
             <div class="lumina-launcher__inner">
-                <div class="lumina-launcher__head">
-                    <div class="lumina-launcher__mark">
-                        <Icon name=IconName::IMAGES size=26 />
-                    </div>
-                    <div class="l-stack l-stack--1">
+                <div class="lumina-launcher__brand">
+                    <span class="lumina-launcher__mark">
+                        <Icon name=IconName::IMAGES size=28 />
+                    </span>
+                    <div class="lumina-launcher__brandtext">
                         <span class="lumina-launcher__title">"Lumina"</span>
-                        <span class="c-subtitle">
-                            "选一个图库开始。照片始终留在这台电脑上，Lumina 只做索引。"
+                        <span class="lumina-launcher__tagline">
+                            "本地相册 · 照片只在这台电脑上"
                         </span>
                     </div>
                 </div>
@@ -851,33 +851,42 @@ fn LauncherBody() -> impl IntoView {
                         .into_any();
                     }
 
+                    let count = list.len();
                     view! {
-                        <div class="lumina-launcher__grid">
-                            {list
-                                .into_iter()
-                                .map(|p| view! { <LibCard profile=p /> })
-                                .collect_view()}
-                            <button
-                                class="lumina-libcard lumina-libcard--add"
-                                on:click=move |_| app.add_profile()
-                            >
-                                <span class="lumina-libcard__plus">
-                                    <Icon name=IconName::PLUS size=22 />
-                                </span>
-                                <span class="lumina-libcard__name">"添加图库"</span>
-                                <span class="lumina-libcard__path">"选一个装照片的文件夹"</span>
-                            </button>
+                        <div class="lumina-launcher__shelf">
+                            <div class="lumina-launcher__shelfhead">
+                                <span class="c-subtitle">{format!("{count} 个图库")}</span>
+                            </div>
+                            <div class="lumina-launcher__list">
+                                {list
+                                    .into_iter()
+                                    .map(|p| view! { <LibRow profile=p /> })
+                                    .collect_view()}
+                                <button class="lumina-librow lumina-librow--add" on:click=move |_| app.add_profile()>
+                                    <span class="lumina-librow__art lumina-librow__art--add">
+                                        <Icon name=IconName::PLUS size=18 />
+                                    </span>
+                                    <span class="lumina-librow__main">
+                                        <span class="lumina-librow__name">"添加图库"</span>
+                                        <span class="lumina-librow__path">"选一个装照片的文件夹"</span>
+                                    </span>
+                                </button>
+                            </div>
                         </div>
                     }
                     .into_any()
                 }}
+
+                <p class="lumina-launcher__foot">
+                    "照片不会被移动或上传。换电脑时把整个文件夹带走，回来重新添加即可。"
+                </p>
             </div>
         </div>
     }
 }
 
 #[component]
-fn LibCard(profile: Profile) -> impl IntoView {
+fn LibRow(profile: Profile) -> impl IntoView {
     let app = App::use_ctx();
 
     let enter_click = profile.id.clone();
@@ -898,7 +907,8 @@ fn LibCard(profile: Profile) -> impl IntoView {
 
     view! {
         <div
-            class="lumina-libcard"
+            class="lumina-librow"
+            class:lumina-librow--gone=unavailable
             role="button"
             tabindex="0"
             title=path_title
@@ -910,24 +920,25 @@ fn LibCard(profile: Profile) -> impl IntoView {
                 }
             }
         >
-            <div class="lumina-libcard__art">
+            <span class="lumina-librow__art">
                 <Icon
                     name=if unavailable { IconName::TRIANGLE_ALERT } else { IconName::IMAGES }
-                    size=30
+                    size=22
                 />
-            </div>
+            </span>
 
-            <div class="lumina-libcard__body">
-                <span class="lumina-libcard__name">{name}</span>
-                <span class="lumina-libcard__path">{path}</span>
-                <span class="lumina-libcard__meta">
-                    {if unavailable { "文件夹不可用，需要重新定位".to_string() } else { meta }}
+            <span class="lumina-librow__main">
+                <span class="lumina-librow__name">{name}</span>
+                <span class="lumina-librow__path">
+                    {if unavailable { "文件夹不可用，需要重新定位".to_string() } else { path }}
                 </span>
-            </div>
+            </span>
 
-            <div class="lumina-libcard__actions">
+            <span class="lumina-librow__meta">{meta}</span>
+
+            <span class="lumina-librow__actions">
                 <button
-                    class="lumina-libcard__act"
+                    class="lumina-librow__act"
                     title="重新定位"
                     aria-label="重新定位"
                     on:click=move |ev: web_sys::MouseEvent| {
@@ -938,7 +949,7 @@ fn LibCard(profile: Profile) -> impl IntoView {
                     <Icon name=IconName::MOVE size=13 />
                 </button>
                 <button
-                    class="lumina-libcard__act"
+                    class="lumina-librow__act"
                     title="移除图库"
                     aria-label="移除图库"
                     on:click=move |ev: web_sys::MouseEvent| {
@@ -948,7 +959,11 @@ fn LibCard(profile: Profile) -> impl IntoView {
                 >
                     <Icon name=IconName::TRASH size=13 />
                 </button>
-            </div>
+            </span>
+
+            <span class="lumina-librow__go">
+                <Icon name=IconName::CHEVRON_RIGHT size=14 />
+            </span>
         </div>
     }
 }
